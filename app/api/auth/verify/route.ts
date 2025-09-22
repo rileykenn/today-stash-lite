@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type AdminUserAttributes } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
 
@@ -30,11 +30,8 @@ export async function POST(req: Request) {
 
     // Normalize target for Twilio
     let dest = target.trim();
-    let byEmail = false;
-
-    if (isEmail(dest)) {
-      byEmail = true;
-    } else {
+    const byEmail = isEmail(dest);
+    if (!byEmail) {
       dest = normalizePhoneAU(dest);
       if (!isE164(dest)) {
         return NextResponse.json(
@@ -67,39 +64,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid or expired code' }, { status: 400 });
     }
 
-    // 2) Create Supabase user with the proper identifier (no aliases)
+    // 2) Create Supabase user (typed, no `any`)
     const admin = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
 
-    const createPayload: any = {
+    const createPayload: AdminUserAttributes = {
       password,
       user_metadata: byEmail
         ? { signup_method: 'email' }
         : { signup_method: 'phone', phone: dest },
+      ...(byEmail
+        ? { email: dest, email_confirm: true }
+        : { phone: dest, phone_confirm: true }),
     };
-
-    if (byEmail) {
-      createPayload.email = dest;
-      createPayload.email_confirm = true; // Twilio verified email
-    } else {
-      createPayload.phone = dest;
-      createPayload.phone_confirm = true; // Twilio verified phone
-    }
 
     const { error: createErr } = await admin.auth.admin.createUser(createPayload);
 
     if (createErr) {
-      // If the user already exists, we treat it as success
-      const already =
-        createErr.message?.toLowerCase().includes('already registered') ||
-        createErr.message?.toLowerCase().includes('duplicate');
+      const msg = (createErr.message || '').toLowerCase();
+      const already = msg.includes('already registered') || msg.includes('duplicate');
       if (!already) {
         console.error('Supabase createUser error:', createErr);
         return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
       }
+      // user exists -> treat as success
     }
 
-    // 3) Done
-    // (You can sign in on the client with supabase.auth.signInWithPassword using email+password OR phone+password)
+    // 3) Done. Client can sign in with email+password OR phone+password.
     return NextResponse.json({
       ok: true,
       login: byEmail ? { email: dest } : { phone: dest },
