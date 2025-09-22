@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 
 type Stage = 'form' | 'code' | 'done';
-type ApiOk = { ok: true; [k: string]: unknown };
+type ApiOk = { ok: true; emailForLogin?: string };
 type ApiErr = { error: string };
 
 function isApiErr(x: unknown): x is ApiErr {
@@ -11,12 +12,12 @@ function isApiErr(x: unknown): x is ApiErr {
 }
 
 export default function SignupPage() {
-  const [target, setTarget] = useState<string>('');      // email or phone
-  const [password, setPassword] = useState<string>('');  // not used yet (session step)
-  const [confirm, setConfirm] = useState<string>('');
-  const [code, setCode] = useState<string>('');
+  const [target, setTarget] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [code, setCode] = useState('');
   const [stage, setStage] = useState<Stage>('form');
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   const passwordsMatch = password.length >= 8 && password === confirm;
@@ -32,38 +33,40 @@ export default function SignupPage() {
         body: JSON.stringify({ target: target.trim() }),
       });
       const j: ApiOk | ApiErr = await res.json();
-      if (!res.ok || isApiErr(j)) {
-        throw new Error(isApiErr(j) ? j.error : 'Failed to send code');
-      }
+      if (!res.ok || isApiErr(j)) throw new Error(isApiErr(j) ? j.error : 'Failed to send code');
       setStage('code');
       setMsg('We sent you a code. Enter it below.');
     } catch (e) {
-      const m = e instanceof Error ? e.message : 'Error sending code';
-      setMsg(m);
+      setMsg(e instanceof Error ? e.message : 'Error sending code');
     } finally {
       setLoading(false);
     }
   }
 
-  async function verifyCode() {
+  async function verifyAndLogin() {
     setLoading(true);
     setMsg(null);
     try {
       const res = await fetch('/api/auth/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target: target.trim(), code: code.trim() }),
+        body: JSON.stringify({ target: target.trim(), code: code.trim(), password }),
       });
       const j: ApiOk | ApiErr = await res.json();
-      if (!res.ok || isApiErr(j)) {
-        throw new Error(isApiErr(j) ? j.error : 'Verify failed');
-      }
-      // ✅ Code approved by Twilio. Next step (separate): create Supabase user + session.
+      if (!res.ok || isApiErr(j)) throw new Error(isApiErr(j) ? j.error : 'Verify failed');
+
+      const emailForLogin = j.emailForLogin as string;
+      const { error: signErr } = await supabase.auth.signInWithPassword({
+        email: emailForLogin,
+        password,
+      });
+      if (signErr) throw new Error(signErr.message);
+
       setStage('done');
-      setMsg('Verified! Next we’ll create your account & sign you in.');
+      setMsg('Account created & signed in!');
+      // TODO: router.push('/deals') when ready
     } catch (e) {
-      const m = e instanceof Error ? e.message : 'Verify failed';
-      setMsg(m);
+      setMsg(e instanceof Error ? e.message : 'Verify failed');
     } finally {
       setLoading(false);
     }
@@ -126,11 +129,11 @@ export default function SignupPage() {
               className="w-full bg-zinc-800 rounded-lg px-3 py-2 text-center tracking-[0.3em] outline-none focus:ring-2 focus:ring-lime-400"
             />
             <button
-              onClick={verifyCode}
+              onClick={verifyAndLogin}
               disabled={loading || code.length !== 6}
               className="mt-4 w-full rounded-lg px-4 py-2 bg-lime-500 text-black font-semibold disabled:opacity-50"
             >
-              {loading ? 'Verifying…' : 'Verify code'}
+              {loading ? 'Verifying…' : 'Verify & Create Account'}
             </button>
 
             <button
@@ -144,7 +147,7 @@ export default function SignupPage() {
 
         {stage === 'done' && (
           <div className="text-lime-400 font-semibold">
-            Verified! 🎉 Next: we’ll create your Supabase account and sign you in.
+            Account created & signed in! 🎉
           </div>
         )}
 
