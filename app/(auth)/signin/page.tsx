@@ -2,11 +2,20 @@
 
 import { useState } from 'react';
 
+type Stage = 'enter' | 'code' | 'done';
+type ApiOk = { ok: true; [k: string]: unknown };
+type ApiErr = { error: string };
+type ApiRes = ApiOk | ApiErr;
+
+function isApiErr(x: unknown): x is ApiErr {
+  return typeof x === 'object' && x !== null && 'error' in x;
+}
+
 export default function SignInPage() {
-  const [target, setTarget] = useState('');       // phone or email
-  const [stage, setStage] = useState<'enter'|'code'|'done'>('enter');
-  const [code, setCode] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [target, setTarget] = useState<string>('');
+  const [stage, setStage] = useState<Stage>('enter');
+  const [code, setCode] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   async function sendCode() {
@@ -18,12 +27,15 @@ export default function SignInPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ target }),
       });
-      const j = await res.json();
-      if (!res.ok) throw new Error(j?.error || 'Failed to send code');
+      const j: ApiRes = await res.json();
+      if (!res.ok || isApiErr(j)) {
+        throw new Error(isApiErr(j) ? j.error : 'Failed to send code');
+      }
       setStage('code');
       setMsg('Code sent. Check your phone.');
-    } catch (e: any) {
-      setMsg(e.message || 'Failed to send code');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to send code';
+      setMsg(message);
     } finally {
       setLoading(false);
     }
@@ -38,12 +50,15 @@ export default function SignInPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ target, code }),
       });
-      const j = await res.json();
-      if (!res.ok) throw new Error(j?.error || 'Verify failed');
+      const j: ApiRes = await res.json();
+      if (!res.ok || isApiErr(j)) {
+        throw new Error(isApiErr(j) ? j.error : 'Verify failed');
+      }
       setStage('done');
       setMsg('Verified! (Next: mint session + redirect)');
-    } catch (e: any) {
-      setMsg(e.message || 'Verify failed');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Verify failed';
+      setMsg(message);
     } finally {
       setLoading(false);
     }
@@ -75,13 +90,16 @@ export default function SignInPage() {
 
         {stage === 'code' && (
           <>
-            <div className="text-sm text-zinc-300 mb-2">We sent a code to <span className="font-semibold">{target}</span></div>
+            <div className="text-sm text-zinc-300 mb-2">
+              We sent a code to <span className="font-semibold">{target}</span>
+            </div>
             <input
               value={code}
               onChange={(e) => setCode(e.target.value)}
               placeholder="6-digit code"
               className="w-full bg-zinc-800 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-lime-400 tracking-[0.3em] text-center"
               maxLength={6}
+              inputMode="numeric"
             />
             <button
               onClick={verifyCode}
@@ -92,7 +110,10 @@ export default function SignInPage() {
             </button>
 
             <button
-              onClick={() => { setStage('enter'); setCode(''); }}
+              onClick={() => {
+                setStage('enter');
+                setCode('');
+              }}
               className="mt-3 w-full text-sm text-zinc-400 hover:text-zinc-200"
             >
               Wrong number? Edit
@@ -101,7 +122,9 @@ export default function SignInPage() {
         )}
 
         {stage === 'done' && (
-          <div className="text-lime-400 font-semibold">Signed in (OTP verified). Next we’ll mint a session & redirect.</div>
+          <div className="text-lime-400 font-semibold">
+            Signed in (OTP verified). Next we’ll mint a session & redirect.
+          </div>
         )}
 
         {msg && <div className="mt-4 text-sm text-zinc-300">{msg}</div>}
