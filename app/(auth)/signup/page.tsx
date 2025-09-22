@@ -5,56 +5,75 @@ export const dynamic = 'force-dynamic';
 import { useState } from 'react';
 import { getSupabaseClient } from '@/lib/supabaseClient';
 
-type VerifyOk =
-  | { ok: true; login: { email: string } }
-  | { ok: true; login: { phone: string } };
-
-type VerifyErr = { error: string };
-
-// Type guards to keep ESLint happy and avoid any
-function isVerifyOk(d: unknown): d is VerifyOk {
-  return (
-    typeof d === 'object' &&
-    d !== null &&
-    'ok' in d &&
-    (d as { ok?: unknown }).ok === true &&
-    'login' in d &&
-    typeof (d as { login?: unknown }).login === 'object' &&
-    (d as { login: { email?: unknown; phone?: unknown } }).login !== null &&
-    (typeof (d as { login: { email?: unknown } }).login.email === 'string' ||
-      typeof (d as { login: { phone?: unknown } }).login.phone === 'string')
-  );
+function isEmail(x: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x);
+}
+function isE164(x: string): boolean {
+  return /^\+\d{7,15}$/.test(x);
+}
+function normalizePhoneAU(s: string): string {
+  const t = s.replace(/\s+/g, '');
+  if (t.startsWith('+')) return t;
+  if (/^0\d{8,10}$/.test(t)) return '+61' + t.slice(1);
+  return t;
 }
 
-function isVerifyErr(d: unknown): d is VerifyErr {
-  return typeof d === 'object' && d !== null && 'error' in d && typeof (d as { error?: unknown }).error === 'string';
-}
+type Step = 'enter' | 'code' | 'done';
 
 export default function SignupPage() {
   const [target, setTarget] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
-  const [step, setStep] = useState<'enter' | 'code' | 'done'>('enter');
+  const [step, setStep] = useState<Step>('enter');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+
+  const sb = getSupabaseClient();
 
   async function handleStart() {
     setMessage('');
     setBusy(true);
     try {
+      const input = target.trim();
+      if (!input || !password) {
+        setMessage('Enter your email/phone and a password.');
+        return;
+      }
+
+      if (isEmail(input)) {
+        // EMAIL: Supabase Email OTP (no SendGrid/domain needed)
+        const email = input.toLowerCase();
+        const { error } = await sb.auth.signInWithOtp({
+          email,
+          options: { shouldCreateUser: true }, // user is created upon successful verify
+        });
+        if (error) {
+          setMessage(error.message || 'Failed to send email code');
+          return;
+        }
+        setStep('code');
+        setMessage('Code sent! Check your inbox (and spam).');
+        return;
+      }
+
+      // PHONE: Twilio flow (your existing API)
+      const phone = normalizePhoneAU(input);
+      if (!isE164(phone)) {
+        setMessage('Phone must be E.164 (+61...)');
+        return;
+      }
       const res = await fetch('/api/auth/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target }),
+        body: JSON.stringify({ target: phone }),
       });
-      const data: unknown = await res.json();
-
-      if (res.ok) {
-        setStep('code');
-        setMessage('Code sent! Check your phone or email.');
-      } else {
-        setMessage(isVerifyErr(data) ? data.error : 'Failed to send code');
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(data.error || 'Failed to send SMS code');
+        return;
       }
+      setStep('code');
+      setMessage('Code sent! Check your SMS.');
     } finally {
       setBusy(false);
     }
@@ -64,46 +83,54 @@ export default function SignupPage() {
     setMessage('');
     setBusy(true);
     try {
+      const input = target.trim();
+      if (!input || !code) {
+        setMessage('Enter the code you received.');
+        return;
+      }
+
+      if (isEmail(input)) {
+        // EMAIL: verify OTP -> session -> set password
+        const email = input.toLowerCase();
+        const { data, error } = await sb.auth.verifyOtp({
+          email,
+          token: code.trim(),
+          type: 'email', // 6-digit email code
+        });
+        if (error || !data?.session) {
+          setMessage(error?.message || 'Invalid or expired code');
+          return;
+        }
+
+        // Set password after verification (now that user has a session)
+        const upd = await sb.auth.updateUser({ password });
+        if (upd.error) {
+          setMessage(upd.error.message || 'Failed to set password');
+          return;
+        }
+
+        setStep('done');
+        setMessage('Signup complete! You’re signed in.');
+        // TODO: router.push('/deals')
+        return;
+      }
+
+      // PHONE: verify via Twilio endpoint -> create user server-side -> sign in with password
+      const phone = normalizePhoneAU(input);
       const res = await fetch('/api/auth/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target, code, password }),
+        body: JSON.stringify({ target: phone, code: code.trim(), password }),
       });
-      const data: unknown = await res.json();
-
+      const vr = await res.json();
       if (!res.ok) {
-        setMessage(isVerifyErr(data) ? data.error : 'Verification failed');
+        setMessage(vr.error || 'Verification failed');
         return;
       }
 
-      if (!isVerifyOk(data)) {
-        setMessage('Unexpected response.');
-        return;
-      }
-
-      // Auto sign-in (email OR phone)
-      const sb = getSupabaseClient();
-
-      if ('email' in data.login) {
-        const { error } = await sb.auth.signInWithPassword({
-          email: data.login.email,
-          password,
-        });
-        if (error) {
-          setMessage(error.message || 'Sign-in failed');
-          return;
-        }
-      } else if ('phone' in data.login) {
-        const { error } = await sb.auth.signInWithPassword({
-          phone: data.login.phone,
-          password,
-        });
-        if (error) {
-          setMessage(error.message || 'Sign-in failed');
-          return;
-        }
-      } else {
-        setMessage('Missing login identifier.');
+      const { error } = await sb.auth.signInWithPassword({ phone, password });
+      if (error) {
+        setMessage(error.message || 'Sign-in failed');
         return;
       }
 
@@ -157,7 +184,7 @@ export default function SignupPage() {
             onClick={handleVerify}
             disabled={busy || !code}
           >
-            {busy ? 'Verifying…' : 'Verify & Create Account'}
+            {busy ? 'Verifying…' : 'Verify & Continue'}
           </button>
         </>
       )}
