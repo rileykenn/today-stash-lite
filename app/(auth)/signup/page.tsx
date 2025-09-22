@@ -1,21 +1,34 @@
-// app/(auth)/signup/page.tsx
 'use client';
 
 export const dynamic = 'force-dynamic';
 
 import { useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
-
-function getSupabaseClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
+import { getSupabaseClient } from '@/lib/supabaseClient';
 
 type VerifyOk =
   | { ok: true; login: { email: string } }
   | { ok: true; login: { phone: string } };
+
+type VerifyErr = { error: string };
+
+// Type guards to keep ESLint happy and avoid any
+function isVerifyOk(d: unknown): d is VerifyOk {
+  return (
+    typeof d === 'object' &&
+    d !== null &&
+    'ok' in d &&
+    (d as { ok?: unknown }).ok === true &&
+    'login' in d &&
+    typeof (d as { login?: unknown }).login === 'object' &&
+    (d as { login: { email?: unknown; phone?: unknown } }).login !== null &&
+    (typeof (d as { login: { email?: unknown } }).login.email === 'string' ||
+      typeof (d as { login: { phone?: unknown } }).login.phone === 'string')
+  );
+}
+
+function isVerifyErr(d: unknown): d is VerifyErr {
+  return typeof d === 'object' && d !== null && 'error' in d && typeof (d as { error?: unknown }).error === 'string';
+}
 
 export default function SignupPage() {
   const [target, setTarget] = useState('');
@@ -34,12 +47,13 @@ export default function SignupPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ target }),
       });
-      const data = await res.json();
+      const data: unknown = await res.json();
+
       if (res.ok) {
         setStep('code');
         setMessage('Code sent! Check your phone or email.');
       } else {
-        setMessage(data.error || 'Failed to send code');
+        setMessage(isVerifyErr(data) ? data.error : 'Failed to send code');
       }
     } finally {
       setBusy(false);
@@ -55,15 +69,22 @@ export default function SignupPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ target, code, password }),
       });
-      const data: VerifyOk | { error?: string } = await res.json();
+      const data: unknown = await res.json();
+
       if (!res.ok) {
-        setMessage((data as any).error || 'Verification failed');
+        setMessage(isVerifyErr(data) ? data.error : 'Verification failed');
+        return;
+      }
+
+      if (!isVerifyOk(data)) {
+        setMessage('Unexpected response.');
         return;
       }
 
       // Auto sign-in (email OR phone)
       const sb = getSupabaseClient();
-      if ('login' in data && 'email' in data.login) {
+
+      if ('email' in data.login) {
         const { error } = await sb.auth.signInWithPassword({
           email: data.login.email,
           password,
@@ -72,7 +93,7 @@ export default function SignupPage() {
           setMessage(error.message || 'Sign-in failed');
           return;
         }
-      } else if ('login' in data && 'phone' in data.login) {
+      } else if ('phone' in data.login) {
         const { error } = await sb.auth.signInWithPassword({
           phone: data.login.phone,
           password,
@@ -81,11 +102,14 @@ export default function SignupPage() {
           setMessage(error.message || 'Sign-in failed');
           return;
         }
+      } else {
+        setMessage('Missing login identifier.');
+        return;
       }
 
       setStep('done');
       setMessage('Signup complete! You’re signed in.');
-      // TODO: router.push('/deals') once that page exists
+      // TODO: router.push('/deals')
     } finally {
       setBusy(false);
     }
