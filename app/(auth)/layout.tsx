@@ -1,4 +1,3 @@
-// app/(auth)/layout.tsx
 export const dynamic = 'force-dynamic';
 
 export default function AuthLayout({

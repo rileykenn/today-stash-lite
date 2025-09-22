@@ -1,9 +1,8 @@
 'use client';
 
-export const dynamic = 'force-dynamic';
+// Do NOT export dynamic here; the (auth)/layout.tsx already disables prerender.
 
 import { useState } from 'react';
-import { getSupabaseClient } from '@/lib/supabaseClient';
 
 function isEmail(x: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x);
@@ -18,6 +17,17 @@ function normalizePhoneAU(s: string): string {
   return t;
 }
 
+// Lazy-create supabase client ONLY inside event handlers (prevents build/prerender crashes)
+function getSbSafe() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) {
+    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
+  }
+  const { createClient } = require('@supabase/supabase-js');
+  return createClient(url, key);
+}
+
 type Step = 'enter' | 'code' | 'done';
 
 export default function SignupPage() {
@@ -27,8 +37,6 @@ export default function SignupPage() {
   const [step, setStep] = useState<Step>('enter');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
-
-  const sb = getSupabaseClient();
 
   async function handleStart() {
     setMessage('');
@@ -42,10 +50,11 @@ export default function SignupPage() {
 
       if (isEmail(input)) {
         // EMAIL: Supabase Email OTP (no SendGrid/domain needed)
+        const sb = getSbSafe();
         const email = input.toLowerCase();
         const { error } = await sb.auth.signInWithOtp({
           email,
-          options: { shouldCreateUser: true }, // user is created upon successful verify
+          options: { shouldCreateUser: true },
         });
         if (error) {
           setMessage(error.message || 'Failed to send email code');
@@ -56,7 +65,7 @@ export default function SignupPage() {
         return;
       }
 
-      // PHONE: Twilio flow (your existing API)
+      // PHONE: Twilio Verify via our API
       const phone = normalizePhoneAU(input);
       if (!isE164(phone)) {
         setMessage('Phone must be E.164 (+61...)');
@@ -74,6 +83,9 @@ export default function SignupPage() {
       }
       setStep('code');
       setMessage('Code sent! Check your SMS.');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Unexpected error';
+      setMessage(msg);
     } finally {
       setBusy(false);
     }
@@ -90,32 +102,29 @@ export default function SignupPage() {
       }
 
       if (isEmail(input)) {
-        // EMAIL: verify OTP -> session -> set password
+        // EMAIL: verify -> session -> set password
+        const sb = getSbSafe();
         const email = input.toLowerCase();
         const { data, error } = await sb.auth.verifyOtp({
           email,
           token: code.trim(),
-          type: 'email', // 6-digit email code
+          type: 'email',
         });
         if (error || !data?.session) {
           setMessage(error?.message || 'Invalid or expired code');
           return;
         }
-
-        // Set password after verification (now that user has a session)
         const upd = await sb.auth.updateUser({ password });
         if (upd.error) {
           setMessage(upd.error.message || 'Failed to set password');
           return;
         }
-
         setStep('done');
         setMessage('Signup complete! You’re signed in.');
-        // TODO: router.push('/deals')
         return;
       }
 
-      // PHONE: verify via Twilio endpoint -> create user server-side -> sign in with password
+      // PHONE: verify via server, then sign in with password
       const phone = normalizePhoneAU(input);
       const res = await fetch('/api/auth/verify', {
         method: 'POST',
@@ -127,16 +136,17 @@ export default function SignupPage() {
         setMessage(vr.error || 'Verification failed');
         return;
       }
-
+      const sb = getSbSafe();
       const { error } = await sb.auth.signInWithPassword({ phone, password });
       if (error) {
         setMessage(error.message || 'Sign-in failed');
         return;
       }
-
       setStep('done');
       setMessage('Signup complete! You’re signed in.');
-      // TODO: router.push('/deals')
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Unexpected error';
+      setMessage(msg);
     } finally {
       setBusy(false);
     }
