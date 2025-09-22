@@ -1,16 +1,18 @@
 'use client';
 
 // Standalone verify screen:
-// - Lets user enter their email (or auto-fills from localStorage 'pendingEmail')
-// - Sends/resends Supabase email OTP (numeric code)
-// - Verifies the code and then sets password (required to use password sign-in later)
+// - Users can enter email (or it auto-fills from localStorage 'pendingEmail')
+// - Sends/resends Supabase email OTP (numeric code, not magic link)
+// - Verifies the code and then sets password
 
 import { useEffect, useState } from 'react';
 
 async function getSb() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
+  if (!url || !key) {
+    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
+  }
   const { createClient } = await import('@supabase/supabase-js');
   return createClient(url, key);
 }
@@ -19,21 +21,26 @@ function isEmail(x: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x);
 }
 
+type Step = 'enter' | 'code' | 'done';
+
 export default function VerifyEmailPage() {
-  const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState<string>('');
+  const [code, setCode] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
   const [message, setMessage] = useState<string>('');
-  const [busy, setBusy] = useState(false);
-  const [step, setStep] = useState<'enter' | 'code' | 'done'>('enter');
+  const [busy, setBusy] = useState<boolean>(false);
+  const [step, setStep] = useState<Step>('enter');
 
   useEffect(() => {
-    // If signup saves 'pendingEmail' later, this will auto-fill.
     const cached = typeof window !== 'undefined' ? localStorage.getItem('pendingEmail') : null;
     if (cached && isEmail(cached)) {
       setEmail(cached);
     }
   }, []);
+
+  function errMsg(e: unknown): string {
+    return e instanceof Error ? e.message : 'Unexpected error';
+  }
 
   async function sendCode() {
     setMessage('');
@@ -44,7 +51,7 @@ export default function VerifyEmailPage() {
     setBusy(true);
     try {
       const sb = await getSb();
-      // Force 6-digit code (not magic link) by NOT setting emailRedirectTo
+      // Force numeric code mode by not providing emailRedirectTo
       const { error } = await sb.auth.signInWithOtp({
         email: email.toLowerCase(),
         options: { shouldCreateUser: true },
@@ -53,14 +60,13 @@ export default function VerifyEmailPage() {
         setMessage(error.message || 'Failed to send code');
         return;
       }
-      // cache for returning users
       if (typeof window !== 'undefined') {
         localStorage.setItem('pendingEmail', email.toLowerCase());
       }
       setStep('code');
       setMessage('Code sent! Check your inbox (and spam).');
-    } catch (e: any) {
-      setMessage(e?.message || 'Unexpected error');
+    } catch (e: unknown) {
+      setMessage(errMsg(e));
     } finally {
       setBusy(false);
     }
@@ -83,7 +89,6 @@ export default function VerifyEmailPage() {
     setBusy(true);
     try {
       const sb = await getSb();
-      // Verify 6-digit email code -> creates a session on success
       const { data, error } = await sb.auth.verifyOtp({
         email: email.toLowerCase(),
         token: code.trim(),
@@ -93,21 +98,19 @@ export default function VerifyEmailPage() {
         setMessage(error?.message || 'Invalid or expired code');
         return;
       }
-      // Set password after verification
       const upd = await sb.auth.updateUser({ password });
       if (upd.error) {
         setMessage(upd.error.message || 'Failed to set password');
         return;
       }
-      // Cleanup and finish
       if (typeof window !== 'undefined') {
         localStorage.removeItem('pendingEmail');
       }
       setStep('done');
       setMessage('Email verified and password set. You’re signed in.');
-      // TODO: router.push('/deals') or to your paywall
-    } catch (e: any) {
-      setMessage(e?.message || 'Unexpected error');
+      // TODO: router.push('/deals')
+    } catch (e: unknown) {
+      setMessage(errMsg(e));
     } finally {
       setBusy(false);
     }
