@@ -1,3 +1,4 @@
+// app/api/auth/verify/route.ts
 import { NextResponse } from 'next/server';
 import { createClient, type AdminUserAttributes } from '@supabase/supabase-js';
 
@@ -28,10 +29,12 @@ export async function POST(req: Request) {
       );
     }
 
-    // Normalize target for Twilio
+    // Normalize for Verify + user creation
     let dest = target.trim();
     const byEmail = isEmail(dest);
-    if (!byEmail) {
+    if (byEmail) {
+      dest = dest.toLowerCase();
+    } else {
       dest = normalizePhoneAU(dest);
       if (!isE164(dest)) {
         return NextResponse.json(
@@ -41,7 +44,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 1) Verify code with Twilio Verify
+    // 1) Verify with Twilio
     const sid = process.env.TWILIO_ACCOUNT_SID!;
     const tok = process.env.TWILIO_AUTH_TOKEN!;
     const verifySid = process.env.TWILIO_VERIFY_SID!;
@@ -64,7 +67,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid or expired code' }, { status: 400 });
     }
 
-    // 2) Create Supabase user (typed, no `any`)
+    // 2) Create Supabase user AFTER verification
     const admin = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
 
     const createPayload: AdminUserAttributes = {
@@ -89,7 +92,6 @@ export async function POST(req: Request) {
       // user exists -> treat as success
     }
 
-    // 3) Done. Client can sign in with email+password OR phone+password.
     return NextResponse.json({
       ok: true,
       login: byEmail ? { email: dest } : { phone: dest },
