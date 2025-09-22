@@ -1,6 +1,6 @@
 'use client';
 
-// Do NOT export dynamic here; the (auth)/layout.tsx already disables prerender.
+// Do NOT export dynamic here; (auth)/layout.tsx already disables prerender.
 
 import { useState } from 'react';
 
@@ -17,14 +17,14 @@ function normalizePhoneAU(s: string): string {
   return t;
 }
 
-// Lazy-create supabase client ONLY inside event handlers (prevents build/prerender crashes)
-function getSbSafe() {
+// Lazy-create Supabase client with a dynamic ESM import (no CommonJS `require`)
+async function getSbSafe() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) {
     throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
   }
-  const { createClient } = require('@supabase/supabase-js');
+  const { createClient } = await import('@supabase/supabase-js');
   return createClient(url, key);
 }
 
@@ -50,7 +50,7 @@ export default function SignupPage() {
 
       if (isEmail(input)) {
         // EMAIL: Supabase Email OTP (no SendGrid/domain needed)
-        const sb = getSbSafe();
+        const sb = await getSbSafe();
         const email = input.toLowerCase();
         const { error } = await sb.auth.signInWithOtp({
           email,
@@ -103,7 +103,7 @@ export default function SignupPage() {
 
       if (isEmail(input)) {
         // EMAIL: verify -> session -> set password
-        const sb = getSbSafe();
+        const sb = await getSbSafe();
         const email = input.toLowerCase();
         const { data, error } = await sb.auth.verifyOtp({
           email,
@@ -136,7 +136,7 @@ export default function SignupPage() {
         setMessage(vr.error || 'Verification failed');
         return;
       }
-      const sb = getSbSafe();
+      const sb = await getSbSafe();
       const { error } = await sb.auth.signInWithPassword({ phone, password });
       if (error) {
         setMessage(error.message || 'Sign-in failed');
@@ -207,3 +207,4 @@ export default function SignupPage() {
     </div>
   );
 }
+4
