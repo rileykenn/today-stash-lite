@@ -17,42 +17,37 @@ function normalizePhoneAU(s: string): string {
   if (/^0\d{8,10}$/.test(t)) return '+61' + t.slice(1);
   return t;
 }
-function aliasForPhone(e164: string): string {
-  return `${e164.replace(/\+/g, '')}@phone.tstash`;
-}
 
 export async function POST(req: Request) {
   try {
     const { target, code, password }: Body = await req.json();
-    console.log("Incoming verify request:", { target, code, hasPassword: !!password });
-
     if (!target || !code || !password) {
-      console.warn("Missing required fields", { target, codePresent: !!code, passwordPresent: !!password });
       return NextResponse.json(
         { error: 'target, code, and password required' },
         { status: 400 }
       );
     }
 
-    // Normalize to email for Supabase
+    // Normalize target for Twilio
     let dest = target.trim();
-    let loginEmail = dest;
-    if (!isEmail(dest)) {
+    let byEmail = false;
+
+    if (isEmail(dest)) {
+      byEmail = true;
+    } else {
       dest = normalizePhoneAU(dest);
       if (!isE164(dest)) {
-        console.warn("Invalid phone format", dest);
-        return NextResponse.json({ error: 'phone must be E.164 (+61...)' }, { status: 400 });
+        return NextResponse.json(
+          { error: 'phone must be E.164 (+61...)' },
+          { status: 400 }
+        );
       }
-      loginEmail = aliasForPhone(dest);
     }
-    console.log("Normalized loginEmail:", loginEmail);
 
-    // Verify code with Twilio
+    // 1) Verify code with Twilio Verify
     const sid = process.env.TWILIO_ACCOUNT_SID!;
     const tok = process.env.TWILIO_AUTH_TOKEN!;
     const verifySid = process.env.TWILIO_VERIFY_SID!;
-
-    console.log("Checking code with Twilio Verify…", { to: dest, code });
 
     const params = new URLSearchParams({ To: dest, Code: code.trim() });
     const res = await fetch(
@@ -68,45 +63,49 @@ export async function POST(req: Request) {
     );
 
     const data = await res.json();
-    console.log("Twilio Verify response:", data);
-
-    if (!res.ok) {
-      console.error("Twilio Verify failed", data);
-      return NextResponse.json({ error: 'Twilio request failed' }, { status: 500 });
-    }
-    if (data.status !== 'approved') {
-      console.warn("Invalid or expired code", data);
+    if (!res.ok || data.status !== 'approved') {
       return NextResponse.json({ error: 'Invalid or expired code' }, { status: 400 });
     }
 
-    // Create Supabase user
-    console.log("Creating/fetching Supabase user…");
-
+    // 2) Create Supabase user with the proper identifier (no aliases)
     const admin = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
-    const { data: created, error: createErr } = await admin.auth.admin.createUser({
-      email: loginEmail,
+
+    const createPayload: any = {
       password,
-      email_confirm: true,
-      user_metadata: isEmail(target)
+      user_metadata: byEmail
         ? { signup_method: 'email' }
         : { signup_method: 'phone', phone: dest },
-    });
+    };
 
-    if (createErr) {
-      if (createErr.message?.toLowerCase().includes('already registered')) {
-        console.log("User already exists in Supabase:", loginEmail);
-      } else {
-        console.error("Supabase createUser error:", createErr);
-        return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
-      }
+    if (byEmail) {
+      createPayload.email = dest;
+      createPayload.email_confirm = true; // Twilio verified email
     } else {
-      console.log("Supabase user created:", created?.user?.id);
+      createPayload.phone = dest;
+      createPayload.phone_confirm = true; // Twilio verified phone
     }
 
-    // Success
-    return NextResponse.json({ ok: true, emailForLogin: loginEmail });
+    const { error: createErr } = await admin.auth.admin.createUser(createPayload);
+
+    if (createErr) {
+      // If the user already exists, we treat it as success
+      const already =
+        createErr.message?.toLowerCase().includes('already registered') ||
+        createErr.message?.toLowerCase().includes('duplicate');
+      if (!already) {
+        console.error('Supabase createUser error:', createErr);
+        return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
+      }
+    }
+
+    // 3) Done
+    // (You can sign in on the client with supabase.auth.signInWithPassword using email+password OR phone+password)
+    return NextResponse.json({
+      ok: true,
+      login: byEmail ? { email: dest } : { phone: dest },
+    });
   } catch (err) {
-    console.error("Server error in verify route:", err);
+    console.error('verify route error:', err);
     return NextResponse.json({ error: 'server error' }, { status: 500 });
   }
 }
