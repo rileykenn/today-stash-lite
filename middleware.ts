@@ -12,19 +12,31 @@ export async function middleware(req: NextRequest) {
     {
       cookies: {
         get: (key) => req.cookies.get(key)?.value,
+        // (optional but recommended for refresh flows)
+        set: (key, value, options) => {
+          res.cookies.set({ name: key, value, ...options });
+        },
+        remove: (key, options) => {
+          res.cookies.set({ name: key, value: '', ...options });
+        },
       },
     }
   );
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  // If no user, let through (handled by your (auth) routes anyway)
+  // If no user, let through (auth pages handle the rest)
   if (!user) return res;
 
-  // If not confirmed, force redirect (but allow auth routes)
-  const confirmed = !!user.email_confirmed_at;
+  // ✅ Consider phone-confirmed users as verified too
+  const confirmed =
+    Boolean(user.email_confirmed_at) ||
+    Boolean((user as any).phone_confirmed_at) || // present on Supabase user
+    Boolean(user.phone); // if they have a phone login, they had to verify via Twilio first
+
   const path = req.nextUrl.pathname;
 
+  // If not confirmed by either channel, force redirect (but allow auth routes)
   if (!confirmed && !path.startsWith('/auth')) {
     const url = req.nextUrl.clone();
     url.pathname = VERIFY_PATH;

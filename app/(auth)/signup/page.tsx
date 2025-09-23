@@ -35,7 +35,7 @@ const getBool = (o: Record<string, unknown>, k: string) =>
   typeof o[k] === 'boolean' ? (o[k] as boolean) : null;
 
 export default function SignupPage() {
-  // If already signed in, show banner
+  // Banner if already signed in
   const [sessionChecked, setSessionChecked] = useState(false);
   const [alreadySignedIn, setAlreadySignedIn] = useState(false);
   useEffect(() => {
@@ -92,11 +92,13 @@ export default function SignupPage() {
     [password, confirm]
   );
 
-  // Debounced availability check (server-side; normalized phone)
+  // Debounced availability check — ALWAYS reset flags first
   useEffect(() => {
     const t = setTimeout(async () => {
       const raw = identifier.trim();
-      if (!raw) { setEmailTaken(false); setPhoneTaken(false); return; }
+      setEmailTaken(false);
+      setPhoneTaken(false);
+      if (!raw) return;
 
       const email = isEmail(raw) ? raw : null;
       const phone = !email ? normalizePhoneAU(raw) : null;
@@ -107,26 +109,21 @@ export default function SignupPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, phone }),
         });
-        if (!res.ok) return;
+        if (!res.ok) return; // treat non-OK as "not taken"
         const j = await safeJson(res);
-        setEmailTaken(Boolean(getBool(j, 'email_taken')));
-        setPhoneTaken(Boolean(getBool(j, 'phone_taken')));
+        if (email) setEmailTaken(Boolean(getBool(j, 'email_taken')));
+        if (phone) setPhoneTaken(Boolean(getBool(j, 'phone_taken')));
       } catch {
-        // ignore transient typing errors
+        // network issues → leave as not taken
       }
     }, 300);
     return () => clearTimeout(t);
   }, [identifier]);
 
-  const alreadyUsed =
-    (isEmail(identifier) && emailTaken) ||
-    (!isEmail(identifier) && phoneTaken);
-
   const canSubmitForm =
     step === 'form' &&
     identifier.trim().length > 0 &&
     strongPassword &&
-    !alreadyUsed &&
     !loading;
 
   const canVerifyPhone =
@@ -147,7 +144,7 @@ export default function SignupPage() {
       if (!r.ok || getStr(j, 'error')) throw new Error(getStr(j, 'error') ?? `Failed to send code (${r.status})`);
 
       setSentToPhone(targetPhone);
-      setCooldown(60); // prevent stacking requests
+      setCooldown(60);
       setStep('phone_verify');
       setNotice('We sent a code via SMS. Enter it below to finish signup.');
     } catch (e: unknown) {
@@ -190,7 +187,7 @@ export default function SignupPage() {
     if (typeof window !== 'undefined') window.location.replace('/consumer');
   }
 
-  // ---- EMAIL: send OTP using Supabase email OTP (not magic link) ----
+  // ---- EMAIL: send OTP using Supabase email OTP (no magic link) ----
   async function startEmailOtp(targetEmail: string) {
     setEmailSending(true);
     try {
@@ -214,7 +211,7 @@ export default function SignupPage() {
   // ---- EMAIL: verify OTP -> set password -> redirect ----
   async function verifyEmailOtpAndFinalize() {
     if (!sentToEmail) throw new Error('Missing email.');
-    // 1) verify OTP (creates session & marks email_confirmed_at)
+    // 1) verify OTP (this creates a session & marks email_confirmed_at)
     const { error: verifyErr } = await sb.auth.verifyOtp({
       email: sentToEmail,
       token: emailCode.trim(),
@@ -222,7 +219,7 @@ export default function SignupPage() {
     });
     if (verifyErr) throw new Error(verifyErr.message);
 
-    // 2) attach password to the now-verified user
+    // 2) attach password to the now-verified user (uses the session from step 1)
     const { error: pwErr } = await sb.auth.updateUser({ password });
     if (pwErr) throw new Error(pwErr.message);
 
@@ -241,7 +238,10 @@ export default function SignupPage() {
 
     // EMAIL PATH
     if (isEmail(raw)) {
-      if (emailTaken) { setError('This email is already in use.'); return; }
+      if (emailTaken) {
+        // UI below already shows the hyperlink to /signin
+        return;
+      }
       await startEmailOtp(raw);
       return;
     }
@@ -249,7 +249,10 @@ export default function SignupPage() {
     // PHONE PATH — normalize + start OTP
     const normalized = normalizePhoneAU(raw);
     if (!normalized) { setError('Enter a valid Australian mobile number.'); return; }
-    if (phoneTaken) { setError('This phone number is already in use.'); return; }
+    if (phoneTaken) {
+      // UI below already shows the hyperlink to /signin
+      return;
+    }
     await startPhoneVerify(normalized);
   }
 
@@ -328,10 +331,16 @@ export default function SignupPage() {
                 className="w-full rounded-xl bg-black/20 border border-white/10 px-3 py-2 text-sm placeholder:text-white/40 focus:outline-none focus:border-[var(--color-brand-600)]"
               />
               {identifier && isEmail(identifier) && emailTaken && (
-                <p className="mt-1 text-xs text-[color:rgb(248_113_113)]">This email is already in use.</p>
+                <p className="mt-1 text-xs text-[color:rgb(248_113_113)]">
+                  An account with that email address already exists.{' '}
+                  <Link href="/signin" className="underline text-[var(--color-brand-600)]">Click here</Link> to log in.
+                </p>
               )}
               {identifier && !isEmail(identifier) && phoneTaken && (
-                <p className="mt-1 text-xs text-[color:rgb(248_113_113)]">This phone number is already in use.</p>
+                <p className="mt-1 text-xs text-[color:rgb(248_113_113)]">
+                  An account with that phone number already exists.{' '}
+                  <Link href="/signin" className="underline text-[var(--color-brand-600)]">Click here</Link> to log in.
+                </p>
               )}
             </div>
 
