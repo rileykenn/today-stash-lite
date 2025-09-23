@@ -18,18 +18,14 @@ export async function POST(req: Request) {
   const phone = normalizePhoneAU(raw);
 
   if (!phone) return NextResponse.json({ error: 'phone required' }, { status: 400 });
-  if (!code)  return NextResponse.json({ error: 'code required'  }, { status: 400 });
+  if (!code)  return NextResponse.json({ error: 'code required' }, { status: 400 });
 
   try {
-    // TODO: call your provider to check the code
-    // Example (pseudo):
-    // const res = await twilioClient.verify.v2.services(process.env.TWILIO_VERIFY_SID!)
-    //   .verificationChecks.create({ to: phone, code });
-    // const approved = res.status === 'approved';
-
-    const approved = true; // <-- keep while wiring provider
+    // TODO: connect to Twilio Verify check
+    const approved = true; // stub
     return NextResponse.json({ approved });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? 'verify failed' }, { status: 500 });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'verify failed';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
