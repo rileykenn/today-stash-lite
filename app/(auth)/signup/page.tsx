@@ -37,13 +37,18 @@ type CheckResp = {
   action: 'signin' | 'verify' | 'signup';
 };
 
+// Strict, no-any type guard
 function isCheckResp(x: unknown): x is CheckResp {
-  return (
-    typeof x === 'object' &&
-    x !== null &&
-    (x as any).ok === true &&
-    ((x as any).method === 'email' || (x as any).method === 'phone')
-  );
+  if (typeof x !== 'object' || x === null) return false;
+  const o = x as Record<string, unknown>;
+  const ok = o.ok === true;
+  const method = o.method === 'email' || o.method === 'phone';
+  const value = typeof o.value === 'string';
+  const exists = typeof o.exists === 'boolean';
+  const confirmed = typeof o.confirmed === 'boolean';
+  const action =
+    o.action === 'signin' || o.action === 'verify' || o.action === 'signup';
+  return ok && method && value && exists && confirmed && action;
 }
 
 export default function SignupPage() {
@@ -130,7 +135,7 @@ export default function SignupPage() {
         return;
       }
 
-      // If email exists but unconfirmed → go to verify page
+      // If email exists but unconfirmed → verify page
       if (method === 'email' && exists && !confirmed) {
         if (typeof window !== 'undefined')
           localStorage.setItem('pendingEmail', input.toLowerCase());
@@ -259,28 +264,19 @@ export default function SignupPage() {
           {exists && confirmed && method === 'email' && (
             <p className="text-sm text-red-600 mb-2">
               This email is already in use.{' '}
-              <Link href="/signin" className="underline">
-                Sign in
-              </Link>
-              .
+              <Link href="/signin" className="underline">Sign in</Link>.
             </p>
           )}
           {exists && confirmed && method === 'phone' && (
             <p className="text-sm text-red-600 mb-2">
               This phone is already in use.{' '}
-              <Link href="/signin" className="underline">
-                Sign in
-              </Link>
-              .
+              <Link href="/signin" className="underline">Sign in</Link>.
             </p>
           )}
           {exists && !confirmed && method === 'email' && (
             <p className="text-sm text-amber-600 mb-2">
               You started signup but haven’t verified.{' '}
-              <Link href="/verify-email" className="underline">
-                Enter your code
-              </Link>
-              .
+              <Link href="/verify-email" className="underline">Enter your code</Link>.
             </p>
           )}
 
