@@ -1,52 +1,123 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 import { sb } from '@/lib/supabaseBrowser';
 
+type Step = 'form' | 'set_password' | 'email_verify';
+
+function isEmail(v: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+}
+
+async function safeJson(res: Response): Promise<Record<string, unknown>> {
+  try {
+    const text = await res.text();
+    return text ? (JSON.parse(text) as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+const getBool = (o: Record<string, unknown>, k: string) =>
+  typeof o[k] === 'boolean' ? (o[k] as boolean) : null;
+
 export default function SignInPage() {
+  const [step, setStep] = useState<Step>('form');
+
+  // step: form
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [cooldown, setCooldown] = useState(0);
+  const canSubmitForm = useMemo(
+    () => identifier.trim().length > 0 && password.trim().length >= 6,
+    [identifier, password]
+  );
 
-  function isEmail(v: string) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
-  }
+  // step: set_password
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [newPw, setNewPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const strongPw = useMemo(
+    () => newPw.length >= 6 && newPw === confirmPw,
+    [newPw, confirmPw]
+  );
+
+  // step: email_verify
+  const [emailCode, setEmailCode] = useState('');
+  const [emailCooldown, setEmailCooldown] = useState(0);
+  const [sendingOtp, setSendingOtp] = useState(false);
+
+  // shared UX
+  const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const resetAlerts = () => { setError(null); setNotice(null); };
 
   // cooldown ticker
   useEffect(() => {
-    if (cooldown <= 0) return;
-    const id = setInterval(() => setCooldown((s) => (s > 0 ? s - 1 : 0)), 1000);
+    if (emailCooldown <= 0) return;
+    const id = setInterval(() => setEmailCooldown((s) => s - 1), 1000);
     return () => clearInterval(id);
-  }, [cooldown]);
+  }, [emailCooldown]);
 
+  // --------------- STEP 1: attempt normal sign-in -----------------
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
-    setNotice(null);
+    resetAlerts();
+    if (!canSubmitForm) return;
+
+    const id = identifier.trim();
+
+    // Phone sign-in stays normal
+    if (!isEmail(id)) {
+      setLoading(true);
+      try {
+        const { error: phoneErr } = await sb.auth.signInWithPassword({ phone: id, password });
+        if (phoneErr) throw phoneErr;
+        window.location.replace('/consumer');
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : 'Could not sign in.';
+        setError(msg);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Email path
     setLoading(true);
-
     try {
-      const id = identifier.trim();
-
-      if (isEmail(id)) {
-        const { error: signInErr } = await sb.auth.signInWithPassword({ email: id, password });
-        if (!signInErr) {
-          window.location.replace('/consumer');
-          return;
-        }
-        // Likely unverified / no password yet → prompt to verify
-        setNotice('We couldn’t sign you in yet. Verify your email to continue.');
+      // Try password sign-in first
+      const { error: signInErr } = await sb.auth.signInWithPassword({ email: id, password });
+      if (!signInErr) {
+        window.location.replace('/consumer');
         return;
       }
 
-      // Phone path (if supported)
-      const { error: phoneErr } = await sb.auth.signInWithPassword({ phone: id, password });
-      if (phoneErr) throw phoneErr;
-      window.location.replace('/consumer');
+      // Password sign-in failed: check if this email exists & is unverified
+      // (uses your existing availability endpoint)
+      const res = await fetch('/api/auth/check-availability', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: id }),
+      });
+      const j = await safeJson(res);
+
+      const emailTaken = Boolean(getBool(j, 'email_taken'));
+      const emailUnverified =
+        typeof j['email_unverified'] === 'boolean' ? Boolean(j['email_unverified']) : false;
+
+      if (emailTaken && emailUnverified) {
+        // Move to set_password step. Ask them to choose a password now.
+        setPendingEmail(id);
+        setNewPw('');
+        setConfirmPw('');
+        setStep('set_password');
+        setNotice('Choose a password to secure your account.');
+        return;
+      }
+
+      // Otherwise, show a generic sign-in error
+      setError('Incorrect email or password.');
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Could not sign in.';
       setError(msg);
@@ -55,84 +126,234 @@ export default function SignInPage() {
     }
   }
 
-  async function resendEmailOtp() {
-    setError(null);
-    setNotice(null);
-    if (!isEmail(identifier) || cooldown > 0) return;
+  // --------------- STEP 2: user chooses password, then we send OTP -------------
+  async function handleSetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    resetAlerts();
+    if (!pendingEmail || !strongPw || sendingOtp) return;
 
+    setSendingOtp(true);
     try {
-      const { error } = await sb.auth.signInWithOtp({
-        email: identifier.trim(),
+      // Send OTP without creating a new user
+      const { error: otpErr } = await sb.auth.signInWithOtp({
+        email: pendingEmail,
         options: { shouldCreateUser: false, emailRedirectTo: undefined },
       });
-      if (error) throw error;
+      if (otpErr) throw otpErr;
 
-      setNotice('We sent you a new 6-digit code. Check your inbox.');
-      setCooldown(60);
-      window.location.replace('/auth/verify-email');
+      setNotice('We emailed you a 6-digit code. Enter it below to confirm your account.');
+      setEmailCooldown(60);
+      setStep('email_verify');
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Failed to send code.';
       setError(msg);
+    } finally {
+      setSendingOtp(false);
     }
   }
 
+  async function handleResendEmail() {
+    if (!pendingEmail || emailCooldown > 0 || sendingOtp) return;
+    setSendingOtp(true);
+    resetAlerts();
+    try {
+      const { error } = await sb.auth.signInWithOtp({
+        email: pendingEmail,
+        options: { shouldCreateUser: false, emailRedirectTo: undefined },
+      });
+      if (error) throw error;
+      setNotice('We sent a new code. Enter the newest one.');
+      setEmailCooldown(60);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to send code.';
+      setError(msg);
+    } finally {
+      setSendingOtp(false);
+    }
+  }
+
+  // --------------- STEP 3: verify code, set password, redirect -----------------
+  async function handleConfirmEmail(e: React.FormEvent) {
+    e.preventDefault();
+    resetAlerts();
+    if (!pendingEmail || emailCode.trim().length < 4) return;
+
+    setLoading(true);
+    try {
+      // Verify OTP: this creates a session & marks email as confirmed
+      const { error: verifyErr } = await sb.auth.verifyOtp({
+        email: pendingEmail,
+        token: emailCode.trim(),
+        type: 'email',
+      });
+      if (verifyErr) throw verifyErr;
+
+      // Now attach the password the user chose in step 2
+      const { error: pwErr } = await sb.auth.updateUser({ password: newPw });
+      if (pwErr) throw pwErr;
+
+      // Done → go to app
+      window.location.replace('/consumer');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Could not confirm your code.';
+      if (msg.toLowerCase().includes('token')) {
+        setError('Invalid or expired code. Enter the newest code.');
+      } else setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // --------------------------- RENDER ------------------------------------------
   return (
-    <main className="mx-auto max-w-sm p-6 text-white">
+    <main className="mx-auto max-w-screen-sm px-4 py-8 text-white">
       <h1 className="text-2xl font-bold">Sign in</h1>
 
-      <form onSubmit={handleSubmit} className="mt-4 space-y-3">
-        <input
-          value={identifier}
-          onChange={(e) => setIdentifier(e.target.value)}
-          placeholder="you@example.com or +61…"
-          className="w-full rounded-xl bg-black/20 border border-white/10 px-3 py-2 text-sm focus:outline-none"
-        />
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
-          className="w-full rounded-xl bg-black/20 border border-white/10 px-3 py-2 text-sm focus:outline-none"
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded-full bg-[var(--color-brand-600)] py-3 font-semibold disabled:opacity-60"
-        >
-          {loading ? 'Please wait…' : 'Sign in'}
-        </button>
-      </form>
+      {step === 'form' && (
+        <section className="mt-5 rounded-2xl bg-[rgb(24_32_45)] border border-white/10 p-5">
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <input
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder="you@example.com or +61…"
+              className="w-full rounded-xl bg-black/20 border border-white/10 px-3 py-2 text-sm focus:outline-none"
+            />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              className="w-full rounded-xl bg-black/20 border border-white/10 px-3 py-2 text-sm focus:outline-none"
+            />
+            <button
+              type="submit"
+              disabled={!canSubmitForm || loading}
+              className="w-full rounded-full bg-[var(--color-brand-600)] py-3 font-semibold disabled:opacity-60"
+            >
+              {loading ? 'Please wait…' : 'Continue'}
+            </button>
+          </form>
 
-      {/* Helper for unverified email accounts */}
-      {isEmail(identifier) && (
-        <div className="mt-4 text-sm">
-          <p className="text-white/70">Didn’t finish verifying your email?</p>
-          <button
-            type="button"
-            onClick={resendEmailOtp}
-            disabled={cooldown > 0}
-            className="mt-2 rounded-full px-4 py-2 bg-white/10 border border-white/10 text-sm font-semibold hover:bg-white/15 disabled:opacity-60"
-          >
-            {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend verification code'}
-          </button>
-        </div>
+          {notice && (
+            <div className="mt-4 rounded-2xl p-3 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-sm">
+              {notice}
+            </div>
+          )}
+          {error && (
+            <div className="mt-2 rounded-xl p-3 bg-red-50 text-red-800 text-sm">
+              {error}
+            </div>
+          )}
+
+          <p className="mt-6 text-xs text-white/50">
+            Don’t have an account?{' '}
+            <Link href="/signup" className="text-[var(--color-brand-600)] underline">Create one</Link>
+          </p>
+        </section>
       )}
 
-      {notice && (
-        <div className="mt-4 rounded-2xl p-3 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-sm">
-          {notice}
-        </div>
-      )}
-      {error && (
-        <div className="mt-2 rounded-xl p-3 bg-red-50 text-red-800 text-sm">
-          {error}
-        </div>
+      {step === 'set_password' && (
+        <section className="mt-5 rounded-2xl bg-[rgb(24_32_45)] border border-white/10 p-5">
+          <p className="text-sm text-white/80">
+            Set a password for <span className="font-mono">{pendingEmail}</span>.
+          </p>
+          <form onSubmit={handleSetPassword} className="mt-3 space-y-3">
+            <input
+              type="password"
+              minLength={6}
+              value={newPw}
+              onChange={(e) => setNewPw(e.target.value)}
+              placeholder="New password"
+              className="w-full rounded-xl bg-black/20 border border-white/10 px-3 py-2 text-sm focus:outline-none"
+            />
+            <input
+              type="password"
+              minLength={6}
+              value={confirmPw}
+              onChange={(e) => setConfirmPw(e.target.value)}
+              placeholder="Confirm password"
+              className="w-full rounded-xl bg-black/20 border border-white/10 px-3 py-2 text-sm focus:outline-none"
+            />
+            {confirmPw && newPw !== confirmPw && (
+              <p className="text-xs text-[rgb(248_113_113)]">Passwords don’t match.</p>
+            )}
+
+            <div className="flex items-center gap-2">
+              <button
+                type="submit"
+                disabled={!strongPw || sendingOtp}
+                className="flex-1 rounded-full bg-[var(--color-brand-600)] py-3 font-semibold disabled:opacity-60"
+              >
+                {sendingOtp ? 'Sending…' : 'Continue'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setStep('form'); setPendingEmail(null); setNewPw(''); setConfirmPw(''); }}
+                className="rounded-full px-4 py-3 bg-white/10 border border-white/10 text-sm font-semibold hover:bg-white/15"
+              >
+                Back
+              </button>
+            </div>
+          </form>
+
+          {notice && (
+            <div className="mt-4 rounded-2xl p-3 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-sm">
+              {notice}
+            </div>
+          )}
+          {error && (
+            <div className="mt-2 rounded-xl p-3 bg-red-50 text-red-800 text-sm">
+              {error}
+            </div>
+          )}
+        </section>
       )}
 
-      <p className="mt-6 text-xs text-white/50">
-        Don’t have an account?{' '}
-        <Link href="/signup" className="text-[var(--color-brand-600)] underline">Create one</Link>
-      </p>
+      {step === 'email_verify' && (
+        <section className="mt-5 rounded-2xl bg-[rgb(24_32_45)] border border-white/10 p-5">
+          <p className="text-sm text-white/80">
+            We sent a 6-digit code to <span className="font-mono">{pendingEmail}</span>.
+          </p>
+          <form onSubmit={handleConfirmEmail} className="mt-3 space-y-3">
+            <input
+              inputMode="numeric"
+              placeholder="Enter 6-digit code"
+              value={emailCode}
+              onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              className="w-full rounded-xl bg-black/20 border border-white/10 px-3 py-2 text-sm focus:outline-none tracking-widest"
+            />
+
+            <div className="flex items-center gap-2">
+              <button
+                type="submit"
+                disabled={loading || emailCode.trim().length < 4}
+                className="flex-1 rounded-full bg-[var(--color-brand-600)] py-3 font-semibold disabled:opacity-60"
+              >
+                {loading ? 'Verifying…' : 'Verify & Sign in'}
+              </button>
+              <button
+                type="button"
+                disabled={emailCooldown > 0 || sendingOtp}
+                onClick={handleResendEmail}
+                className="rounded-full px-4 py-3 bg-white/10 border border-white/10 text-sm font-semibold hover:bg-white/15 disabled:opacity-60"
+              >
+                {sendingOtp ? 'Sending…' : emailCooldown > 0 ? `Resend in ${emailCooldown}s` : 'Resend'}
+              </button>
+            </div>
+          </form>
+
+          {notice && (
+            <div className="mt-4 rounded-2xl p-3 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-sm">
+              {notice}
+            </div>
+          )}
+          {error && (
+            <div className="mt-2 rounded-xl p-3 bg-red-50 text-red-800 text-sm">
+              {error}
+            </div>
+          )}
+        </section>
+      )}
     </main>
   );
 }
