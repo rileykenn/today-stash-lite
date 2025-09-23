@@ -1,17 +1,18 @@
 import { NextResponse } from 'next/server';
 import twilio from 'twilio';
+
 export const runtime = 'nodejs';
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID!;
-const authToken  = process.env.TWILIO_AUTH_TOKEN!;
-const verifySid  = process.env.TWILIO_VERIFY_SID!;
+const authToken = process.env.TWILIO_AUTH_TOKEN!;
+const verifySid = process.env.TWILIO_VERIFY_SID!;
 const DEBUG = process.env.DEBUG_VERIFY === '1';
 
 const client = twilio(accountSid, authToken);
 
 function normalizePhoneAU(input?: string | null): string | null {
   if (!input) return null;
-  let raw = String(input).trim().replace(/\s+/g, '').replace(/^0+/, '');
+  const raw = String(input).trim().replace(/\s+/g, '').replace(/^0+/, '');
   if (/^\+61\d{9}$/.test(raw)) return raw;
   if (/^61\d{9}$/.test(raw)) return `+${raw}`;
   if (/^4\d{8}$/.test(raw)) return `+61${raw}`;
@@ -20,11 +21,10 @@ function normalizePhoneAU(input?: string | null): string | null {
 }
 
 export async function POST(req: Request) {
-  // 0) env presence (definitive)
   const missing: string[] = [];
   if (!process.env.TWILIO_ACCOUNT_SID) missing.push('TWILIO_ACCOUNT_SID');
-  if (!process.env.TWILIO_AUTH_TOKEN)  missing.push('TWILIO_AUTH_TOKEN');
-  if (!process.env.TWILIO_VERIFY_SID)  missing.push('TWILIO_VERIFY_SID');
+  if (!process.env.TWILIO_AUTH_TOKEN) missing.push('TWILIO_AUTH_TOKEN');
+  if (!process.env.TWILIO_VERIFY_SID) missing.push('TWILIO_VERIFY_SID');
   if (missing.length) {
     console.error('[verify.start] missing env', missing);
     return NextResponse.json({ error: `server misconfigured: ${missing.join(', ')}` }, { status: 500 });
@@ -39,7 +39,6 @@ export async function POST(req: Request) {
       .verifications.create({ to: phone, channel: 'sms' });
 
     console.log('[verify.start]', { to: phone, sid: res.sid, status: res.status, channel: res.channel });
-    // non-secret debug echo
     return NextResponse.json({ ok: true, ...(DEBUG ? { status: res.status } : {}) });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'send failed';
