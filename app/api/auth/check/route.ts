@@ -1,4 +1,3 @@
-// /app/api/auth/check/route.ts
 import { NextResponse } from 'next/server';
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
@@ -38,25 +37,39 @@ async function adminFetch(path: string): Promise<{ status: number; data: unknown
 export async function POST(req: Request) {
   try {
     const { email, phone } = (await req.json()) as { email?: string; phone?: string };
-    console.log('🔎 check input', { email, phone });
+    const emailQ = email?.trim();
+    const phoneQ = phone?.trim();
+    console.log('🔎 check input', { email: emailQ, phone: phoneQ });
 
-    if (!email && !phone) {
+    if (!emailQ && !phoneQ) {
       return NextResponse.json({ error: 'email or phone required' }, { status: 400 });
     }
 
     let email_taken = false;
     let phone_taken = false;
 
-    if (email) {
-      const { status, data } = await adminFetch(`/users?email=${encodeURIComponent(email)}`);
-      if (status === 200) email_taken = extractUsers(data).length > 0;
-      else console.log('⚠️ non-200 email lookup', status);
+    if (emailQ) {
+      const { status, data } = await adminFetch(`/users?email=${encodeURIComponent(emailQ)}`);
+      if (status === 200) {
+        const users = extractUsers(data);
+        // ✅ only true if an item exactly matches the email (case-insensitive)
+        email_taken = users.some(
+          (u) => (u.email ?? '').toLowerCase() === emailQ.toLowerCase()
+        );
+      } else {
+        console.log('⚠️ non-200 email lookup', status);
+      }
     }
 
-    if (phone) {
-      const { status, data } = await adminFetch(`/users?phone=${encodeURIComponent(phone)}`);
-      if (status === 200) phone_taken = extractUsers(data).length > 0;
-      else console.log('⚠️ non-200 phone lookup', status);
+    if (phoneQ) {
+      const { status, data } = await adminFetch(`/users?phone=${encodeURIComponent(phoneQ)}`);
+      if (status === 200) {
+        const users = extractUsers(data);
+        // ✅ only true if an item exactly matches the phone
+        phone_taken = users.some((u) => (u.phone ?? '') === phoneQ);
+      } else {
+        console.log('⚠️ non-200 phone lookup', status);
+      }
     }
 
     console.log('✅ result', { email_taken, phone_taken });
