@@ -10,18 +10,35 @@ function isEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 }
 
-// AU E.164 (+61…) normalizer; leaves non-AU as-is
-function normalizePhoneAU(input: string) {
-  const raw = input.replace(/\s+/g, '');
-  if (/^\+6104\d{8}$/.test(raw)) return '+61' + raw.slice(4);
-  if (/^\+614\d{8}$/.test(raw)) return raw;
-  if (/^04\d{8}$/.test(raw)) return '+61' + raw.slice(1);
-  if (/^0\d{9}$/.test(raw)) return '+61' + raw.slice(1);
+/**
+ * AU phone normalizer:
+ * - "0499 545 069"  -> "+61499545069"
+ * - "61499545069"   -> "+61499545069"
+ * - "+61499545069"  -> "+61499545069"
+ * Leaves other countries mostly intact (adds '+' if all digits).
+ */
+function normalizePhoneAU(input: string): string {
+  let raw = input.replace(/\s+/g, '');
+  // strip leading zeros for local formats (e.g., 04xxxxxxxx -> 4xxxxxxxx)
+  raw = raw.replace(/^0+/, '');
+
+  // +61XXXXXXXXX (mobile is 4XXXXXXXX)
+  if (/^\+61\d{9}$/.test(raw)) return raw;
+
+  // 61XXXXXXXXX -> +61XXXXXXXXX
+  if (/^61\d{9}$/.test(raw)) return `+${raw}`;
+
+  // 4XXXXXXXX -> +614XXXXXXXX
+  if (/^4\d{8}$/.test(raw)) return `+61${raw}`;
+
+  // if all digits and missing +, prefix +
+  if (/^\d+$/.test(raw)) return `+${raw}`;
+
   return raw;
 }
 
 export default function SignupPage() {
-  // ——— session banner (no auto-redirect) ———
+  // Session banner (no instant redirect)
   const [sessionChecked, setSessionChecked] = useState(false);
   const [alreadySignedIn, setAlreadySignedIn] = useState(false);
   useEffect(() => {
@@ -32,7 +49,6 @@ export default function SignupPage() {
     })();
   }, []);
 
-  // ——— flow state ———
   const [step, setStep] = useState<Step>('form');
 
   // form fields
@@ -40,7 +56,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState<string>('');
   const [confirm, setConfirm] = useState<string>('');
 
-  // availability (from RPC)
+  // availability
   const [emailTaken, setEmailTaken] = useState<boolean>(false);
   const [phoneTaken, setPhoneTaken] = useState<boolean>(false);
 
@@ -57,7 +73,7 @@ export default function SignupPage() {
 
   function resetAlerts() { setError(null); setNotice(null); }
 
-  // resend cooldown ticker
+  // resend cooldown
   useEffect(() => {
     if (cooldown <= 0) return;
     const id = setInterval(() => setCooldown((s) => s - 1), 1000);
@@ -69,35 +85,35 @@ export default function SignupPage() {
     [password, confirm]
   );
 
-  // ——— debounced availability check via server route ———
-useEffect(() => {
-  const t = setTimeout(async () => {
-    const raw = identifier.trim();
-    if (!raw) { setEmailTaken(false); setPhoneTaken(false); return; }
+  // Debounced availability check (server-side, normalized phone)
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      const raw = identifier.trim();
+      if (!raw) { setEmailTaken(false); setPhoneTaken(false); return; }
 
-    const email = isEmail(raw) ? raw : null;
-    const phone = !email ? normalizePhoneAU(raw) : null;
+      const email = isEmail(raw) ? raw : null;
+      const phone = !email ? normalizePhoneAU(raw) : null;
 
-    try {
-      const res = await fetch('/api/auth/check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, phone }),
-      });
-      const j = await res.json();
-      if (!res.ok || j.error) return;
-      setEmailTaken(Boolean(j.email_taken));
-      setPhoneTaken(Boolean(j.phone_taken));
-    } catch {
-      // ignore transient errors
-    }
-  }, 350);
-  return () => clearTimeout(t);
-}, [identifier]);
+      try {
+        const res = await fetch('/api/auth/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, phone }),
+        });
+        const j = await res.json();
+        if (!res.ok || j.error) return;
 
+        setEmailTaken(Boolean(j.email_taken));
+        setPhoneTaken(Boolean(j.phone_taken));
+      } catch {
+        // ignore transient errors; don't block typing
+      }
+    }, 300);
 
+    return () => clearTimeout(t);
+  }, [identifier]);
 
-  // block signup when already used
+  // Block when taken
   const alreadyUsed = (isEmail(identifier) && emailTaken) || (!isEmail(identifier) && phoneTaken);
 
   const canSubmitForm =
@@ -112,7 +128,7 @@ useEffect(() => {
     code.trim().length >= 4 &&
     !loading;
 
-  // ——— Twilio start ———
+  // Twilio start (always with normalized +61)
   async function startPhoneVerify(targetPhone: string) {
     setOtpSending(true);
     try {
@@ -136,9 +152,9 @@ useEffect(() => {
     }
   }
 
-  // ——— verify & create ———
+  // Verify code -> create user (store +61) -> sign in
   async function verifyPhoneAndCreate(targetPhone: string) {
-    // 1) verify code
+    // 1) verify
     const r = await fetch('/api/verify/check', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -148,7 +164,7 @@ useEffect(() => {
     const approved = Boolean((j as { approved?: unknown })?.approved);
     if (!approved) throw new Error((j as { error?: string })?.error || 'Invalid or expired code.');
 
-    // 2) create user (server/admin)
+    // 2) create (ensure +61 stored)
     const createRes = await fetch('/api/auth/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -169,7 +185,7 @@ useEffect(() => {
     if (typeof window !== 'undefined') window.location.replace('/consumer');
   }
 
-  // ——— handlers ———
+  // Handlers
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     resetAlerts();
@@ -189,13 +205,11 @@ useEffect(() => {
       } catch (e: unknown) {
         if (e instanceof Error && /already/i.test(e.message)) setError('This email is already in use.');
         else setError(e instanceof Error ? e.message : 'Something went wrong.');
-      } finally {
-        setLoading(false);
-      }
+      } finally { setLoading(false); }
       return;
     }
 
-    // PHONE PATH
+    // PHONE PATH — normalize to +61 always
     const normalizedPhone = normalizePhoneAU(raw);
     if (phoneTaken) { setError('This phone number is already in use.'); return; }
     await startPhoneVerify(normalizedPhone);
@@ -215,9 +229,7 @@ useEffect(() => {
         if (msg.includes('expired') || msg.includes('invalid')) setError('Invalid or expired code. Enter the newest code.');
         else setError(e.message);
       } else setError('Could not finish signup.');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }
 
   async function handleResend() {
@@ -225,7 +237,7 @@ useEffect(() => {
     await startPhoneVerify(sentToPhone);
   }
 
-  // ——— UI ———
+  // UI
   return (
     <main className="mx-auto max-w-screen-sm px-4 py-8 text-white">
       <h1 className="text-3xl font-bold tracking-tight">Create your account</h1>
@@ -255,7 +267,7 @@ useEffect(() => {
               <input
                 value={identifier}
                 onChange={(e) => { setIdentifier(e.target.value); resetAlerts(); }}
-                placeholder="you@example.com or +614…"
+                placeholder="you@example.com or 0499… / +61…"
                 className="w-full rounded-xl bg-black/20 border border-white/10 px-3 py-2 text-sm placeholder:text-white/40 focus:outline-none focus:border-[var(--color-brand-600)]"
               />
               {identifier && isEmail(identifier) && emailTaken && (
