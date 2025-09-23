@@ -17,26 +17,25 @@ type AdminUsersEnvelope = {
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null;
 }
-function isAdminUser(v: unknown): v is AdminUser {
-  if (!isRecord(v)) return false;
-  return typeof (v as any).id === 'string';
+
+function hasStringId(o: Record<string, unknown>): o is { id: string } {
+  return typeof (o as { id?: unknown }).id === 'string';
 }
+
+function isAdminUser(v: unknown): v is AdminUser {
+  return isRecord(v) && hasStringId(v);
+}
+
 function extractUsers(payload: unknown): AdminUser[] {
-  if (Array.isArray(payload)) return payload.filter(isAdminUser);
+  if (Array.isArray(payload)) {
+    return payload.filter(isAdminUser);
+  }
   if (isRecord(payload) && Array.isArray((payload as AdminUsersEnvelope).users)) {
     return ((payload as AdminUsersEnvelope).users ?? []).filter(isAdminUser);
   }
   return [];
 }
-function normalizePhoneAU(input?: string | null): string | null {
-  if (!input) return null;
-  const raw = String(input).trim().replace(/\s+/g, '').replace(/^0+/, '');
-  if (/^\+61\d{9}$/.test(raw)) return raw;
-  if (/^61\d{9}$/.test(raw)) return `+${raw}`;
-  if (/^4\d{8}$/.test(raw)) return `+61${raw}`;
-  if (/^\+?\d{6,15}$/.test(raw)) return raw.startsWith('+') ? raw : `+${raw}`;
-  return null;
-}
+
 
 async function adminFetch(path: string): Promise<{ status: number; data: unknown }> {
   const url = `${SUPABASE_URL}/auth/v1/admin${path}`;
@@ -58,6 +57,16 @@ async function adminFetch(path: string): Promise<{ status: number; data: unknown
 
   console.log('⬅️ Supabase Admin RESP', res.status, String(text).slice(0, 800));
   return { status: res.status, data };
+}
+
+function normalizePhoneAU(input?: string | null): string | null {
+  if (!input) return null;
+  const raw = String(input).trim().replace(/\s+/g, '').replace(/^0+/, '');
+  if (/^\+61\d{9}$/.test(raw)) return raw;
+  if (/^61\d{9}$/.test(raw)) return `+${raw}`;
+  if (/^4\d{8}$/.test(raw)) return `+61${raw}`;
+  if (/^\+?\d{6,15}$/.test(raw)) return raw.startsWith('+') ? raw : `+${raw}`;
+  return null;
 }
 
 export async function POST(req: Request) {
