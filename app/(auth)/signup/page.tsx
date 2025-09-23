@@ -10,42 +10,33 @@ function isEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 }
 
-/** AU phone normalizer -> always +61XXXXXXXXX */
-function normalizePhoneAU(input: string): string {
-  let raw = input.replace(/\s+/g, '');
-  raw = raw.replace(/^0+/, '');          // "0499..." -> "499..."
-  if (/^\+61\d{9}$/.test(raw)) return raw;
-  if (/^61\d{9}$/.test(raw)) return `+${raw}`;
-  if (/^4\d{8}$/.test(raw)) return `+61${raw}`;
-  if (/^\d+$/.test(raw)) return `+${raw}`;
-  return raw;
+/** AU phone -> always +61XXXXXXXXX */
+function normalizePhoneAU(input: string): string | null {
+  let raw = input.trim().replace(/\s+/g, '');
+  raw = raw.replace(/^0+/, '');                 // "0499..." -> "499..."
+  if (/^\+61\d{9}$/.test(raw)) return raw;      // already +61XXXXXXXXX
+  if (/^61\d{9}$/.test(raw)) return `+${raw}`;  // 61XXXXXXXXX -> +61XXXXXXXXX
+  if (/^4\d{8}$/.test(raw)) return `+61${raw}`; // 4XXXXXXXX -> +614XXXXXXXX
+  if (/^\+?\d{6,15}$/.test(raw)) return raw.startsWith('+') ? raw : `+${raw}`;
+  return null;
 }
 
-/** Safe JSON parse for fetch responses (handles empty/HTML bodies). */
-async function safeJson(res: Response): Promise<unknown> {
+/** Safe JSON parse (handles empty/HTML) */
+async function safeJson(res: Response): Promise<Record<string, unknown>> {
   try {
     const text = await res.text();
-    return text ? JSON.parse(text) : {};
+    return text ? (JSON.parse(text) as Record<string, unknown>) : {};
   } catch {
     return {};
   }
 }
-
-/** Type guards / helpers (no `any`) */
-function isObj(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null;
-}
-function getBool(obj: unknown, key: string): boolean | null {
-  if (isObj(obj) && typeof obj[key] === 'boolean') return obj[key] as boolean;
-  return null;
-}
-function getStr(obj: unknown, key: string): string | null {
-  if (isObj(obj) && typeof obj[key] === 'string') return obj[key] as string;
-  return null;
-}
+const getStr = (o: Record<string, unknown>, k: string) =>
+  typeof o[k] === 'string' ? (o[k] as string) : null;
+const getBool = (o: Record<string, unknown>, k: string) =>
+  typeof o[k] === 'boolean' ? (o[k] as boolean) : null;
 
 export default function SignupPage() {
-  // Session banner (no auto-redirect)
+  // session banner
   const [sessionChecked, setSessionChecked] = useState(false);
   const [alreadySignedIn, setAlreadySignedIn] = useState(false);
   useEffect(() => {
@@ -63,11 +54,11 @@ export default function SignupPage() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
 
-  // availability flags
+  // availability
   const [emailTaken, setEmailTaken] = useState(false);
   const [phoneTaken, setPhoneTaken] = useState(false);
 
-  // phone verify state
+  // phone verify
   const [sentToPhone, setSentToPhone] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [cooldown, setCooldown] = useState(0);
@@ -91,7 +82,7 @@ export default function SignupPage() {
     [password, confirm]
   );
 
-  // Debounced availability check (server-side; normalized phone)
+  // Debounced availability check
   useEffect(() => {
     const t = setTimeout(async () => {
       const raw = identifier.trim();
@@ -106,19 +97,15 @@ export default function SignupPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, phone }),
         });
+        if (!res.ok) return;
         const j = await safeJson(res);
-        if (!res.ok || getStr(j, 'error')) return;
-
         setEmailTaken(Boolean(getBool(j, 'email_taken')));
         setPhoneTaken(Boolean(getBool(j, 'phone_taken')));
-      } catch {
-        // ignore transient errors; don't block typing
-      }
+      } catch { /* ignore typing-time errors */ }
     }, 300);
     return () => clearTimeout(t);
   }, [identifier]);
 
-  // Disable submit when taken / weak / loading
   const alreadyUsed =
     (isEmail(identifier) && emailTaken) ||
     (!isEmail(identifier) && phoneTaken);
@@ -135,19 +122,19 @@ export default function SignupPage() {
     code.trim().length >= 4 &&
     !loading;
 
-  // Twilio start (always with normalized +61)
+  /** Start OTP to normalized AU phone */
   async function startPhoneVerify(targetPhone: string) {
     setOtpSending(true);
     try {
       const r = await fetch('/api/auth/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: targetPhone }),
+        body: JSON.stringify({ phone: targetPhone }), // server also accepts 'target'
       });
       const j = await safeJson(r);
-      const ok = r.ok && !getStr(j, 'error');
-      if (!ok) throw new Error(getStr(j, 'error') ?? 'Failed to send code');
-
+      if (!r.ok || getStr(j, 'error')) {
+        throw new Error(getStr(j, 'error') ?? `Failed to send code (${r.status})`);
+      }
       setSentToPhone(targetPhone);
       setCooldown(10);
       setStep('phone_verify');
@@ -159,29 +146,29 @@ export default function SignupPage() {
     }
   }
 
-  // Verify -> create user (store +61) -> sign in
+  /** Verify code -> create user -> sign in */
   async function verifyPhoneAndCreate(targetPhone: string) {
     // 1) verify code
-    const r = await fetch('/api/auth/verify', {
+    const vr = await fetch('/api/auth/verify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone: targetPhone, code: code.trim() }),
     });
-    const j = await safeJson(r);
-    const approved = Boolean(getBool(j, 'approved'));
-    if (!approved) throw new Error(getStr(j, 'error') ?? 'Invalid or expired code.');
+    const vj = await safeJson(vr);
+    const approved = Boolean(getBool(vj, 'approved'));
+    if (!approved) throw new Error(getStr(vj, 'error') ?? 'Invalid or expired code.');
 
-    // 2) create user
-    const createRes = await fetch('/api/auth/create', {
+    // 2) create user (store +61)
+    const cr = await fetch('/api/auth/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone: targetPhone, password }),
     });
-    const createJson = await safeJson(createRes);
-    const createOk = createRes.ok && Boolean(getBool(createJson, 'ok'));
+    const cj = await safeJson(cr);
+    const createOk = cr.ok && Boolean(getBool(cj, 'ok'));
     if (!createOk) {
-      if (createRes.status === 409) throw new Error(getStr(createJson, 'error') ?? 'Phone already in use.');
-      throw new Error(getStr(createJson, 'error') ?? 'Could not create account.');
+      if (cr.status === 409) throw new Error(getStr(cj, 'error') ?? 'Phone already in use.');
+      throw new Error(getStr(cj, 'error') ?? 'Could not create account.');
     }
 
     // 3) sign in with phone + password
@@ -192,7 +179,6 @@ export default function SignupPage() {
     if (typeof window !== 'undefined') window.location.replace('/consumer');
   }
 
-  // Submit
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     resetAlerts();
@@ -217,24 +203,25 @@ export default function SignupPage() {
     }
 
     // PHONE PATH — normalize to +61 always
-    const normalizedPhone = normalizePhoneAU(raw);
+    const normalized = normalizePhoneAU(raw);
+    if (!normalized) { setError('Enter a valid Australian mobile number.'); return; }
     if (phoneTaken) { setError('This phone number is already in use.'); return; }
-    await startPhoneVerify(normalizedPhone);
+    await startPhoneVerify(normalized);
   }
 
   async function handleConfirmPhone(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     resetAlerts();
     if (!canVerifyPhone || !sentToPhone) return;
-
     setLoading(true);
     try {
       await verifyPhoneAndCreate(sentToPhone);
     } catch (e: unknown) {
       if (e instanceof Error) {
         const msg = e.message.toLowerCase();
-        if (msg.includes('expired') || msg.includes('invalid')) setError('Invalid or expired code. Enter the newest code.');
-        else setError(e.message);
+        if (msg.includes('expired') || msg.includes('invalid')) {
+          setError('Invalid or expired code. Enter the newest code.');
+        } else setError(e.message);
       } else setError('Could not finish signup.');
     } finally { setLoading(false); }
   }
@@ -244,7 +231,6 @@ export default function SignupPage() {
     await startPhoneVerify(sentToPhone);
   }
 
-  // UI
   return (
     <main className="mx-auto max-w-screen-sm px-4 py-8 text-white">
       <h1 className="text-3xl font-bold tracking-tight">Create your account</h1>

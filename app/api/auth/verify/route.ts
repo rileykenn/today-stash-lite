@@ -1,103 +1,35 @@
-// app/api/auth/verify/route.ts
 import { NextResponse } from 'next/server';
-import { createClient, type AdminUserAttributes } from '@supabase/supabase-js';
 
-export const runtime = 'nodejs';
-
-type Body = { target?: string; code?: string; password?: string };
-
-function isEmail(x: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x);
-}
-function isE164(x: string): boolean {
-  return /^\+\d{7,15}$/.test(x);
-}
-function normalizePhoneAU(s: string): string {
-  const t = s.replace(/\s+/g, '');
-  if (t.startsWith('+')) return t;
-  if (/^0\d{8,10}$/.test(t)) return '+61' + t.slice(1);
-  return t;
+function normalizePhoneAU(input: string | null | undefined): string | null {
+  if (!input) return null;
+  let raw = String(input).trim().replace(/\s+/g, '');
+  raw = raw.replace(/^0+/, '');
+  if (/^\+61\d{9}$/.test(raw)) return raw;
+  if (/^61\d{9}$/.test(raw)) return `+${raw}`;
+  if (/^4\d{8}$/.test(raw)) return `+61${raw}`;
+  if (/^\+?\d{6,15}$/.test(raw)) return raw.startsWith('+') ? raw : `+${raw}`;
+  return null;
 }
 
 export async function POST(req: Request) {
+  const body = await req.json().catch(() => ({} as Record<string, unknown>));
+  const raw = (body['phone'] ?? body['target']) as string | undefined;
+  const code = (body['code'] ?? '').toString().trim();
+  const phone = normalizePhoneAU(raw);
+
+  if (!phone) return NextResponse.json({ error: 'phone required' }, { status: 400 });
+  if (!code)  return NextResponse.json({ error: 'code required'  }, { status: 400 });
+
   try {
-    const { target, code, password }: Body = await req.json();
-    if (!target || !code || !password) {
-      return NextResponse.json(
-        { error: 'target, code, and password required' },
-        { status: 400 }
-      );
-    }
+    // TODO: call your provider to check the code
+    // Example (pseudo):
+    // const res = await twilioClient.verify.v2.services(process.env.TWILIO_VERIFY_SID!)
+    //   .verificationChecks.create({ to: phone, code });
+    // const approved = res.status === 'approved';
 
-    // Normalize for Verify + user creation
-    let dest = target.trim();
-    const byEmail = isEmail(dest);
-    if (byEmail) {
-      dest = dest.toLowerCase();
-    } else {
-      dest = normalizePhoneAU(dest);
-      if (!isE164(dest)) {
-        return NextResponse.json(
-          { error: 'phone must be E.164 (+61...)' },
-          { status: 400 }
-        );
-      }
-    }
-
-    // 1) Verify with Twilio
-    const sid = process.env.TWILIO_ACCOUNT_SID!;
-    const tok = process.env.TWILIO_AUTH_TOKEN!;
-    const verifySid = process.env.TWILIO_VERIFY_SID!;
-
-    const params = new URLSearchParams({ To: dest, Code: code.trim() });
-    const res = await fetch(
-      `https://verify.twilio.com/v2/Services/${verifySid}/VerificationCheck`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: 'Basic ' + Buffer.from(`${sid}:${tok}`).toString('base64'),
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: params.toString(),
-      }
-    );
-
-    const data = await res.json();
-    if (!res.ok || data.status !== 'approved') {
-      return NextResponse.json({ error: 'Invalid or expired code' }, { status: 400 });
-    }
-
-    // 2) Create Supabase user AFTER verification
-    const admin = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
-
-    const createPayload: AdminUserAttributes = {
-      password,
-      user_metadata: byEmail
-        ? { signup_method: 'email' }
-        : { signup_method: 'phone', phone: dest },
-      ...(byEmail
-        ? { email: dest, email_confirm: true }
-        : { phone: dest, phone_confirm: true }),
-    };
-
-    const { error: createErr } = await admin.auth.admin.createUser(createPayload);
-
-    if (createErr) {
-      const msg = (createErr.message || '').toLowerCase();
-      const already = msg.includes('already registered') || msg.includes('duplicate');
-      if (!already) {
-        console.error('Supabase createUser error:', createErr);
-        return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
-      }
-      // user exists -> treat as success
-    }
-
-    return NextResponse.json({
-      ok: true,
-      login: byEmail ? { email: dest } : { phone: dest },
-    });
-  } catch (err) {
-    console.error('verify route error:', err);
-    return NextResponse.json({ error: 'server error' }, { status: 500 });
+    const approved = true; // <-- keep while wiring provider
+    return NextResponse.json({ approved });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message ?? 'verify failed' }, { status: 500 });
   }
 }

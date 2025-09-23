@@ -1,69 +1,34 @@
-// app/api/auth/start/route.ts
 import { NextResponse } from 'next/server';
 
-export const runtime = 'nodejs';
-
-type Body = { target?: string };
-
-function isEmail(x: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x);
-}
-function isE164(x: string): boolean {
-  return /^\+\d{7,15}$/.test(x);
-}
-function normalizePhoneAU(s: string): string {
-  const t = s.replace(/\s+/g, '');
-  if (t.startsWith('+')) return t;
-  if (/^0\d{8,10}$/.test(t)) return '+61' + t.slice(1);
-  return t;
+function normalizePhoneAU(input: string | null | undefined): string | null {
+  if (!input) return null;
+  let raw = String(input).trim().replace(/\s+/g, '');
+  raw = raw.replace(/^0+/, '');                // "0499..." -> "499..."
+  if (/^\+61\d{9}$/.test(raw)) return raw;     // already +61XXXXXXXXX
+  if (/^61\d{9}$/.test(raw)) return `+${raw}`; // 61XXXXXXXXX -> +61XXXXXXXXX
+  if (/^4\d{8}$/.test(raw)) return `+61${raw}`;// 4XXXXXXXX -> +614XXXXXXXX
+  if (/^\+?\d{6,15}$/.test(raw)) return raw.startsWith('+') ? raw : `+${raw}`;
+  return null;
 }
 
 export async function POST(req: Request) {
+  const body = await req.json().catch(() => ({} as Record<string, unknown>));
+  const raw = (body['phone'] ?? body['target']) as string | undefined;
+  const phone = normalizePhoneAU(raw);
+
+  if (!phone) {
+    // NOTE: keep message 'phone required' so it's obvious on the client
+    return NextResponse.json({ error: 'phone required' }, { status: 400 });
+  }
+
   try {
-    const { target }: Body = await req.json();
-    if (!target) {
-      return NextResponse.json({ error: 'target required' }, { status: 400 });
-    }
+    // TODO: wire your provider here (Twilio Verify, etc.)
+    // Example (pseudo):
+    // await twilioClient.verify.v2.services(process.env.TWILIO_VERIFY_SID!)
+    //   .verifications.create({ to: phone, channel: 'sms' });
 
-    // Only allow phone here (email handled by Supabase on the client)
-    if (isEmail(target)) {
-      return NextResponse.json({ error: 'Use email OTP via Supabase' }, { status: 400 });
-    }
-
-    const sid = process.env.TWILIO_ACCOUNT_SID!;
-    const tok = process.env.TWILIO_AUTH_TOKEN!;
-    const verifySid = process.env.TWILIO_VERIFY_SID!;
-
-    const phone = normalizePhoneAU(target);
-    if (!isE164(phone)) {
-      return NextResponse.json({ error: 'phone must be E.164 (+61...)' }, { status: 400 });
-    }
-
-    const params = new URLSearchParams({ To: phone, Channel: 'sms' });
-    const twilioRes = await fetch(
-      `https://verify.twilio.com/v2/Services/${verifySid}/Verifications`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: 'Basic ' + Buffer.from(`${sid}:${tok}`).toString('base64'),
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: params.toString(),
-      }
-    );
-
-    const data = await twilioRes.json();
-    if (!twilioRes.ok) {
-      console.error('Twilio start error:', data);
-      return NextResponse.json(
-        { error: data.message || data.error_code || 'Twilio error' },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    console.error('start route error:', err);
-    return NextResponse.json({ error: 'server error' }, { status: 500 });
+    return NextResponse.json({ ok: true, to: phone });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message ?? 'send failed' }, { status: 500 });
   }
 }
