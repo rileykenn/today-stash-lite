@@ -106,7 +106,7 @@ export default function SignInPage() {
       const emailUnverified = getBool(j, 'email_unverified');
 
       if (emailTaken && emailUnverified) {
-        // Abandoned signup → ask for password then send OTP
+        // Abandoned signup → ask to set password, then send OTP
         setPendingEmail(id);
         setNewPw('');
         setConfirmPw('');
@@ -134,7 +134,10 @@ export default function SignInPage() {
         email: pendingEmail,
         options: { shouldCreateUser: false, emailRedirectTo: undefined },
       });
-      if (otpErr) throw otpErr;
+      if (otpErr) {
+        // If this fails with "For security reasons..." the email does not exist
+        throw otpErr;
+      }
 
       setNotice('We emailed you a 6-digit code. Enter it below to confirm your account.');
       setEmailCooldown(60);
