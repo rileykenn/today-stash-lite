@@ -38,12 +38,11 @@ type CheckOk = {
   confirmed: boolean;
   action: 'signin' | 'verify' | 'signup';
 };
-type CheckErr = { error: string };
 
 function isCheckOk(x: unknown): x is CheckOk {
   if (typeof x !== 'object' || x === null) return false;
   const o = x as Record<string, unknown>;
-  return o.ok === true && typeof o.method === 'string';
+  return o.ok === true && (o.method === 'email' || o.method === 'phone');
 }
 
 function errMsg(e: unknown): string {
@@ -62,8 +61,8 @@ export default function SignupPage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
-  // inline field warnings
-  const [existsInfo, setExistsInfo] = useState<{
+  // existence state for inline UI
+  const [existsState, setExistsState] = useState<{
     exists: boolean;
     confirmed: boolean;
     method: 'email' | 'phone' | null;
@@ -74,12 +73,8 @@ export default function SignupPage() {
     [password, confirm]
   );
 
-  // Soft-check existence when the user finishes typing the identifier
-  async function checkTargetExists(input: string) {
-    if (!input) {
-      setExistsInfo({ exists: false, confirmed: false, method: null });
-      return;
-    }
+  // ---- existence check that RETURNS the result for immediate branching ----
+  async function fetchExists(input: string): Promise<CheckOk | null> {
     try {
       const res = await fetch('/api/auth/check', {
         method: 'POST',
@@ -87,19 +82,42 @@ export default function SignupPage() {
         body: JSON.stringify({ target: input }),
       });
       const data: unknown = await res.json();
-      if (res.ok && isCheckOk(data)) {
-        setExistsInfo({
-          exists: data.exists,
-          confirmed: data.confirmed,
-          method: data.method,
-        });
-      } else {
-        setExistsInfo({ exists: false, confirmed: false, method: null });
-      }
+      if (res.ok && isCheckOk(data)) return data;
+      return null;
     } catch {
-      setExistsInfo({ exists: false, confirmed: false, method: null });
+      return null;
     }
   }
+
+  async function checkAndSet(input: string) {
+    if (!input) {
+      setExistsState({ exists: false, confirmed: false, method: null });
+      return;
+    }
+    const result = await fetchExists(input);
+    if (result) {
+      setExistsState({
+        exists: result.exists,
+        confirmed: result.confirmed,
+        method: result.method,
+      });
+    } else {
+      setExistsState({ exists: false, confirmed: false, method: null });
+    }
+  }
+
+  // Debounced existence check as the user types
+  useEffect(() => {
+    if (!target.trim()) {
+      setExistsState({ exists: false, confirmed: false, method: null });
+      return;
+    }
+    const t = setTimeout(() => {
+      void checkAndSet(target.trim());
+    }, 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target]);
 
   // ENTER step: send code (email via Supabase, phone via Twilio) after guardrails
   async function handleStart() {
@@ -116,23 +134,21 @@ export default function SignupPage() {
         return;
       }
 
-      // Always check existence on submit
-      await checkTargetExists(input);
+      // Get a fresh, synchronous existence result and branch on THAT (not state)
+      const check = await fetchExists(input);
 
-      if (existsInfo.exists) {
-        // If an account exists…
-        if (existsInfo.confirmed) {
-          // Confirmed: send them to sign-in
+      if (check?.exists) {
+        if (check.confirmed) {
+          // Confirmed account exists -> show inline error + block
+          setExistsState({ exists: true, confirmed: true, method: check.method });
           setMessage('That account already exists. Please sign in.');
-          router.push('/signin');
-          return;
+          return; // do NOT advance
         } else {
-          // Unconfirmed: route to verify-email flow for email; for phone, you shouldn't hit this state
-          if (isEmail(input)) {
+          // Unconfirmed: route to verify-email for email flow
+          if (check.method === 'email') {
             if (typeof window !== 'undefined') {
               localStorage.setItem('pendingEmail', input.toLowerCase());
             }
-            setMessage('Finish verifying your email to continue.');
             router.push('/verify-email');
             return;
           }
@@ -144,7 +160,7 @@ export default function SignupPage() {
         const sb = await getSb();
         const email = input.toLowerCase();
 
-        // Force numeric code (no magic link) — template shows {{ .Token }}
+        // Force numeric code (we customized the template to show {{ .Token }})
         const { error } = await sb.auth.signInWithOtp({
           email,
           options: { shouldCreateUser: true },
@@ -219,7 +235,6 @@ export default function SignupPage() {
         }
         setStep('done');
         setMessage('Signup complete! You’re signed in.');
-        // router.push('/deals') // enable when ready
         return;
       }
 
@@ -243,26 +258,12 @@ export default function SignupPage() {
       }
       setStep('done');
       setMessage('Signup complete! You’re signed in.');
-      // router.push('/deals')
     } catch (e) {
       setMessage(errMsg(e));
     } finally {
       setBusy(false);
     }
   }
-
-  // Debounced existence check when user stops typing for 500ms
-  useEffect(() => {
-    if (!target.trim()) {
-      setExistsInfo({ exists: false, confirmed: false, method: null });
-      return;
-    }
-    const t = setTimeout(() => {
-      void checkTargetExists(target.trim());
-    }, 500);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target]);
 
   return (
     <div className="max-w-md mx-auto mt-20 p-6 border rounded-lg shadow">
@@ -275,10 +276,10 @@ export default function SignupPage() {
             placeholder="Email or phone"
             value={target}
             onChange={(e) => setTarget(e.target.value)}
-            onBlur={(e) => void checkTargetExists(e.target.value.trim())}
+            onBlur={(e) => void checkAndSet(e.target.value.trim())}
           />
           {/* inline helper under identifier */}
-          {existsInfo.method === 'email' && existsInfo.exists && existsInfo.confirmed && (
+          {existsState.method === 'email' && existsState.exists && existsState.confirmed && (
             <p className="text-sm text-red-600 mb-2">
               This email is already in use.{' '}
               <Link href="/signin" className="underline">
@@ -287,7 +288,7 @@ export default function SignupPage() {
               .
             </p>
           )}
-          {existsInfo.method === 'email' && existsInfo.exists && !existsInfo.confirmed && (
+          {existsState.method === 'email' && existsState.exists && !existsState.confirmed && (
             <p className="text-sm text-amber-600 mb-2">
               You started signup but haven’t verified.{' '}
               <Link href="/verify-email" className="underline">
@@ -325,13 +326,12 @@ export default function SignupPage() {
               !password ||
               !confirm ||
               !passwordsMatch ||
-              (existsInfo.method === 'email' && existsInfo.exists && existsInfo.confirmed)
+              (existsState.method === 'email' && existsState.exists && existsState.confirmed)
             }
           >
             {busy ? 'Sending…' : 'Send Code'}
           </button>
 
-          {/* helpful links */}
           <div className="mt-3 text-sm">
             Already have an account?{' '}
             <Link href="/signin" className="underline">
