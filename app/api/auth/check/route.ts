@@ -26,14 +26,9 @@ type AdminUser = {
   phone_confirmed_at?: string | null;
 };
 
-function isAdminUserArray(x: unknown): x is AdminUser[] {
-  return Array.isArray(x);
-}
-
 export async function POST(req: Request) {
   try {
     const { target }: Body = await req.json();
-
     if (!target) {
       return NextResponse.json({ error: 'target required' }, { status: 400 });
     }
@@ -47,10 +42,8 @@ export async function POST(req: Request) {
     let dest = target.trim();
     const byEmail = isEmail(dest);
 
-    let searchUrl: string;
     if (byEmail) {
       dest = dest.toLowerCase();
-      searchUrl = `${url}/auth/v1/admin/users?email=${encodeURIComponent(dest)}`;
     } else {
       dest = normalizePhoneAU(dest);
       if (!isE164(dest)) {
@@ -59,29 +52,38 @@ export async function POST(req: Request) {
           { status: 400 }
         );
       }
-      searchUrl = `${url}/auth/v1/admin/users?phone=${encodeURIComponent(dest)}`;
     }
 
-    const res = await fetch(searchUrl, {
+    // Use Admin REST endpoint for both email and phone lookups
+    const qp = byEmail
+      ? `email=${encodeURIComponent(dest)}`
+      : `phone=${encodeURIComponent(dest)}`;
+
+    const res = await fetch(`${url}/auth/v1/admin/users?${qp}`, {
       method: 'GET',
       headers: {
         apikey: svc,
         Authorization: `Bearer ${svc}`,
+        Accept: 'application/json',
       },
       cache: 'no-store',
     });
 
     if (!res.ok) {
-      const text = await res.text();
-      console.error('Admin search error:', res.status, text);
+      const txt = await res.text().catch(() => '');
+      console.error('admin search failed:', res.status, txt);
       return NextResponse.json({ error: 'lookup failed' }, { status: 500 });
     }
 
-    const raw: unknown = await res.json();
-    const users: AdminUser[] = isAdminUserArray(raw) ? raw : [];
-    const exists = users.length > 0;
-    const u = exists ? users[0] : undefined;
+    const raw = (await res.json().catch(() => [])) as unknown;
+    const users: AdminUser[] = Array.isArray(raw) ? (raw as AdminUser[]) : [];
 
+    // Filter defensively (email is stored lowercase)
+    const u = users.find((x) =>
+      byEmail ? x.email?.toLowerCase() === dest : x.phone === dest
+    );
+
+    const exists = Boolean(u);
     const confirmed = exists
       ? byEmail
         ? Boolean(u?.email_confirmed_at)
