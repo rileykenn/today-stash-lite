@@ -393,4 +393,12 @@ export default function SignupPage() {
       <div className="h-24" />
     </main>
   );
+
+if (!error) {
+  window.location.replace('/auth/verify-email');
+}
+if (!error) {
+  window.location.replace('/auth/verify-email');
+}
+
 }

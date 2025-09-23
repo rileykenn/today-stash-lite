@@ -1,181 +1,71 @@
 'use client';
 
-// Standalone verify screen:
-// - Users can enter email (or it auto-fills from localStorage 'pendingEmail')
-// - Sends/resends Supabase email OTP (numeric code, not magic link)
-// - Verifies the code and then sets password
-
 import { useEffect, useState } from 'react';
-
-async function getSb() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) {
-    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
-  }
-  const { createClient } = await import('@supabase/supabase-js');
-  return createClient(url, key);
-}
-
-function isEmail(x: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x);
-}
-
-type Step = 'enter' | 'code' | 'done';
+import { sb } from '@/lib/supabaseBrowser';
 
 export default function VerifyEmailPage() {
-  const [email, setEmail] = useState<string>('');
-  const [code, setCode] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
-  const [message, setMessage] = useState<string>('');
-  const [busy, setBusy] = useState<boolean>(false);
-  const [step, setStep] = useState<Step>('enter');
+  const [email, setEmail] = useState<string | null>(null);
+  const [cooldown, setCooldown] = useState(0);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const cached = typeof window !== 'undefined' ? localStorage.getItem('pendingEmail') : null;
-    if (cached && isEmail(cached)) {
-      setEmail(cached);
-    }
+    (async () => {
+      const { data: { user } } = await sb.auth.getUser();
+      setEmail(user?.email ?? null);
+      if (user?.email_confirmed_at) {
+        // already confirmed — bounce to app
+        window.location.replace('/consumer');
+      }
+    })();
   }, []);
 
-  function errMsg(e: unknown): string {
-    return e instanceof Error ? e.message : 'Unexpected error';
-  }
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const id = setInterval(() => setCooldown((n) => n - 1), 1000);
+    return () => clearInterval(id);
+  }, [cooldown]);
 
-  async function sendCode() {
-    setMessage('');
-    if (!email || !isEmail(email)) {
-      setMessage('Enter a valid email.');
-      return;
-    }
-    setBusy(true);
+  async function resend() {
+    setError(null); setNotice(null);
+    if (!email) { setError('No email on session. Sign in again.'); return; }
+    if (cooldown > 0) return;
     try {
-      const sb = await getSb();
-      // Force numeric code mode by not providing emailRedirectTo
-      const { error } = await sb.auth.signInWithOtp({
-        email: email.toLowerCase(),
-        options: { shouldCreateUser: true },
-      });
-      if (error) {
-        setMessage(error.message || 'Failed to send code');
-        return;
-      }
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('pendingEmail', email.toLowerCase());
-      }
-      setStep('code');
-      setMessage('Code sent! Check your inbox (and spam).');
-    } catch (e: unknown) {
-      setMessage(errMsg(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function verifyAndSetPassword() {
-    setMessage('');
-    if (!email || !isEmail(email)) {
-      setMessage('Enter a valid email.');
-      return;
-    }
-    if (!code) {
-      setMessage('Enter the 6-digit code from your email.');
-      return;
-    }
-    if (!password || password.length < 6) {
-      setMessage('Set a password (min 6 chars).');
-      return;
-    }
-    setBusy(true);
-    try {
-      const sb = await getSb();
-      const { data, error } = await sb.auth.verifyOtp({
-        email: email.toLowerCase(),
-        token: code.trim(),
-        type: 'email',
-      });
-      if (error || !data?.session) {
-        setMessage(error?.message || 'Invalid or expired code');
-        return;
-      }
-      const upd = await sb.auth.updateUser({ password });
-      if (upd.error) {
-        setMessage(upd.error.message || 'Failed to set password');
-        return;
-      }
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('pendingEmail');
-      }
-      setStep('done');
-      setMessage('Email verified and password set. You’re signed in.');
-      // TODO: router.push('/deals')
-    } catch (e: unknown) {
-      setMessage(errMsg(e));
-    } finally {
-      setBusy(false);
+      // Supabase will re-send the signup confirmation email
+      const { error } = await sb.auth.resend({ type: 'signup', email });
+      if (error) throw error;
+      setNotice('We re-sent the confirmation email. Check your inbox (and spam).');
+      setCooldown(10);
+    } catch (e: any) {
+      setError(e?.message ?? 'Could not resend email.');
     }
   }
 
   return (
-    <div className="max-w-md mx-auto mt-20 p-6 border rounded-lg shadow">
-      <h1 className="text-2xl font-bold mb-4">Verify Email</h1>
+    <main className="mx-auto max-w-screen-sm px-4 py-10 text-white">
+      <h1 className="text-2xl font-semibold">Verify your email</h1>
+      <p className="mt-2 text-white/70">
+        We sent a confirmation link to {email ?? 'your email'}. Please click the link to continue.
+      </p>
 
-      {step === 'enter' && (
-        <>
-          <input
-            className="w-full p-2 border rounded mb-2"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <button
-            className="w-full bg-blue-600 text-white py-2 rounded disabled:opacity-60"
-            onClick={sendCode}
-            disabled={busy || !email}
-          >
-            {busy ? 'Sending…' : 'Send/Resend Code'}
-          </button>
-        </>
-      )}
+      {notice && <div className="mt-4 rounded-md bg-emerald-900/30 border border-emerald-700/40 p-3 text-emerald-300">{notice}</div>}
+      {error && <div className="mt-4 rounded-md bg-red-900/20 border border-red-700/30 p-3 text-red-300">{error}</div>}
 
-      {step === 'code' && (
-        <>
-          <input
-            className="w-full p-2 border rounded mb-2"
-            placeholder="6-digit code"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-          />
-          <input
-            type="password"
-            className="w-full p-2 border rounded mb-3"
-            placeholder="Set a password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <button
-            className="w-full bg-green-600 text-white py-2 rounded disabled:opacity-60"
-            onClick={verifyAndSetPassword}
-            disabled={busy || !code || !password}
-          >
-            {busy ? 'Verifying…' : 'Verify & Set Password'}
-          </button>
-
-          <button
-            className="mt-3 w-full border py-2 rounded disabled:opacity-60"
-            onClick={sendCode}
-            disabled={busy}
-          >
-            {busy ? 'Sending…' : 'Resend Code'}
-          </button>
-        </>
-      )}
-
-      {step === 'done' && (
-        <p className="text-green-600 font-semibold">✅ Verified!</p>
-      )}
-
-      {message && <p className="mt-4 text-sm">{message}</p>}
-    </div>
+      <div className="mt-6 flex gap-3">
+        <button
+          onClick={resend}
+          disabled={cooldown > 0}
+          className="rounded-full bg-[var(--color-brand-600)] px-5 py-2 font-semibold disabled:opacity-60"
+        >
+          {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend email'}
+        </button>
+        <button
+          onClick={() => window.location.reload()}
+          className="rounded-full border border-white/20 px-5 py-2"
+        >
+          I’ve verified
+        </button>
+      </div>
+    </main>
   );
 }
