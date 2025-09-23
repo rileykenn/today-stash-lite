@@ -3,9 +3,14 @@ import { NextResponse } from 'next/server';
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SERVICE_ROLE = process.env.SUPABASE_SERVICE_KEY!;
 
-// Helper to call GoTrue Admin API with service role
-async function adminGet(path: string) {
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/admin${path}`, {
+/**
+ * Call Supabase GoTrue Admin API with service role key.
+ */
+async function adminFetch(path: string) {
+  const url = `${SUPABASE_URL}/auth/v1/admin${path}`;
+  console.log('➡️ Fetching:', url);
+
+  const res = await fetch(url, {
     headers: {
       apikey: SERVICE_ROLE,
       Authorization: `Bearer ${SERVICE_ROLE}`,
@@ -13,41 +18,49 @@ async function adminGet(path: string) {
     },
     cache: 'no-store',
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Admin API ${res.status}: ${text || res.statusText}`);
+
+  const text = await res.text();
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    json = text;
   }
-  return res.json();
+
+  console.log('⬅️ Response', res.status, res.statusText, json);
+
+  return { status: res.status, data: json };
 }
 
 export async function POST(req: Request) {
   try {
     const { email, phone } = (await req.json()) as { email?: string; phone?: string };
-
-    if (!email && !phone) {
-      return NextResponse.json({ error: 'email or phone required' }, { status: 400 });
-    }
+    console.log('🔎 Incoming check-availability request:', { email, phone });
 
     let email_taken = false;
     let phone_taken = false;
 
-    // GoTrue supports filtering by email or phone
     if (email) {
-      const data = await adminGet(`/users?email=${encodeURIComponent(email)}`);
-      // returns { users: [...] } or an array depending on version; normalize
-      const users = Array.isArray(data) ? data : (data?.users ?? []);
-      email_taken = users.length > 0;
+      const { status, data } = await adminFetch(`/users?email=${encodeURIComponent(email)}`);
+      if (status === 200) {
+        const users = Array.isArray(data) ? data : (data as any)?.users ?? [];
+        email_taken = users.length > 0;
+      }
     }
 
     if (phone) {
-      const data = await adminGet(`/users?phone=${encodeURIComponent(phone)}`);
-      const users = Array.isArray(data) ? data : (data?.users ?? []);
-      phone_taken = users.length > 0;
+      const { status, data } = await adminFetch(`/users?phone=${encodeURIComponent(phone)}`);
+      if (status === 200) {
+        const users = Array.isArray(data) ? data : (data as any)?.users ?? [];
+        phone_taken = users.length > 0;
+      }
     }
 
+    console.log('✅ Result:', { email_taken, phone_taken });
     return NextResponse.json({ ok: true, email_taken, phone_taken });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'unknown error';
+    console.error('💥 Error in check-availability:', e);
+    const msg = e instanceof Error ? e.message : 'Unknown error';
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
