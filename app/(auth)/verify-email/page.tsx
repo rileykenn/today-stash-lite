@@ -13,9 +13,9 @@ export default function VerifyEmailPage() {
     (async () => {
       const { data: { user } } = await sb.auth.getUser();
       setEmail(user?.email ?? null);
+
       if (user?.email_confirmed_at) {
-        // already confirmed — bounce to app
-        window.location.replace('/consumer');
+        window.location.replace('/consumer'); // your post-verify destination
       }
     })();
   }, []);
@@ -27,29 +27,42 @@ export default function VerifyEmailPage() {
   }, [cooldown]);
 
   async function resend() {
-    setError(null); setNotice(null);
-    if (!email) { setError('No email on session. Sign in again.'); return; }
+    setError(null);
+    setNotice(null);
+    if (!email) {
+      setError('No email found in session. Please sign in again.');
+      return;
+    }
     if (cooldown > 0) return;
+
     try {
-      // Supabase will re-send the signup confirmation email
-      const { error } = await sb.auth.resend({ type: 'signup', email });
-      if (error) throw error;
-      setNotice('We re-sent the confirmation email. Check your inbox (and spam).');
+      const { error: resendErr } = await sb.auth.resend({ type: 'signup', email });
+      if (resendErr) throw new Error(resendErr.message);
+      setNotice('Verification email re-sent. Check your inbox (and spam).');
       setCooldown(10);
-    } catch (e: any) {
-      setError(e?.message ?? 'Could not resend email.');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Could not resend email.';
+      setError(msg);
     }
   }
 
   return (
-    <main className="mx-auto max-w-screen-sm px-4 py-10 text-white">
+    <main className="mx-auto max-w-md px-4 py-10 text-white">
       <h1 className="text-2xl font-semibold">Verify your email</h1>
       <p className="mt-2 text-white/70">
-        We sent a confirmation link to {email ?? 'your email'}. Please click the link to continue.
+        We sent a confirmation link to {email ?? 'your email'}. You must confirm it to access your account.
       </p>
 
-      {notice && <div className="mt-4 rounded-md bg-emerald-900/30 border border-emerald-700/40 p-3 text-emerald-300">{notice}</div>}
-      {error && <div className="mt-4 rounded-md bg-red-900/20 border border-red-700/30 p-3 text-red-300">{error}</div>}
+      {notice && (
+        <div className="mt-4 rounded-md bg-emerald-900/30 border border-emerald-700/40 p-3 text-emerald-300">
+          {notice}
+        </div>
+      )}
+      {error && (
+        <div className="mt-4 rounded-md bg-red-900/20 border border-red-700/30 p-3 text-red-300">
+          {error}
+        </div>
+      )}
 
       <div className="mt-6 flex gap-3">
         <button
