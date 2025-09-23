@@ -1,398 +1,343 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
+import { getSupabaseClient } from '@/lib/supabaseClient';
 
-function isEmail(x: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x);
-}
-function isE164(x: string): boolean {
-  return /^\+\d{7,15}$/.test(x);
-}
-function normalizePhoneAU(s: string): string {
-  const t = s.replace(/\s+/g, '');
-  if (t.startsWith('+')) return t;
-  if (/^0\d{8,10}$/.test(t)) return '+61' + t.slice(1);
-  return t;
+function normalizePhoneAU(input: string) {
+  const raw = input.replace(/\s+/g, '');
+  if (/^\+6104\d{8}$/.test(raw)) return '+61' + raw.slice(4);
+  if (/^\+614\d{8}$/.test(raw)) return raw;
+  if (/^04\d{8}$/.test(raw)) return '+61' + raw.slice(1);
+  if (/^0\d{9}$/.test(raw)) return '+61' + raw.slice(1);
+  return raw;
 }
 
-// Lazy-create Supabase client in the browser only
-async function getSb() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
-  const { createClient } = await import('@supabase/supabase-js');
-  return createClient(url, key);
-}
-
-type Step = 'enter' | 'code' | 'done';
-
-type CheckOk = {
-  ok: true;
-  method: 'email' | 'phone';
-  value: string;
-  exists: boolean;
-  confirmed: boolean;
-  action: 'signin' | 'verify' | 'signup';
-};
-type CheckErr = { error: string };
-
-function isCheckOk(x: unknown): x is CheckOk {
-  if (typeof x !== 'object' || x === null) return false;
-  const o = x as Record<string, unknown>;
-  return o.ok === true && (o.method === 'email' || o.method === 'phone');
-}
-
-function errMsg(e: unknown): string {
-  return e instanceof Error ? e.message : 'Unexpected error';
-}
+type OtpState = 'idle' | 'sending_code' | 'code_sent';
+type RpcResult = { email_taken: boolean | null; phone_taken: boolean | null };
 
 export default function SignupPage() {
-  const router = useRouter();
+  const sb = getSupabaseClient();
 
-  const [target, setTarget] = useState('');
+  // bounce if already logged in
+  useEffect(() => {
+    (async () => {
+      const { data } = await sb.auth.getSession();
+      if (data.session && typeof window !== 'undefined') {
+        window.location.replace('/deals');
+      }
+    })();
+  }, [sb]);
+
+  // state
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [sentToPhone, setSentToPhone] = useState<string | null>(null); // exact phone used for OTP
+  const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
-  const [code, setCode] = useState('');
-  const [step, setStep] = useState<Step>('enter');
 
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('');
+  const [otpState, setOtpState] = useState<OtpState>('idle');
+  const [cooldown, setCooldown] = useState(0);
 
-  // live existence info
-  const [checking, setChecking] = useState(false);
-  const [existsInfo, setExistsInfo] = useState<{
-    checked: boolean; // we have a result
-    exists: boolean;
-    confirmed: boolean;
-    method: 'email' | 'phone' | null;
-  }>({ checked: false, exists: false, confirmed: false, method: null });
+  const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const passwordsMatch = useMemo(() => !!password && password === confirm, [password, confirm]);
+  // availability flags (RPC)
+  const [emailTaken, setEmailTaken] = useState(false);
+  const [phoneTaken, setPhoneTaken] = useState(false);
 
-  // ---- server existence check (uses service key on server) ----
-  async function fetchExists(input: string): Promise<CheckOk | null> {
-    try {
-      const res = await fetch('/api/auth/check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target: input }),
-      });
-      const data: unknown = await res.json();
-      if (res.ok && isCheckOk(data)) return data;
-      return null;
-    } catch {
-      return null;
-    }
+  function resetAlerts() {
+    setError(null);
+    setNotice(null);
   }
 
-  // Debounced while typing (LIVE)
+  // cooldown ticker
   useEffect(() => {
-    const value = target.trim();
-    if (!value) {
-      setExistsInfo({ checked: false, exists: false, confirmed: false, method: null });
-      setChecking(false);
+    if (cooldown <= 0) return;
+    const id = setInterval(() => setCooldown((s) => s - 1), 1000);
+    return () => clearInterval(id);
+  }, [cooldown]);
+
+  const strongPassword = useMemo(
+    () => password.length >= 6 && password === confirm,
+    [password, confirm]
+  );
+
+  const canRequestCode = useMemo(
+    () => phone.trim().length >= 8 && otpState !== 'sending_code' && cooldown === 0,
+    [phone, otpState, cooldown]
+  );
+
+  const canSubmit = useMemo(() => {
+    const idsOk = !emailTaken && !phoneTaken;
+    const hasCode = code.trim().length >= 4;
+    return Boolean(
+      email.trim() && phone.trim() && strongPassword && idsOk && hasCode && !loading
+    );
+  }, [email, phone, strongPassword, emailTaken, phoneTaken, code, loading]);
+
+  // availability RPC (debounced) — uses the SQL function we created
+  useEffect(() => {
+    const handle = setTimeout(async () => {
+      const e = email.trim();
+      const p = normalizePhoneAU(phone.trim());
+      if (!e && !p) {
+        setEmailTaken(false);
+        setPhoneTaken(false);
+        return;
+      }
+      try {
+        const { data, error } = await sb.rpc('check_identifier_available', {
+          p_email: e || null,
+          p_phone: p || null,
+        });
+        if (!error && data) {
+          const res = data as unknown as RpcResult;
+          setEmailTaken(Boolean(res.email_taken));
+          setPhoneTaken(Boolean(res.phone_taken));
+        }
+      } catch {
+        // ignore network glitches; keep previous flags
+      }
+    }, 350);
+    return () => clearTimeout(handle);
+  }, [email, phone, sb]);
+
+  // SEND CODE (Twilio Verify via our API) — no Supabase user yet
+  async function handleSendCode() {
+    resetAlerts();
+    if (!canRequestCode) return;
+
+    const normalized = normalizePhoneAU(phone.trim());
+    setPhone(normalized);
+    setCode('');
+
+    if (phoneTaken) {
+      setError('This phone number is already associated with an account.');
       return;
     }
-    setChecking(true);
-    const t = setTimeout(async () => {
-      const r = await fetchExists(value);
-      if (r) {
-        setExistsInfo({ checked: true, exists: r.exists, confirmed: r.confirmed, method: r.method });
+    if (emailTaken) {
+      setError('This email is already associated with an account.');
+      return;
+    }
+
+    try {
+      setOtpState('sending_code');
+      const r = await fetch('/api/auth/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: normalized }),
+      });
+      const j: unknown = await r.json();
+      if (!r.ok || (j as { error?: string } | null)?.error) {
+        const msg = (j as { error?: string } | null)?.error || 'Failed to send code';
+        throw new Error(msg);
+      }
+
+      setOtpState('code_sent');
+      setCooldown(10);
+      setSentToPhone(normalized);
+      setNotice('We sent a code. Enter it below, then press Sign up.');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to send code.';
+      setError(msg);
+      setOtpState('idle');
+    }
+  }
+
+  // SUBMIT: verify code (server) → server creates confirmed user → sign in with phone+password
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    resetAlerts();
+
+    if (!canSubmit) return;
+    if (!sentToPhone) {
+      setError('Tap “Get code” first.');
+      return;
+    }
+    if (emailTaken) {
+      setError('This email is already associated with an account.');
+      return;
+    }
+    if (phoneTaken) {
+      setError('This phone number is already associated with an account.');
+      return;
+    }
+
+    const token = code.trim();
+    const normalizedPhone = sentToPhone;
+    const trimmedEmail = email.trim(); // optional; currently stored only if you add it to user_metadata server-side
+
+    setLoading(true);
+    try {
+      // 1) Verify code with our API (Twilio Verify) which also creates the user
+      const r = await fetch('/api/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          target: normalizedPhone,
+          code: token,
+          password,
+          // If you later want to persist email on phone accounts, add it to user_metadata in the route
+          // email: trimmedEmail,
+        }),
+      });
+      const j: unknown = await r.json();
+      if (!r.ok || (j as { error?: string } | null)?.error) {
+        const msg = (j as { error?: string } | null)?.error || 'Invalid or expired code.';
+        throw new Error(msg);
+      }
+
+      // 2) Sign in on the client with PHONE + password
+      const { error: signInErr } = await sb.auth.signInWithPassword({
+        phone: normalizedPhone,
+        password,
+      });
+      if (signInErr) throw signInErr;
+
+      // 3) Hard redirect to reset RSC header
+      window.location.replace('/deals');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Something went wrong. Please try again.';
+      const lower = msg.toLowerCase();
+      if (lower.includes('expired') || lower.includes('invalid')) {
+        setError('Invalid or expired code. Use the newest code or tap “Resend”.');
       } else {
-        setExistsInfo({ checked: false, exists: false, confirmed: false, method: null });
+        setError(msg);
       }
-      setChecking(false);
-    }, 350);
-    return () => clearTimeout(t);
-  }, [target]);
-
-  // ENTER step: send code after guardrails
-  async function handleStart() {
-    setMessage('');
-    setBusy(true);
-    try {
-      const input = target.trim();
-      if (!input) {
-        setMessage('Enter your email or phone.');
-        return;
-      }
-      if (!passwordsMatch) {
-        setMessage('Passwords do not match.');
-        return;
-      }
-
-      // Always do a fresh server check and FAIL CLOSED if it fails
-      const r = await fetchExists(input);
-      if (!r) {
-        setMessage('Could not validate your email/phone right now. Please try again.');
-        return;
-      }
-      // Block if already in use (confirmed)
-      if (r.exists && r.confirmed) {
-        setMessage(
-          r.method === 'email'
-            ? 'This email is already in use. Please sign in.'
-            : 'This phone number is already in use. Please sign in.'
-        );
-        return; // hard block
-      }
-      // If email exists but unconfirmed, send them to verify flow
-      if (r.method === 'email' && r.exists && !r.confirmed) {
-        if (typeof window !== 'undefined') localStorage.setItem('pendingEmail', input.toLowerCase());
-        router.push('/verify-email');
-        return;
-      }
-
-      // New account path
-      if (isEmail(input)) {
-        const sb = await getSb();
-        const email = input.toLowerCase();
-
-        // We customized the template to render {{ .Token }} — this sends a numeric code
-        const { error } = await sb.auth.signInWithOtp({
-          email,
-          options: { shouldCreateUser: true },
-        });
-        if (error) {
-          setMessage(error.message || 'Failed to send email code');
-          return;
-        }
-        if (typeof window !== 'undefined') localStorage.setItem('pendingEmail', email);
-        setStep('code');
-        setMessage('Code sent! Check your inbox (and spam).');
-        return;
-      }
-
-      // Phone path (Twilio)
-      const phone = normalizePhoneAU(input);
-      if (!isE164(phone)) {
-        setMessage('Phone must be E.164 (+61...)');
-        return;
-      }
-      const res = await fetch('/api/auth/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target: phone }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setMessage(data.error || 'Failed to send SMS code');
-        return;
-      }
-      setStep('code');
-      setMessage('Code sent! Check your SMS.');
-    } catch (e) {
-      setMessage(errMsg(e));
     } finally {
-      setBusy(false);
+      setLoading(false);
     }
   }
-
-  // CODE step: verify and complete
-  async function handleVerify() {
-    setMessage('');
-    setBusy(true);
-    try {
-      const input = target.trim();
-      if (!input || !code) {
-        setMessage('Enter the code you received.');
-        return;
-      }
-
-      if (isEmail(input)) {
-        const sb = await getSb();
-        const email = input.toLowerCase();
-        const { data, error } = await sb.auth.verifyOtp({
-          email,
-          token: code.trim(),
-          type: 'email',
-        });
-        if (error || !data?.session) {
-          setMessage(error?.message || 'Invalid or expired code');
-          return;
-        }
-        const upd = await sb.auth.updateUser({ password });
-        if (upd.error) {
-          setMessage(upd.error.message || 'Failed to set password');
-          return;
-        }
-        if (typeof window !== 'undefined') localStorage.removeItem('pendingEmail');
-        setStep('done');
-        setMessage('Signup complete! You’re signed in.');
-        // router.push('/deals')
-        return;
-      }
-
-      // Phone: verify via server then sign in with password
-      const phone = normalizePhoneAU(input);
-      const res = await fetch('/api/auth/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target: phone, code: code.trim(), password }),
-      });
-      const vr = await res.json();
-      if (!res.ok) {
-        setMessage(vr.error || 'Verification failed');
-        return;
-      }
-      const sb = await getSb();
-      const { error } = await sb.auth.signInWithPassword({ phone, password });
-      if (error) {
-        setMessage(error.message || 'Sign-in failed');
-        return;
-      }
-      setStep('done');
-      setMessage('Signup complete! You’re signed in.');
-    } catch (e) {
-      setMessage(errMsg(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  // Disable button when email/phone is already taken (confirmed), or while checking
-  const takenConfirmed =
-    existsInfo.checked &&
-    existsInfo.exists &&
-    existsInfo.confirmed &&
-    ((isEmail(target.trim()) && existsInfo.method === 'email') ||
-      (!isEmail(target.trim()) && existsInfo.method === 'phone'));
-
-  const disableSend =
-    busy ||
-    checking ||
-    !target ||
-    !password ||
-    !confirm ||
-    !passwordsMatch ||
-    takenConfirmed;
 
   return (
-    <div className="max-w-md mx-auto mt-20 p-6 border rounded-lg shadow">
-      <h1 className="text-2xl font-bold mb-4">Sign Up</h1>
+    <main className="mx-auto max-w-screen-sm px-4 py-8">
+      <h1 className="text-3xl font-bold tracking-tight">Create your account</h1>
+      <p className="mt-2 text-gray-600 text-sm">
+        You can browse deals without an account. You’ll sign in when you redeem.
+      </p>
 
-      {step === 'enter' && (
-        <>
-          <input
-            className="w-full p-2 border rounded mb-2"
-            placeholder="Email or phone"
-            value={target}
-            onChange={(e) => setTarget(e.target.value)}
-          />
-          {/* inline helpers */}
-          {checking && target && (
-            <p className="text-sm text-gray-600 mb-2">Checking availability…</p>
+      <section className="mt-6 rounded-2xl border border-gray-200 p-5">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Email address</label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              className="w-full rounded-md border px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring"
+            />
+            {email && emailTaken && (
+              <p className="mt-1 text-xs text-red-500">
+                This email is already associated with an account.
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Mobile phone</label>
+            <div className="flex gap-2">
+              <input
+                required
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+61…"
+                readOnly={otpState === 'code_sent'}
+                className="flex-1 rounded-md border px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring"
+              />
+              <button
+                type="button"
+                onClick={handleSendCode}
+                disabled={!canRequestCode}
+                className="rounded-md px-4 py-2 border text-sm font-semibold disabled:opacity-60"
+              >
+                {otpState === 'sending_code'
+                  ? 'Sending…'
+                  : cooldown > 0
+                  ? `Resend in ${cooldown}s`
+                  : otpState === 'code_sent'
+                  ? 'Resend code'
+                  : 'Get code'}
+              </button>
+            </div>
+            {phone && phoneTaken && (
+              <p className="mt-1 text-xs text-red-500">
+                This phone number is already associated with an account.
+              </p>
+            )}
+
+            <div className="mt-2">
+              <input
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="Enter code"
+                inputMode="numeric"
+                className="w-full rounded-md border px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Create a password</label>
+              <input
+                type="password"
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full rounded-md border px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Confirm password</label>
+              <input
+                type="password"
+                required
+                minLength={6}
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                placeholder="Re-enter password"
+                className="w-full rounded-md border px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring"
+              />
+              {confirm && password !== confirm && (
+                <p className="mt-1 text-xs text-red-500">Passwords don’t match.</p>
+              )}
+            </div>
+          </div>
+
+          {error && (
+            <div className="rounded-md p-3 bg-red-50 text-red-700 text-sm">{error}</div>
           )}
-
-          {existsInfo.checked &&
-            existsInfo.method === 'email' &&
-            existsInfo.exists &&
-            existsInfo.confirmed && (
-              <p className="text-sm text-red-600 mb-2">
-                This email is already in use.{' '}
-                <Link href="/signin" className="underline">
-                  Sign in
-                </Link>
-                .
-              </p>
-            )}
-
-          {existsInfo.checked &&
-            existsInfo.method === 'email' &&
-            existsInfo.exists &&
-            !existsInfo.confirmed && (
-              <p className="text-sm text-amber-600 mb-2">
-                You started signup but haven’t verified.{' '}
-                <Link href="/verify-email" className="underline">
-                  Enter your code
-                </Link>
-                .
-              </p>
-            )}
-
-          {existsInfo.checked &&
-            existsInfo.method === 'phone' &&
-            existsInfo.exists &&
-            existsInfo.confirmed && (
-              <p className="text-sm text-red-600 mb-2">
-                This phone number is already in use.{' '}
-                <Link href="/signin" className="underline">
-                  Sign in
-                </Link>
-                .
-              </p>
-            )}
-
-          <input
-            type="password"
-            className="w-full p-2 border rounded mb-2"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-
-          <input
-            type="password"
-            className="w-full p-2 border rounded mb-3"
-            placeholder="Confirm password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-          />
-          {!passwordsMatch && confirm.length > 0 && (
-            <p className="text-sm text-red-600 mb-2">Passwords do not match.</p>
+          {notice && (
+            <div className="rounded-md p-3 bg-emerald-50 text-emerald-700 text-sm">
+              {notice}
+            </div>
           )}
 
           <button
-            className="w-full bg-blue-600 text-white py-2 rounded disabled:opacity-60"
-            onClick={handleStart}
-            disabled={disableSend}
+            disabled={!canSubmit}
+            type="submit"
+            className="w-full rounded-full bg-blue-600 text-white py-3 font-semibold hover:brightness-110 disabled:opacity-60"
           >
-            {busy ? 'Sending…' : 'Send Code'}
+            {loading ? 'Please wait…' : 'Sign up'}
           </button>
+        </form>
 
-          <div className="mt-3 text-sm">
-            Already have an account?{' '}
-            <Link href="/signin" className="underline">
-              Sign in
-            </Link>
-            .
-          </div>
-        </>
-      )}
+        <p className="mt-4 text-xs text-gray-600">
+          Already have an account?{' '}
+          <Link href="/signin" className="text-blue-600 hover:underline">
+            Sign in
+          </Link>
+        </p>
+      </section>
 
-      {step === 'code' && (
-        <>
-          <input
-            className="w-full p-2 border rounded mb-3"
-            placeholder="Enter verification code"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-          />
-          <button
-            className="w-full bg-green-600 text-white py-2 rounded disabled:opacity-60"
-            onClick={handleVerify}
-            disabled={busy || !code}
-          >
-            {busy ? 'Verifying…' : 'Verify & Continue'}
-          </button>
-
-          <div className="mt-3 text-sm">
-            Need to verify later?{' '}
-            <Link href="/verify-email" className="underline">
-              Go to Verify Email
-            </Link>
-            .
-          </div>
-        </>
-      )}
-
-      {step === 'done' && (
-        <p className="text-green-600 font-semibold">✅ Signup complete!</p>
-      )}
-
-      {message && <p className="mt-4 text-sm">{message}</p>}
-    </div>
+      <div className="h-24" />
+    </main>
   );
 }
