@@ -139,7 +139,7 @@ export default function SignupPage() {
   async function startPhoneVerify(targetPhone: string) {
     setOtpSending(true);
     try {
-      const r = await fetch('/api/verify/start', {
+      const r = await fetch('/api/auth/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: targetPhone }),
@@ -162,7 +162,7 @@ export default function SignupPage() {
   // Verify -> create user (store +61) -> sign in
   async function verifyPhoneAndCreate(targetPhone: string) {
     // 1) verify code
-    const r = await fetch('/api/verify/check', {
+    const r = await fetch('/api/auth/verify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone: targetPhone, code: code.trim() }),
