@@ -17,21 +17,32 @@ function normalizePhoneAU(s: string): string {
   return t;
 }
 
-// Lazy-create Supabase client with dynamic ESM import (avoids build-time issues)
+// Lazy-create Supabase client in the browser only
 async function getSb() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) {
-    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
-  }
+  if (!url || !key) throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
   const { createClient } = await import('@supabase/supabase-js');
   return createClient(url, key);
 }
 
 type Step = 'enter' | 'code' | 'done';
 
-type RpcResult = { email_taken: boolean | null; phone_taken: boolean | null };
-type CheckPayload = { p_email: string | null; p_phone: string | null };
+type CheckOk = {
+  ok: true;
+  method: 'email' | 'phone';
+  value: string;
+  exists: boolean;
+  confirmed: boolean;
+  action: 'signin' | 'verify' | 'signup';
+};
+type CheckErr = { error: string };
+
+function isCheckOk(x: unknown): x is CheckOk {
+  if (typeof x !== 'object' || x === null) return false;
+  const o = x as Record<string, unknown>;
+  return o.ok === true && (o.method === 'email' || o.method === 'phone');
+}
 
 function errMsg(e: unknown): string {
   return e instanceof Error ? e.message : 'Unexpected error';
@@ -49,71 +60,53 @@ export default function SignupPage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
-  // availability flags (from RPC)
-  const [emailTaken, setEmailTaken] = useState(false);
-  const [phoneTaken, setPhoneTaken] = useState(false);
+  // live existence info
+  const [checking, setChecking] = useState(false);
+  const [existsInfo, setExistsInfo] = useState<{
+    checked: boolean; // we have a result
+    exists: boolean;
+    confirmed: boolean;
+    method: 'email' | 'phone' | null;
+  }>({ checked: false, exists: false, confirmed: false, method: null });
 
-  const passwordsMatch = useMemo(
-    () => !!password && password === confirm,
-    [password, confirm]
-  );
+  const passwordsMatch = useMemo(() => !!password && password === confirm, [password, confirm]);
 
-  function payloadFor(value: string): CheckPayload {
-    if (isEmail(value)) {
-      return { p_email: value.toLowerCase(), p_phone: null };
+  // ---- server existence check (uses service key on server) ----
+  async function fetchExists(input: string): Promise<CheckOk | null> {
+    try {
+      const res = await fetch('/api/auth/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: input }),
+      });
+      const data: unknown = await res.json();
+      if (res.ok && isCheckOk(data)) return data;
+      return null;
+    } catch {
+      return null;
     }
-    const p = normalizePhoneAU(value);
-    if (isE164(p)) return { p_email: null, p_phone: p };
-    return { p_email: null, p_phone: null };
   }
 
-  // Debounced availability check while typing
+  // Debounced while typing (LIVE)
   useEffect(() => {
     const value = target.trim();
     if (!value) {
-      setEmailTaken(false);
-      setPhoneTaken(false);
+      setExistsInfo({ checked: false, exists: false, confirmed: false, method: null });
+      setChecking(false);
       return;
     }
-    const id = setTimeout(async () => {
-      try {
-        const sb = await getSb();
-        const { data, error } = await sb.rpc('check_identifier_available', payloadFor(value));
-        if (!error) {
-          const res = (data as unknown) as RpcResult | null;
-          if (res) {
-            setEmailTaken(Boolean(res.email_taken));
-            setPhoneTaken(Boolean(res.phone_taken));
-            return;
-          }
-        }
-        setEmailTaken(false);
-        setPhoneTaken(false);
-      } catch {
-        setEmailTaken(false);
-        setPhoneTaken(false);
+    setChecking(true);
+    const t = setTimeout(async () => {
+      const r = await fetchExists(value);
+      if (r) {
+        setExistsInfo({ checked: true, exists: r.exists, confirmed: r.confirmed, method: r.method });
+      } else {
+        setExistsInfo({ checked: false, exists: false, confirmed: false, method: null });
       }
-    }, 400);
-    return () => clearTimeout(id);
+      setChecking(false);
+    }, 350);
+    return () => clearTimeout(t);
   }, [target]);
-
-  // One-shot availability check (use on submit to block immediately)
-  async function checkImmediately(value: string): Promise<{ emailTaken: boolean; phoneTaken: boolean }> {
-    try {
-      const sb = await getSb();
-      const { data, error } = await sb.rpc('check_identifier_available', payloadFor(value));
-      if (!error) {
-        const res = (data as unknown) as RpcResult | null;
-        if (res) {
-          return {
-            emailTaken: Boolean(res.email_taken),
-            phoneTaken: Boolean(res.phone_taken),
-          };
-        }
-      }
-    } catch {}
-    return { emailTaken: false, phoneTaken: false };
-  }
 
   // ENTER step: send code after guardrails
   async function handleStart() {
@@ -130,14 +123,25 @@ export default function SignupPage() {
         return;
       }
 
-      // hard block if already taken
-      const exists = await checkImmediately(input);
-      if (isEmail(input) && exists.emailTaken) {
-        setMessage('This email is already in use. Please sign in.');
+      // Always do a fresh server check and FAIL CLOSED if it fails
+      const r = await fetchExists(input);
+      if (!r) {
+        setMessage('Could not validate your email/phone right now. Please try again.');
         return;
       }
-      if (!isEmail(input) && exists.phoneTaken) {
-        setMessage('This phone number is already in use. Please sign in.');
+      // Block if already in use (confirmed)
+      if (r.exists && r.confirmed) {
+        setMessage(
+          r.method === 'email'
+            ? 'This email is already in use. Please sign in.'
+            : 'This phone number is already in use. Please sign in.'
+        );
+        return; // hard block
+      }
+      // If email exists but unconfirmed, send them to verify flow
+      if (r.method === 'email' && r.exists && !r.confirmed) {
+        if (typeof window !== 'undefined') localStorage.setItem('pendingEmail', input.toLowerCase());
+        router.push('/verify-email');
         return;
       }
 
@@ -146,7 +150,7 @@ export default function SignupPage() {
         const sb = await getSb();
         const email = input.toLowerCase();
 
-        // We customized the template to show {{ .Token }} so this sends a numeric code
+        // We customized the template to render {{ .Token }} — this sends a numeric code
         const { error } = await sb.auth.signInWithOtp({
           email,
           options: { shouldCreateUser: true },
@@ -155,9 +159,7 @@ export default function SignupPage() {
           setMessage(error.message || 'Failed to send email code');
           return;
         }
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('pendingEmail', email);
-        }
+        if (typeof window !== 'undefined') localStorage.setItem('pendingEmail', email);
         setStep('code');
         setMessage('Code sent! Check your inbox (and spam).');
         return;
@@ -216,9 +218,7 @@ export default function SignupPage() {
           setMessage(upd.error.message || 'Failed to set password');
           return;
         }
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('pendingEmail');
-        }
+        if (typeof window !== 'undefined') localStorage.removeItem('pendingEmail');
         setStep('done');
         setMessage('Signup complete! You’re signed in.');
         // router.push('/deals')
@@ -252,13 +252,22 @@ export default function SignupPage() {
     }
   }
 
+  // Disable button when email/phone is already taken (confirmed), or while checking
+  const takenConfirmed =
+    existsInfo.checked &&
+    existsInfo.exists &&
+    existsInfo.confirmed &&
+    ((isEmail(target.trim()) && existsInfo.method === 'email') ||
+      (!isEmail(target.trim()) && existsInfo.method === 'phone'));
+
   const disableSend =
     busy ||
+    checking ||
     !target ||
     !password ||
     !confirm ||
     !passwordsMatch ||
-    (isEmail(target.trim()) ? emailTaken : phoneTaken);
+    takenConfirmed;
 
   return (
     <div className="max-w-md mx-auto mt-20 p-6 border rounded-lg shadow">
@@ -272,24 +281,49 @@ export default function SignupPage() {
             value={target}
             onChange={(e) => setTarget(e.target.value)}
           />
-          {isEmail(target.trim()) && emailTaken && (
-            <p className="text-sm text-red-600 mb-2">
-              This email is already in use.{' '}
-              <Link href="/signin" className="underline">
-                Sign in
-              </Link>
-              .
-            </p>
+          {/* inline helpers */}
+          {checking && target && (
+            <p className="text-sm text-gray-600 mb-2">Checking availability…</p>
           )}
-          {!isEmail(target.trim()) && phoneTaken && (
-            <p className="text-sm text-red-600 mb-2">
-              This phone number is already in use.{' '}
-              <Link href="/signin" className="underline">
-                Sign in
-              </Link>
-              .
-            </p>
-          )}
+
+          {existsInfo.checked &&
+            existsInfo.method === 'email' &&
+            existsInfo.exists &&
+            existsInfo.confirmed && (
+              <p className="text-sm text-red-600 mb-2">
+                This email is already in use.{' '}
+                <Link href="/signin" className="underline">
+                  Sign in
+                </Link>
+                .
+              </p>
+            )}
+
+          {existsInfo.checked &&
+            existsInfo.method === 'email' &&
+            existsInfo.exists &&
+            !existsInfo.confirmed && (
+              <p className="text-sm text-amber-600 mb-2">
+                You started signup but haven’t verified.{' '}
+                <Link href="/verify-email" className="underline">
+                  Enter your code
+                </Link>
+                .
+              </p>
+            )}
+
+          {existsInfo.checked &&
+            existsInfo.method === 'phone' &&
+            existsInfo.exists &&
+            existsInfo.confirmed && (
+              <p className="text-sm text-red-600 mb-2">
+                This phone number is already in use.{' '}
+                <Link href="/signin" className="underline">
+                  Sign in
+                </Link>
+                .
+              </p>
+            )}
 
           <input
             type="password"
