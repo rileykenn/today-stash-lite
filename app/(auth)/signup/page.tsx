@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { sb } from '@/lib/supabaseBrowser';
 
-type Step = 'form' | 'phone_verify' | 'done';
+type Step = 'form' | 'phone_verify' | 'email_verify' | 'done';
 
 function isEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
@@ -12,11 +12,10 @@ function isEmail(v: string) {
 
 /** AU phone -> always +61XXXXXXXXX */
 function normalizePhoneAU(input: string): string | null {
-  let raw = input.trim().replace(/\s+/g, '');
-  raw = raw.replace(/^0+/, '');                 // "0499..." -> "499..."
-  if (/^\+61\d{9}$/.test(raw)) return raw;      // already +61XXXXXXXXX
-  if (/^61\d{9}$/.test(raw)) return `+${raw}`;  // 61XXXXXXXXX -> +61XXXXXXXXX
-  if (/^4\d{8}$/.test(raw)) return `+61${raw}`; // 4XXXXXXXX -> +614XXXXXXXX
+  const raw = input.trim().replace(/\s+/g, '').replace(/^0+/, '');
+  if (/^\+61\d{9}$/.test(raw)) return raw;
+  if (/^61\d{9}$/.test(raw)) return `+${raw}`;
+  if (/^4\d{8}$/.test(raw)) return `+61${raw}`;
   if (/^\+?\d{6,15}$/.test(raw)) return raw.startsWith('+') ? raw : `+${raw}`;
   return null;
 }
@@ -36,7 +35,7 @@ const getBool = (o: Record<string, unknown>, k: string) =>
   typeof o[k] === 'boolean' ? (o[k] as boolean) : null;
 
 export default function SignupPage() {
-  // session banner
+  // Banner if already signed in
   const [sessionChecked, setSessionChecked] = useState(false);
   const [alreadySignedIn, setAlreadySignedIn] = useState(false);
   useEffect(() => {
@@ -54,15 +53,21 @@ export default function SignupPage() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
 
-  // availability
+  // availability (optional, uses your /api/auth/check)
   const [emailTaken, setEmailTaken] = useState(false);
   const [phoneTaken, setPhoneTaken] = useState(false);
 
-  // phone verify
+  // phone verify state
   const [sentToPhone, setSentToPhone] = useState<string | null>(null);
-  const [code, setCode] = useState('');
+  const [code, setCode] = useState(''); // phone code
   const [cooldown, setCooldown] = useState(0);
   const [otpSending, setOtpSending] = useState(false);
+
+  // email verify state
+  const [sentToEmail, setSentToEmail] = useState<string | null>(null);
+  const [emailCode, setEmailCode] = useState('');
+  const [emailCooldown, setEmailCooldown] = useState(0);
+  const [emailSending, setEmailSending] = useState(false);
 
   // UX
   const [loading, setLoading] = useState(false);
@@ -70,19 +75,24 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const resetAlerts = () => { setError(null); setNotice(null); };
 
-  // resend cooldown ticker
+  // resend cooldown tickers
   useEffect(() => {
     if (cooldown <= 0) return;
     const id = setInterval(() => setCooldown((s) => s - 1), 1000);
     return () => clearInterval(id);
   }, [cooldown]);
+  useEffect(() => {
+    if (emailCooldown <= 0) return;
+    const id = setInterval(() => setEmailCooldown((s) => s - 1), 1000);
+    return () => clearInterval(id);
+  }, [emailCooldown]);
 
   const strongPassword = useMemo(
     () => password.length >= 6 && password === confirm,
     [password, confirm]
   );
 
-  // Debounced availability check
+  // Debounced availability check (server-side; normalized phone)
   useEffect(() => {
     const t = setTimeout(async () => {
       const raw = identifier.trim();
@@ -101,7 +111,7 @@ export default function SignupPage() {
         const j = await safeJson(res);
         setEmailTaken(Boolean(getBool(j, 'email_taken')));
         setPhoneTaken(Boolean(getBool(j, 'phone_taken')));
-      } catch { /* ignore typing-time errors */ }
+      } catch { /* ignore transient typing errors */ }
     }, 300);
     return () => clearTimeout(t);
   }, [identifier]);
@@ -122,7 +132,7 @@ export default function SignupPage() {
     code.trim().length >= 4 &&
     !loading;
 
-  /** Start OTP to normalized AU phone */
+  // ---- PHONE: start verify (Twilio via your API) ----
   async function startPhoneVerify(targetPhone: string) {
     setOtpSending(true);
     try {
@@ -132,9 +142,8 @@ export default function SignupPage() {
         body: JSON.stringify({ phone: targetPhone }), // server also accepts 'target'
       });
       const j = await safeJson(r);
-      if (!r.ok || getStr(j, 'error')) {
-        throw new Error(getStr(j, 'error') ?? `Failed to send code (${r.status})`);
-      }
+      if (!r.ok || getStr(j, 'error')) throw new Error(getStr(j, 'error') ?? `Failed to send code (${r.status})`);
+
       setSentToPhone(targetPhone);
       setCooldown(10);
       setStep('phone_verify');
@@ -146,7 +155,7 @@ export default function SignupPage() {
     }
   }
 
-  /** Verify code -> create user -> sign in */
+  // ---- PHONE: verify code -> create user -> sign in ----
   async function verifyPhoneAndCreate(targetPhone: string) {
     // 1) verify code
     const vr = await fetch('/api/auth/verify', {
@@ -179,6 +188,49 @@ export default function SignupPage() {
     if (typeof window !== 'undefined') window.location.replace('/consumer');
   }
 
+  // ---- EMAIL: send OTP using Supabase email OTP (no magic link) ----
+  async function startEmailOtp(targetEmail: string) {
+    setEmailSending(true);
+    try {
+      // shouldCreateUser ensures the user record is created (unverified) for OTP flow
+      const { error: otpErr } = await sb.auth.signInWithOtp({
+        email: targetEmail,
+        options: { shouldCreateUser: true, emailRedirectTo: undefined }, // no link redirect, we're using code
+      });
+      if (otpErr) throw new Error(otpErr.message);
+
+      setSentToEmail(targetEmail);
+      setEmailCooldown(10);
+      setStep('email_verify');
+      setNotice('We emailed you a 6-digit code. Enter it below to finish signup.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to send email code.');
+    } finally {
+      setEmailSending(false);
+    }
+  }
+
+  // ---- EMAIL: verify OTP -> set password -> redirect ----
+  async function verifyEmailOtpAndFinalize() {
+    if (!sentToEmail) throw new Error('Missing email.');
+    // 1) verify OTP (this creates a session & marks email_confirmed_at)
+    const { data, error: verifyErr } = await sb.auth.verifyOtp({
+      email: sentToEmail,
+      token: emailCode.trim(),
+      type: 'email',
+    });
+    if (verifyErr) throw new Error(verifyErr.message);
+
+    // 2) attach password to the now-verified user (uses the session from step 1)
+    const { error: pwErr } = await sb.auth.updateUser({ password });
+    if (pwErr) throw new Error(pwErr.message);
+
+    // 3) go to the app
+    setStep('done');
+    if (typeof window !== 'undefined') window.location.replace('/consumer');
+  }
+
+  // ---- submit from initial form ----
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     resetAlerts();
@@ -186,29 +238,21 @@ export default function SignupPage() {
 
     const raw = identifier.trim();
 
-    // EMAIL PATH
+    // EMAIL PATH (OTP) — send code; DO NOT call signUp here
     if (isEmail(raw)) {
       if (emailTaken) { setError('This email is already in use.'); return; }
-      setLoading(true);
-      try {
-        const { error: signUpError } = await sb.auth.signUp({ email: raw, password });
-        if (signUpError) throw new Error(signUpError.message);
-        setNotice('Check your email to confirm your account.');
-        setStep('done');
-      } catch (e: unknown) {
-        if (e instanceof Error && /already/i.test(e.message)) setError('This email is already in use.');
-        else setError(e instanceof Error ? e.message : 'Something went wrong.');
-      } finally { setLoading(false); }
+      await startEmailOtp(raw);
       return;
     }
 
-    // PHONE PATH — normalize to +61 always
+    // PHONE PATH — normalize + start OTP
     const normalized = normalizePhoneAU(raw);
     if (!normalized) { setError('Enter a valid Australian mobile number.'); return; }
     if (phoneTaken) { setError('This phone number is already in use.'); return; }
     await startPhoneVerify(normalized);
   }
 
+  // ---- confirm phone ----
   async function handleConfirmPhone(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     resetAlerts();
@@ -217,18 +261,37 @@ export default function SignupPage() {
     try {
       await verifyPhoneAndCreate(sentToPhone);
     } catch (e: unknown) {
-      if (e instanceof Error) {
-        const msg = e.message.toLowerCase();
-        if (msg.includes('expired') || msg.includes('invalid')) {
-          setError('Invalid or expired code. Enter the newest code.');
-        } else setError(e.message);
-      } else setError('Could not finish signup.');
+      const msg = e instanceof Error ? e.message : 'Could not finish signup.';
+      if (msg.toLowerCase().includes('expired') || msg.toLowerCase().includes('invalid')) {
+        setError('Invalid or expired code. Enter the newest code.');
+      } else setError(msg);
     } finally { setLoading(false); }
   }
 
-  async function handleResend() {
+  // ---- confirm email ----
+  async function handleConfirmEmail(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    resetAlerts();
+    if (!sentToEmail || !emailCode.trim()) return;
+    setLoading(true);
+    try {
+      await verifyEmailOtpAndFinalize();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Could not finish email signup.';
+      if (msg.toLowerCase().includes('token')) {
+        setError('Invalid or expired code. Enter the newest code.');
+      } else setError(msg);
+    } finally { setLoading(false); }
+  }
+
+  async function handleResendSms() {
     if (!sentToPhone || cooldown > 0 || otpSending) return;
     await startPhoneVerify(sentToPhone);
+  }
+
+  async function handleResendEmail() {
+    if (!sentToEmail || emailCooldown > 0 || emailSending) return;
+    await startEmailOtp(sentToEmail);
   }
 
   return (
@@ -357,7 +420,7 @@ export default function SignupPage() {
               <button
                 type="button"
                 disabled={cooldown > 0 || otpSending}
-                onClick={handleResend}
+                onClick={handleResendSms}
                 className="rounded-full px-4 py-3 bg-white/10 border border-white/10 text-sm font-semibold hover:bg-white/15 disabled:opacity-60"
               >
                 {otpSending ? 'Sending…' : cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend'}
@@ -382,10 +445,60 @@ export default function SignupPage() {
         </section>
       )}
 
+      {step === 'email_verify' && (
+        <section className="mt-6 rounded-2xl bg-[rgb(24_32_45)] border border-white/10 p-5 space-y-4">
+          <p className="text-sm">
+            We emailed a code to <span className="font-mono">{sentToEmail}</span>. Enter it below to finish signup.
+          </p>
+          <form onSubmit={handleConfirmEmail} className="space-y-3">
+            <input
+              inputMode="numeric"
+              placeholder="Enter 6-digit code"
+              value={emailCode}
+              onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, ''))}
+              className="w-full rounded-xl bg-black/20 border border-white/10 px-3 py-2 text-sm placeholder:text-white/40 focus:outline-none focus:border-[var(--color-brand-600)] tracking-widest"
+            />
+
+            <div className="flex items-center gap-2">
+              <button
+                type="submit"
+                disabled={loading || emailCode.trim().length < 4}
+                className="flex-1 rounded-full bg-[var(--color-brand-600)] py-3 font-semibold hover:brightness-110 disabled:opacity-60"
+              >
+                {loading ? 'Verifying…' : 'Verify & Create account'}
+              </button>
+              <button
+                type="button"
+                disabled={emailCooldown > 0 || emailSending}
+                onClick={handleResendEmail}
+                className="rounded-full px-4 py-3 bg-white/10 border border-white/10 text-sm font-semibold hover:bg-white/15 disabled:opacity-60"
+              >
+                {emailSending ? 'Sending…' : emailCooldown > 0 ? `Resend in ${emailCooldown}s` : 'Resend'}
+              </button>
+            </div>
+
+            {error && (
+              <div className="rounded-xl p-3 bg-[color:rgb(254_242_242)] text-[color:rgb(153_27_27)] text-sm">{error}</div>
+            )}
+            {notice && (
+              <div className="rounded-2xl p-3 bg-[color:rgb(16_185_129_/_0.18)] border border-[color:rgb(16_185_129_/_0.35)] text-[color:rgb(16_185_129)] text-sm">{notice}</div>
+            )}
+          </form>
+
+          <button
+            type="button"
+            onClick={() => { setStep('form'); setEmailCode(''); setNotice(null); setError(null); }}
+            className="w-full rounded-full bg-white/10 border border-white/10 py-3 font-semibold hover:bg-white/15"
+          >
+            Use a different email
+          </button>
+        </section>
+      )}
+
       {step === 'done' && (
         <section className="mt-6 rounded-2xl bg-[rgb(24_32_45)] border border-white/10 p-5">
           <div className="rounded-md bg-green-50 p-3 text-green-700 text-sm">
-            If you signed up with email, check your inbox to confirm. If you used your phone, you’re good to go!
+            You’re all set!
           </div>
         </section>
       )}
@@ -393,12 +506,4 @@ export default function SignupPage() {
       <div className="h-24" />
     </main>
   );
-
-if (!error) {
-  window.location.replace('/auth/verify-email');
-}
-if (!error) {
-  window.location.replace('/auth/verify-email');
-}
-
 }
