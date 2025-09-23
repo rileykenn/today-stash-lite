@@ -20,7 +20,7 @@ function normalizePhoneAU(input: string): string | null {
   return null;
 }
 
-/** Safe JSON parse (handles empty/HTML) */
+/** Safe JSON parse */
 async function safeJson(res: Response): Promise<Record<string, unknown>> {
   try {
     const text = await res.text();
@@ -35,7 +35,7 @@ const getBool = (o: Record<string, unknown>, k: string) =>
   typeof o[k] === 'boolean' ? (o[k] as boolean) : null;
 
 export default function SignupPage() {
-  // Banner if already signed in
+  // If already signed in, show banner
   const [sessionChecked, setSessionChecked] = useState(false);
   const [alreadySignedIn, setAlreadySignedIn] = useState(false);
   useEffect(() => {
@@ -53,7 +53,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
 
-  // availability (optional, uses your /api/auth/check)
+  // availability
   const [emailTaken, setEmailTaken] = useState(false);
   const [phoneTaken, setPhoneTaken] = useState(false);
 
@@ -102,7 +102,7 @@ export default function SignupPage() {
       const phone = !email ? normalizePhoneAU(raw) : null;
 
       try {
-        const res = await fetch('/api/auth/check', {
+        const res = await fetch('/api/auth/check-availability', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, phone }),
@@ -111,7 +111,9 @@ export default function SignupPage() {
         const j = await safeJson(res);
         setEmailTaken(Boolean(getBool(j, 'email_taken')));
         setPhoneTaken(Boolean(getBool(j, 'phone_taken')));
-      } catch { /* ignore transient typing errors */ }
+      } catch {
+        // ignore transient typing errors
+      }
     }, 300);
     return () => clearTimeout(t);
   }, [identifier]);
@@ -139,13 +141,13 @@ export default function SignupPage() {
       const r = await fetch('/api/auth/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: targetPhone }), // server also accepts 'target'
+        body: JSON.stringify({ phone: targetPhone }),
       });
       const j = await safeJson(r);
       if (!r.ok || getStr(j, 'error')) throw new Error(getStr(j, 'error') ?? `Failed to send code (${r.status})`);
 
       setSentToPhone(targetPhone);
-      setCooldown(10);
+      setCooldown(60); // prevent stacking requests
       setStep('phone_verify');
       setNotice('We sent a code via SMS. Enter it below to finish signup.');
     } catch (e: unknown) {
@@ -188,19 +190,18 @@ export default function SignupPage() {
     if (typeof window !== 'undefined') window.location.replace('/consumer');
   }
 
-  // ---- EMAIL: send OTP using Supabase email OTP (no magic link) ----
+  // ---- EMAIL: send OTP using Supabase email OTP (not magic link) ----
   async function startEmailOtp(targetEmail: string) {
     setEmailSending(true);
     try {
-      // shouldCreateUser ensures the user record is created (unverified) for OTP flow
       const { error: otpErr } = await sb.auth.signInWithOtp({
         email: targetEmail,
-        options: { shouldCreateUser: true, emailRedirectTo: undefined }, // no link redirect, we're using code
+        options: { shouldCreateUser: true, emailRedirectTo: undefined },
       });
       if (otpErr) throw new Error(otpErr.message);
 
       setSentToEmail(targetEmail);
-      setEmailCooldown(10);
+      setEmailCooldown(60);
       setStep('email_verify');
       setNotice('We emailed you a 6-digit code. Enter it below to finish signup.');
     } catch (e: unknown) {
@@ -213,15 +214,15 @@ export default function SignupPage() {
   // ---- EMAIL: verify OTP -> set password -> redirect ----
   async function verifyEmailOtpAndFinalize() {
     if (!sentToEmail) throw new Error('Missing email.');
-    // 1) verify OTP (this creates a session & marks email_confirmed_at)
-    const { data, error: verifyErr } = await sb.auth.verifyOtp({
+    // 1) verify OTP (creates session & marks email_confirmed_at)
+    const { error: verifyErr } = await sb.auth.verifyOtp({
       email: sentToEmail,
       token: emailCode.trim(),
       type: 'email',
     });
     if (verifyErr) throw new Error(verifyErr.message);
 
-    // 2) attach password to the now-verified user (uses the session from step 1)
+    // 2) attach password to the now-verified user
     const { error: pwErr } = await sb.auth.updateUser({ password });
     if (pwErr) throw new Error(pwErr.message);
 
@@ -238,7 +239,7 @@ export default function SignupPage() {
 
     const raw = identifier.trim();
 
-    // EMAIL PATH (OTP) — send code; DO NOT call signUp here
+    // EMAIL PATH
     if (isEmail(raw)) {
       if (emailTaken) { setError('This email is already in use.'); return; }
       await startEmailOtp(raw);
@@ -405,7 +406,7 @@ export default function SignupPage() {
               inputMode="numeric"
               placeholder="Enter code"
               value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
               className="w-full rounded-xl bg-black/20 border border-white/10 px-3 py-2 text-sm placeholder:text-white/40 focus:outline-none focus:border-[var(--color-brand-600)] tracking-widest"
             />
 
@@ -455,7 +456,7 @@ export default function SignupPage() {
               inputMode="numeric"
               placeholder="Enter 6-digit code"
               value={emailCode}
-              onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, ''))}
+              onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
               className="w-full rounded-xl bg-black/20 border border-white/10 px-3 py-2 text-sm placeholder:text-white/40 focus:outline-none focus:border-[var(--color-brand-600)] tracking-widest"
             />
 

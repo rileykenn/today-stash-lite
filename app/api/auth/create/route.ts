@@ -8,14 +8,14 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
-function normalizePhoneAU(input: string): string {
-  let raw = input.replace(/\s+/g, '');
-  raw = raw.replace(/^0+/, '');
+function normalizePhoneAU(input?: string | null): string | null {
+  if (!input) return null;
+  const raw = String(input).trim().replace(/\s+/g, '').replace(/^0+/, '');
   if (/^\+61\d{9}$/.test(raw)) return raw;
   if (/^61\d{9}$/.test(raw)) return `+${raw}`;
   if (/^4\d{8}$/.test(raw)) return `+61${raw}`;
-  if (/^\d+$/.test(raw)) return `+${raw}`;
-  return raw;
+  if (/^\+?\d{6,15}$/.test(raw)) return raw.startsWith('+') ? raw : `+${raw}`;
+  return null;
 }
 
 export async function POST(req: Request) {
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     };
 
     const email = body.email?.trim() || null;
-    const phone = body.phone ? normalizePhoneAU(body.phone) : null;
+    const phone = normalizePhoneAU(body.phone);
     const password = body.password;
 
     if (!password || (!email && !phone)) {
@@ -40,12 +40,11 @@ export async function POST(req: Request) {
       email: email ?? undefined,
       phone: phone ?? undefined,
       password,
-      email_confirm: false, // keep email confirmation via Supabase flow
-      phone_confirm: Boolean(phone), // we verified via Twilio, so confirm
+      email_confirm: false,      // email will be confirmed via OTP flow
+      phone_confirm: Boolean(phone), // Twilio Verify already approved
     });
 
     if (error) {
-      // 409-ish duplication handling
       const msg = (error as { message?: string }).message ?? 'createUser failed';
       console.error('❌ createUser error', msg);
       const lower = msg.toLowerCase();

@@ -17,21 +17,25 @@ type AdminUsersEnvelope = {
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null;
 }
-
 function isAdminUser(v: unknown): v is AdminUser {
   if (!isRecord(v)) return false;
-  const id = v.id;
-  return typeof id === 'string';
+  return typeof (v as any).id === 'string';
 }
-
 function extractUsers(payload: unknown): AdminUser[] {
-  if (Array.isArray(payload)) {
-    return payload.filter(isAdminUser);
-  }
+  if (Array.isArray(payload)) return payload.filter(isAdminUser);
   if (isRecord(payload) && Array.isArray((payload as AdminUsersEnvelope).users)) {
     return ((payload as AdminUsersEnvelope).users ?? []).filter(isAdminUser);
   }
   return [];
+}
+function normalizePhoneAU(input?: string | null): string | null {
+  if (!input) return null;
+  const raw = String(input).trim().replace(/\s+/g, '').replace(/^0+/, '');
+  if (/^\+61\d{9}$/.test(raw)) return raw;
+  if (/^61\d{9}$/.test(raw)) return `+${raw}`;
+  if (/^4\d{8}$/.test(raw)) return `+61${raw}`;
+  if (/^\+?\d{6,15}$/.test(raw)) return raw.startsWith('+') ? raw : `+${raw}`;
+  return null;
 }
 
 async function adminFetch(path: string): Promise<{ status: number; data: unknown }> {
@@ -45,32 +49,26 @@ async function adminFetch(path: string): Promise<{ status: number; data: unknown
       Authorization: `Bearer ${SERVICE_ROLE}`,
       'Content-Type': 'application/json',
     },
-    // availability checks must not cache
     cache: 'no-store',
   });
 
   const text = await res.text();
   let data: unknown;
-  try {
-    data = JSON.parse(text);
-  } catch {
-    data = text;
-  }
+  try { data = JSON.parse(text); } catch { data = text; }
 
-  // keep logs compact
   console.log('⬅️ Supabase Admin RESP', res.status, String(text).slice(0, 800));
   return { status: res.status, data };
 }
 
 export async function POST(req: Request) {
   try {
-    const body = (await req.json()) as { email?: string; phone?: string };
-    const email = body.email?.trim();
-    const phone = body.phone?.trim();
+    const body = (await req.json()) as { email?: string | null; phone?: string | null };
+    const email = body.email?.trim() || null;
+    const phoneNorm = normalizePhoneAU(body.phone);
 
-    console.log('🔎 check-availability input', { email, phone });
+    console.log('🔎 check-availability input', { email, phone: phoneNorm });
 
-    if (!email && !phone) {
+    if (!email && !phoneNorm) {
       return NextResponse.json({ error: 'email or phone required' }, { status: 400 });
     }
 
@@ -78,25 +76,15 @@ export async function POST(req: Request) {
     let phone_taken = false;
 
     if (email) {
-      // Query by email (source of truth is GoTrue)
       const { status, data } = await adminFetch(`/users?email=${encodeURIComponent(email)}`);
-      if (status === 200) {
-        const users = extractUsers(data);
-        email_taken = users.length > 0;
-      } else {
-        console.log('⚠️ non-200 email lookup', status, data);
-      }
+      if (status === 200) email_taken = extractUsers(data).length > 0;
+      else console.log('⚠️ non-200 email lookup', status, data);
     }
 
-    if (phone) {
-      // Query by phone in E.164 if possible (server receives normalized value from client)
-      const { status, data } = await adminFetch(`/users?phone=${encodeURIComponent(phone)}`);
-      if (status === 200) {
-        const users = extractUsers(data);
-        phone_taken = users.length > 0;
-      } else {
-        console.log('⚠️ non-200 phone lookup', status, data);
-      }
+    if (phoneNorm) {
+      const { status, data } = await adminFetch(`/users?phone=${encodeURIComponent(phoneNorm)}`);
+      if (status === 200) phone_taken = extractUsers(data).length > 0;
+      else console.log('⚠️ non-200 phone lookup', status, data);
     }
 
     console.log('✅ availability result', { email_taken, phone_taken });
