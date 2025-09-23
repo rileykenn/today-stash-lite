@@ -1,134 +1,107 @@
 'use client';
 
 import { useState } from 'react';
-
-type Stage = 'enter' | 'code' | 'done';
-type ApiOk = { ok: true; [k: string]: unknown };
-type ApiErr = { error: string };
-type ApiRes = ApiOk | ApiErr;
-
-function isApiErr(x: unknown): x is ApiErr {
-  return typeof x === 'object' && x !== null && 'error' in x;
-}
+import Link from 'next/link';
+import { sb } from '@/lib/supabaseBrowser';
 
 export default function SignInPage() {
-  const [target, setTarget] = useState<string>('');
-  const [stage, setStage] = useState<Stage>('enter');
-  const [code, setCode] = useState<string>('');
-  const [loading, setLoading] = useState<boolean>(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  async function sendCode() {
-    setLoading(true);
-    setMsg(null);
-    try {
-      const res = await fetch('/api/auth/send-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target }),
-      });
-      const j: ApiRes = await res.json();
-      if (!res.ok || isApiErr(j)) {
-        throw new Error(isApiErr(j) ? j.error : 'Failed to send code');
-      }
-      setStage('code');
-      setMsg('Code sent. Check your phone.');
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to send code';
-      setMsg(message);
-    } finally {
-      setLoading(false);
-    }
+  function isEmail(v: string) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
   }
 
-  async function verifyCode() {
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
     setLoading(true);
-    setMsg(null);
+
     try {
-      const res = await fetch('/api/auth/verify-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target, code }),
-      });
-      const j: ApiRes = await res.json();
-      if (!res.ok || isApiErr(j)) {
-        throw new Error(isApiErr(j) ? j.error : 'Verify failed');
+      const raw = identifier.trim();
+      let signInRes;
+
+      if (isEmail(raw)) {
+        // email login
+        signInRes = await sb.auth.signInWithPassword({
+          email: raw,
+          password,
+        });
+      } else {
+        // phone login
+        signInRes = await sb.auth.signInWithPassword({
+          phone: raw.startsWith('+') ? raw : `+61${raw.replace(/^0+/, '')}`,
+          password,
+        });
       }
-      setStage('done');
-      setMsg('Verified! (Next: mint session + redirect)');
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Verify failed';
-      setMsg(message);
+
+      if (signInRes.error) throw new Error(signInRes.error.message);
+
+      const { data: { user } } = await sb.auth.getUser();
+
+      if (user && !user.email_confirmed_at) {
+        // redirect to verify-email page if not verified
+        window.location.replace('/auth/verify-email');
+        return;
+      }
+
+      // redirect to consumer if verified
+      window.location.replace('/consumer');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to sign in.');
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-black text-white">
-      <div className="w-full max-w-sm p-6 rounded-2xl bg-zinc-900 shadow-lg">
-        <h1 className="text-2xl font-bold mb-4">Sign in</h1>
+    <main className="mx-auto max-w-md px-4 py-10 text-white">
+      <h1 className="text-3xl font-bold">Sign in</h1>
 
-        {stage === 'enter' && (
-          <>
-            <label className="block text-sm mb-2">Phone (E.164, e.g. +61…)</label>
-            <input
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-              placeholder="+61..."
-              className="w-full bg-zinc-800 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-lime-400"
-            />
-            <button
-              onClick={sendCode}
-              disabled={loading || !target}
-              className="mt-4 w-full rounded-lg px-4 py-2 bg-lime-500 text-black font-semibold disabled:opacity-50"
-            >
-              {loading ? 'Sending…' : 'Send code'}
-            </button>
-          </>
-        )}
+      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+        <div>
+          <label className="block text-xs text-white/60 mb-1">Email or phone</label>
+          <input
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
+            placeholder="you@example.com or 0499… / +61…"
+            className="w-full rounded-xl bg-black/20 border border-white/10 px-3 py-2 text-sm placeholder:text-white/40 focus:outline-none focus:border-[var(--color-brand-600)]"
+          />
+        </div>
 
-        {stage === 'code' && (
-          <>
-            <div className="text-sm text-zinc-300 mb-2">
-              We sent a code to <span className="font-semibold">{target}</span>
-            </div>
-            <input
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="6-digit code"
-              className="w-full bg-zinc-800 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-lime-400 tracking-[0.3em] text-center"
-              maxLength={6}
-              inputMode="numeric"
-            />
-            <button
-              onClick={verifyCode}
-              disabled={loading || code.length !== 6}
-              className="mt-4 w-full rounded-lg px-4 py-2 bg-lime-500 text-black font-semibold disabled:opacity-50"
-            >
-              {loading ? 'Verifying…' : 'Verify'}
-            </button>
+        <div>
+          <label className="block text-xs text-white/60 mb-1">Password</label>
+          <input
+            type="password"
+            minLength={6}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            className="w-full rounded-xl bg-black/20 border border-white/10 px-3 py-2 text-sm placeholder:text-white/40 focus:outline-none focus:border-[var(--color-brand-600)]"
+          />
+        </div>
 
-            <button
-              onClick={() => {
-                setStage('enter');
-                setCode('');
-              }}
-              className="mt-3 w-full text-sm text-zinc-400 hover:text-zinc-200"
-            >
-              Wrong number? Edit
-            </button>
-          </>
-        )}
-
-        {stage === 'done' && (
-          <div className="text-lime-400 font-semibold">
-            Signed in (OTP verified). Next we’ll mint a session & redirect.
+        {error && (
+          <div className="rounded-xl p-3 bg-red-900/20 border border-red-700/30 text-red-300 text-sm">
+            {error}
           </div>
         )}
 
-        {msg && <div className="mt-4 text-sm text-zinc-300">{msg}</div>}
-      </div>
-    </div>
+        <button
+          type="submit"
+          disabled={loading || !identifier || !password}
+          className="w-full rounded-full bg-[var(--color-brand-600)] py-3 font-semibold hover:brightness-110 disabled:opacity-60"
+        >
+          {loading ? 'Signing in…' : 'Sign in'}
+        </button>
+      </form>
+
+      <p className="mt-4 text-xs text-white/50">
+        Don’t have an account?{' '}
+        <Link href="/signup" className="text-[var(--color-brand-600)] hover:underline">Sign up</Link>
+      </p>
+    </main>
   );
 }
