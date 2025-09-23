@@ -34,22 +34,22 @@ export default function UnifiedSignupPage() {
   const [step, setStep] = useState<Step>('form');
 
   // Form fields
-  const [identifier, setIdentifier] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
+  const [identifier, setIdentifier] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [confirm, setConfirm] = useState<string>('');
 
-  // Availability flags
-  const [emailTaken, setEmailTaken] = useState(false);
-  const [phoneTaken, setPhoneTaken] = useState(false);
+  // Availability flags (from RPC)
+  const [emailTaken, setEmailTaken] = useState<boolean>(false);
+  const [phoneTaken, setPhoneTaken] = useState<boolean>(false);
 
-  // Phone verify state (only used if identifier is phone)
+  // Phone verify state
   const [sentToPhone, setSentToPhone] = useState<string | null>(null);
-  const [code, setCode] = useState('');
-  const [cooldown, setCooldown] = useState(0);
-  const [otpSending, setOtpSending] = useState(false);
+  const [code, setCode] = useState<string>('');
+  const [cooldown, setCooldown] = useState<number>(0);
+  const [otpSending, setOtpSending] = useState<boolean>(false);
 
-  // UX / control
-  const [loading, setLoading] = useState(false);
+  // UX
+  const [loading, setLoading] = useState<boolean>(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,7 +58,7 @@ export default function UnifiedSignupPage() {
     setNotice(null);
   }
 
-  // Cooldown ticker (for resend code on phone path)
+  // Cooldown ticker
   useEffect(() => {
     if (cooldown <= 0) return;
     const id = setInterval(() => setCooldown((s) => s - 1), 1000);
@@ -70,7 +70,7 @@ export default function UnifiedSignupPage() {
     [password, confirm]
   );
 
-  // Debounced availability check (via your RPC)
+  // Debounced availability check via your RPC
   useEffect(() => {
     const handle = setTimeout(async () => {
       const raw = identifier.trim();
@@ -88,13 +88,24 @@ export default function UnifiedSignupPage() {
           p_email: email,
           p_phone: phone,
         });
+
         if (error) return;
 
-        // Expecting RPC to return { email_taken: boolean, phone_taken: boolean }
-        setEmailTaken(Boolean(data?.email_taken));
-        setPhoneTaken(Boolean(data?.phone_taken));
+        // Expect { email_taken: boolean, phone_taken: boolean }
+        const emailFlag =
+          typeof (data as { email_taken?: unknown })?.email_taken === 'boolean'
+            ? (data as { email_taken: boolean }).email_taken
+            : false;
+
+        const phoneFlag =
+          typeof (data as { phone_taken?: unknown })?.phone_taken === 'boolean'
+            ? (data as { phone_taken: boolean }).phone_taken
+            : false;
+
+        setEmailTaken(Boolean(emailFlag));
+        setPhoneTaken(Boolean(phoneFlag));
       } catch {
-        // swallow; don't block user on transient RPC error
+        // ignore transient errors; don't block typing
       }
     }, 350);
 
@@ -114,9 +125,7 @@ export default function UnifiedSignupPage() {
     !loading;
 
   const canVerifyPhone =
-    step === 'phone_verify' &&
-    code.trim().length >= 4 &&
-    !loading;
+    step === 'phone_verify' && code.trim().length >= 4 && !loading;
 
   // ---- PHONE OTP helpers ----
   async function startPhoneVerify(targetPhone: string) {
@@ -127,47 +136,70 @@ export default function UnifiedSignupPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: targetPhone }),
       });
-      const j = await r.json();
-      if (!r.ok || j.error) throw new Error(j.error || 'Failed to send code');
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const j: unknown = await r.json();
+
+      const ok = r.ok && (j as { error?: string | null })?.error == null;
+      if (!ok) {
+        const msg =
+          (j as { error?: string })?.error || 'Failed to send code';
+        throw new Error(msg);
+      }
+
       setSentToPhone(targetPhone);
       setCooldown(10);
       setStep('phone_verify');
       setNotice('We sent a code via SMS. Enter it below to finish signup.');
-    } catch (e: any) {
-      setError(e?.message ?? 'Failed to send code.');
+    } catch (e: unknown) {
+      if (e instanceof Error) setError(e.message);
+      else setError('Failed to send code.');
     } finally {
       setOtpSending(false);
     }
   }
 
   async function verifyPhoneAndCreate(targetPhone: string, emailForAccount?: string) {
-    // 1) Verify the code
+    // 1) Verify code with your API
     const r = await fetch('/api/verify/check', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone: targetPhone, code: code.trim() }),
     });
-    const j = await r.json();
-    if (!j.approved) {
-      throw new Error(j.error || 'Invalid or expired code.');
+    const j: unknown = await r.json();
+
+    const approved = Boolean((j as { approved?: unknown })?.approved);
+    if (!approved) {
+      const msg =
+        (j as { error?: string })?.error || 'Invalid or expired code.';
+      throw new Error(msg);
     }
 
-    // 2) Create Supabase account server-side (phone_confirm true)
+    // 2) Create Supabase user server-side
     const createRes = await fetch('/api/auth/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         phone: targetPhone,
-        email: emailForAccount || undefined, // optional; you can omit if phone-only
+        email: emailForAccount || undefined,
         password,
       }),
     });
-    const createJson = await createRes.json();
-    if (!createRes.ok || !createJson.ok) {
+    const createJson: unknown = await createRes.json();
+
+    const createOk =
+      createRes.ok && (createJson as { ok?: boolean })?.ok === true;
+
+    if (!createOk) {
       if (createRes.status === 409) {
-        throw new Error(createJson.error || 'Phone or email already in use.');
+        const msg =
+          (createJson as { error?: string })?.error ||
+          'Phone or email already in use.';
+        throw new Error(msg);
       }
-      throw new Error(createJson.error || 'Could not create account.');
+      const msg =
+        (createJson as { error?: string })?.error ||
+        'Could not create account.';
+      throw new Error(msg);
     }
 
     // 3) Sign in with phone + password
@@ -175,14 +207,16 @@ export default function UnifiedSignupPage() {
       phone: targetPhone,
       password,
     });
-    if (signInErr) throw signInErr;
+    if (signInErr) throw new Error(signInErr.message);
 
     setStep('done');
-    window.location.replace('/consumer');
+    if (typeof window !== 'undefined') {
+      window.location.replace('/consumer');
+    }
   }
 
   // ---- HANDLERS ----
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     resetAlerts();
     if (!canSubmitForm) return;
@@ -201,17 +235,19 @@ export default function UnifiedSignupPage() {
           email: raw,
           password,
         });
-        if (signUpError) throw signUpError;
+        if (signUpError) throw new Error(signUpError.message);
         // Supabase sends confirmation email automatically (if enabled)
         setNotice('Check your email to confirm your account.');
         setStep('done');
-      } catch (e: any) {
-        // If backend returns "User already registered", we reflect that
-        const msg = e?.message ?? 'Something went wrong.';
-        if (/already/i.test(msg)) {
-          setError('This email is already in use.');
+      } catch (e: unknown) {
+        if (e instanceof Error) {
+          if (/already/i.test(e.message)) {
+            setError('This email is already in use.');
+          } else {
+            setError(e.message);
+          }
         } else {
-          setError(msg);
+          setError('Something went wrong.');
         }
       } finally {
         setLoading(false);
@@ -226,11 +262,10 @@ export default function UnifiedSignupPage() {
       return;
     }
 
-    // Start Twilio verify (then step → phone_verify)
     await startPhoneVerify(normalizedPhone);
   }
 
-  async function handleConfirmPhone(e: React.FormEvent) {
+  async function handleConfirmPhone(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     resetAlerts();
     if (!canVerifyPhone || !sentToPhone) return;
@@ -238,12 +273,16 @@ export default function UnifiedSignupPage() {
     setLoading(true);
     try {
       await verifyPhoneAndCreate(sentToPhone);
-    } catch (e: any) {
-      const msg = e?.message?.toLowerCase?.() ?? '';
-      if (msg.includes('expired') || msg.includes('invalid')) {
-        setError('Invalid or expired code. Enter the newest code.');
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        const msg = e.message.toLowerCase();
+        if (msg.includes('expired') || msg.includes('invalid')) {
+          setError('Invalid or expired code. Enter the newest code.');
+        } else {
+          setError(e.message);
+        }
       } else {
-        setError(e?.message ?? 'Could not finish signup.');
+        setError('Could not finish signup.');
       }
     } finally {
       setLoading(false);
