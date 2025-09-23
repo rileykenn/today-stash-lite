@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { sb } from '@/lib/supabaseBrowser';
 
@@ -16,6 +16,13 @@ export default function SignInPage() {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
   }
 
+  // cooldown ticker
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const id = setInterval(() => setCooldown((s) => (s > 0 ? s - 1 : 0)), 1000);
+    return () => clearInterval(id);
+  }, [cooldown]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -25,26 +32,24 @@ export default function SignInPage() {
     try {
       const id = identifier.trim();
 
-      // Email path: try password sign-in first
       if (isEmail(id)) {
         const { error: signInErr } = await sb.auth.signInWithPassword({ email: id, password });
         if (!signInErr) {
           window.location.replace('/consumer');
           return;
         }
-
-        // If it failed, assume they haven't finished email verification yet.
-        // Offer to resend the 6-digit OTP and send them to /auth/verify-email
+        // Likely unverified / no password yet → prompt to verify
         setNotice('We couldn’t sign you in yet. Verify your email to continue.');
         return;
       }
 
-      // Phone path (if you support it here): sign in with phone+password
+      // Phone path (if supported)
       const { error: phoneErr } = await sb.auth.signInWithPassword({ phone: id, password });
       if (phoneErr) throw phoneErr;
       window.location.replace('/consumer');
-    } catch (e: any) {
-      setError(e?.message ?? 'Could not sign in.');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Could not sign in.';
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -64,15 +69,12 @@ export default function SignInPage() {
 
       setNotice('We sent you a new 6-digit code. Check your inbox.');
       setCooldown(60);
-      // optional: take them straight to the verify page
       window.location.replace('/auth/verify-email');
-    } catch (e: any) {
-      setError(e?.message ?? 'Failed to send code.');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to send code.';
+      setError(msg);
     }
   }
-
-  // simple cooldown ticker
-  if (cooldown > 0) setTimeout(() => setCooldown((s) => (s > 0 ? s - 1 : 0)), 1000);
 
   return (
     <main className="mx-auto max-w-sm p-6 text-white">
@@ -101,13 +103,12 @@ export default function SignInPage() {
         </button>
       </form>
 
-      {/* Friendly helper for unverified emails */}
+      {/* Helper for unverified email accounts */}
       {isEmail(identifier) && (
         <div className="mt-4 text-sm">
-          <p className="text-white/70">
-            Didn’t finish verifying your email?
-          </p>
+          <p className="text-white/70">Didn’t finish verifying your email?</p>
           <button
+            type="button"
             onClick={resendEmailOtp}
             disabled={cooldown > 0}
             className="mt-2 rounded-full px-4 py-2 bg-white/10 border border-white/10 text-sm font-semibold hover:bg-white/15 disabled:opacity-60"
@@ -117,11 +118,20 @@ export default function SignInPage() {
         </div>
       )}
 
-      {notice && <div className="mt-4 rounded-2xl p-3 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-sm">{notice}</div>}
-      {error && <div className="mt-2 rounded-xl p-3 bg-red-50 text-red-800 text-sm">{error}</div>}
+      {notice && (
+        <div className="mt-4 rounded-2xl p-3 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-sm">
+          {notice}
+        </div>
+      )}
+      {error && (
+        <div className="mt-2 rounded-xl p-3 bg-red-50 text-red-800 text-sm">
+          {error}
+        </div>
+      )}
 
       <p className="mt-6 text-xs text-white/50">
-        Don’t have an account? <Link href="/signup" className="text-[var(--color-brand-600)] underline">Create one</Link>
+        Don’t have an account?{' '}
+        <Link href="/signup" className="text-[var(--color-brand-600)] underline">Create one</Link>
       </p>
     </main>
   );
