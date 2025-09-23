@@ -1,8 +1,8 @@
 'use client';
 
-// Do NOT export dynamic here; (auth)/layout.tsx already disables prerender.
-
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 function isEmail(x: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x);
@@ -17,8 +17,8 @@ function normalizePhoneAU(s: string): string {
   return t;
 }
 
-// Lazy-create Supabase client with a dynamic ESM import (no CommonJS `require`)
-async function getSbSafe() {
+// Lazy-create Supabase client with dynamic ESM import (avoids build-time issues)
+async function getSb() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) {
@@ -30,28 +30,121 @@ async function getSbSafe() {
 
 type Step = 'enter' | 'code' | 'done';
 
+type CheckOk = {
+  ok: true;
+  method: 'email' | 'phone';
+  value: string;
+  exists: boolean;
+  confirmed: boolean;
+  action: 'signin' | 'verify' | 'signup';
+};
+type CheckErr = { error: string };
+
+function isCheckOk(x: unknown): x is CheckOk {
+  if (typeof x !== 'object' || x === null) return false;
+  const o = x as Record<string, unknown>;
+  return o.ok === true && typeof o.method === 'string';
+}
+
+function errMsg(e: unknown): string {
+  return e instanceof Error ? e.message : 'Unexpected error';
+}
+
 export default function SignupPage() {
+  const router = useRouter();
+
   const [target, setTarget] = useState('');
   const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
   const [code, setCode] = useState('');
   const [step, setStep] = useState<Step>('enter');
-  const [message, setMessage] = useState('');
-  const [busy, setBusy] = useState(false);
 
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+
+  // inline field warnings
+  const [existsInfo, setExistsInfo] = useState<{
+    exists: boolean;
+    confirmed: boolean;
+    method: 'email' | 'phone' | null;
+  }>({ exists: false, confirmed: false, method: null });
+
+  const passwordsMatch = useMemo(
+    () => !!password && password === confirm,
+    [password, confirm]
+  );
+
+  // Soft-check existence when the user finishes typing the identifier
+  async function checkTargetExists(input: string) {
+    if (!input) {
+      setExistsInfo({ exists: false, confirmed: false, method: null });
+      return;
+    }
+    try {
+      const res = await fetch('/api/auth/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: input }),
+      });
+      const data: unknown = await res.json();
+      if (res.ok && isCheckOk(data)) {
+        setExistsInfo({
+          exists: data.exists,
+          confirmed: data.confirmed,
+          method: data.method,
+        });
+      } else {
+        setExistsInfo({ exists: false, confirmed: false, method: null });
+      }
+    } catch {
+      setExistsInfo({ exists: false, confirmed: false, method: null });
+    }
+  }
+
+  // ENTER step: send code (email via Supabase, phone via Twilio) after guardrails
   async function handleStart() {
     setMessage('');
     setBusy(true);
     try {
       const input = target.trim();
-      if (!input || !password) {
-        setMessage('Enter your email/phone and a password.');
+      if (!input) {
+        setMessage('Enter your email or phone.');
+        return;
+      }
+      if (!passwordsMatch) {
+        setMessage('Passwords do not match.');
         return;
       }
 
+      // Always check existence on submit
+      await checkTargetExists(input);
+
+      if (existsInfo.exists) {
+        // If an account exists…
+        if (existsInfo.confirmed) {
+          // Confirmed: send them to sign-in
+          setMessage('That account already exists. Please sign in.');
+          router.push('/signin');
+          return;
+        } else {
+          // Unconfirmed: route to verify-email flow for email; for phone, you shouldn't hit this state
+          if (isEmail(input)) {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('pendingEmail', input.toLowerCase());
+            }
+            setMessage('Finish verifying your email to continue.');
+            router.push('/verify-email');
+            return;
+          }
+        }
+      }
+
+      // New account path
       if (isEmail(input)) {
-        // EMAIL: Supabase Email OTP (no SendGrid/domain needed)
-        const sb = await getSbSafe();
+        const sb = await getSb();
         const email = input.toLowerCase();
+
+        // Force numeric code (no magic link) — template shows {{ .Token }}
         const { error } = await sb.auth.signInWithOtp({
           email,
           options: { shouldCreateUser: true },
@@ -60,12 +153,15 @@ export default function SignupPage() {
           setMessage(error.message || 'Failed to send email code');
           return;
         }
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('pendingEmail', email);
+        }
         setStep('code');
         setMessage('Code sent! Check your inbox (and spam).');
         return;
       }
 
-      // PHONE: Twilio Verify via our API
+      // Phone path (Twilio)
       const phone = normalizePhoneAU(input);
       if (!isE164(phone)) {
         setMessage('Phone must be E.164 (+61...)');
@@ -83,14 +179,14 @@ export default function SignupPage() {
       }
       setStep('code');
       setMessage('Code sent! Check your SMS.');
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Unexpected error';
-      setMessage(msg);
+    } catch (e) {
+      setMessage(errMsg(e));
     } finally {
       setBusy(false);
     }
   }
 
+  // CODE step: verify and complete
   async function handleVerify() {
     setMessage('');
     setBusy(true);
@@ -102,8 +198,7 @@ export default function SignupPage() {
       }
 
       if (isEmail(input)) {
-        // EMAIL: verify -> session -> set password
-        const sb = await getSbSafe();
+        const sb = await getSb();
         const email = input.toLowerCase();
         const { data, error } = await sb.auth.verifyOtp({
           email,
@@ -119,12 +214,16 @@ export default function SignupPage() {
           setMessage(upd.error.message || 'Failed to set password');
           return;
         }
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('pendingEmail');
+        }
         setStep('done');
         setMessage('Signup complete! You’re signed in.');
+        // router.push('/deals') // enable when ready
         return;
       }
 
-      // PHONE: verify via server, then sign in with password
+      // Phone: verify via server then sign in with password
       const phone = normalizePhoneAU(input);
       const res = await fetch('/api/auth/verify', {
         method: 'POST',
@@ -136,7 +235,7 @@ export default function SignupPage() {
         setMessage(vr.error || 'Verification failed');
         return;
       }
-      const sb = await getSbSafe();
+      const sb = await getSb();
       const { error } = await sb.auth.signInWithPassword({ phone, password });
       if (error) {
         setMessage(error.message || 'Sign-in failed');
@@ -144,13 +243,26 @@ export default function SignupPage() {
       }
       setStep('done');
       setMessage('Signup complete! You’re signed in.');
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Unexpected error';
-      setMessage(msg);
+      // router.push('/deals')
+    } catch (e) {
+      setMessage(errMsg(e));
     } finally {
       setBusy(false);
     }
   }
+
+  // Debounced existence check when user stops typing for 500ms
+  useEffect(() => {
+    if (!target.trim()) {
+      setExistsInfo({ exists: false, confirmed: false, method: null });
+      return;
+    }
+    const t = setTimeout(() => {
+      void checkTargetExists(target.trim());
+    }, 500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target]);
 
   return (
     <div className="max-w-md mx-auto mt-20 p-6 border rounded-lg shadow">
@@ -163,21 +275,70 @@ export default function SignupPage() {
             placeholder="Email or phone"
             value={target}
             onChange={(e) => setTarget(e.target.value)}
+            onBlur={(e) => void checkTargetExists(e.target.value.trim())}
           />
+          {/* inline helper under identifier */}
+          {existsInfo.method === 'email' && existsInfo.exists && existsInfo.confirmed && (
+            <p className="text-sm text-red-600 mb-2">
+              This email is already in use.{' '}
+              <Link href="/signin" className="underline">
+                Sign in
+              </Link>
+              .
+            </p>
+          )}
+          {existsInfo.method === 'email' && existsInfo.exists && !existsInfo.confirmed && (
+            <p className="text-sm text-amber-600 mb-2">
+              You started signup but haven’t verified.{' '}
+              <Link href="/verify-email" className="underline">
+                Enter your code
+              </Link>
+              .
+            </p>
+          )}
+
           <input
             type="password"
-            className="w-full p-2 border rounded mb-3"
+            className="w-full p-2 border rounded mb-2"
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
+
+          <input
+            type="password"
+            className="w-full p-2 border rounded mb-3"
+            placeholder="Confirm password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+          />
+          {!passwordsMatch && confirm.length > 0 && (
+            <p className="text-sm text-red-600 mb-2">Passwords do not match.</p>
+          )}
+
           <button
             className="w-full bg-blue-600 text-white py-2 rounded disabled:opacity-60"
             onClick={handleStart}
-            disabled={busy || !target || !password}
+            disabled={
+              busy ||
+              !target ||
+              !password ||
+              !confirm ||
+              !passwordsMatch ||
+              (existsInfo.method === 'email' && existsInfo.exists && existsInfo.confirmed)
+            }
           >
             {busy ? 'Sending…' : 'Send Code'}
           </button>
+
+          {/* helpful links */}
+          <div className="mt-3 text-sm">
+            Already have an account?{' '}
+            <Link href="/signin" className="underline">
+              Sign in
+            </Link>
+            .
+          </div>
         </>
       )}
 
@@ -196,6 +357,14 @@ export default function SignupPage() {
           >
             {busy ? 'Verifying…' : 'Verify & Continue'}
           </button>
+
+          <div className="mt-3 text-sm">
+            Need to resend or verify later?{' '}
+            <Link href="/verify-email" className="underline">
+              Go to Verify Email
+            </Link>
+            .
+          </div>
         </>
       )}
 
@@ -207,4 +376,3 @@ export default function SignupPage() {
     </div>
   );
 }
-4
