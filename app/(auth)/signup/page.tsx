@@ -21,14 +21,27 @@ function normalizePhoneAU(input: string): string {
   return raw;
 }
 
-/** Never trust res.json(); safely handle empty/HTML bodies */
-async function safeJson(res: Response): Promise<Record<string, unknown>> {
+/** Safe JSON parse for fetch responses (handles empty/HTML bodies). */
+async function safeJson(res: Response): Promise<unknown> {
   try {
     const text = await res.text();
-    return text ? (JSON.parse(text) as Record<string, unknown>) : {};
+    return text ? JSON.parse(text) : {};
   } catch {
     return {};
   }
+}
+
+/** Type guards / helpers (no `any`) */
+function isObj(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null;
+}
+function getBool(obj: unknown, key: string): boolean | null {
+  if (isObj(obj) && typeof obj[key] === 'boolean') return obj[key] as boolean;
+  return null;
+}
+function getStr(obj: unknown, key: string): string | null {
+  if (isObj(obj) && typeof obj[key] === 'string') return obj[key] as string;
+  return null;
 }
 
 export default function SignupPage() {
@@ -94,9 +107,10 @@ export default function SignupPage() {
           body: JSON.stringify({ email, phone }),
         });
         const j = await safeJson(res);
-        if (!res.ok || (j as any).error) return;
-        setEmailTaken(Boolean((j as any).email_taken));
-        setPhoneTaken(Boolean((j as any).phone_taken));
+        if (!res.ok || getStr(j, 'error')) return;
+
+        setEmailTaken(Boolean(getBool(j, 'email_taken')));
+        setPhoneTaken(Boolean(getBool(j, 'phone_taken')));
       } catch {
         // ignore transient errors; don't block typing
       }
@@ -131,14 +145,14 @@ export default function SignupPage() {
         body: JSON.stringify({ phone: targetPhone }),
       });
       const j = await safeJson(r);
-      const ok = r.ok && !(j as any).error;
-      if (!ok) throw new Error(((j as any).error as string) || 'Failed to send code');
+      const ok = r.ok && !getStr(j, 'error');
+      if (!ok) throw new Error(getStr(j, 'error') ?? 'Failed to send code');
 
       setSentToPhone(targetPhone);
       setCooldown(10);
       setStep('phone_verify');
       setNotice('We sent a code via SMS. Enter it below to finish signup.');
-    } catch (e) {
+    } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to send code.');
     } finally {
       setOtpSending(false);
@@ -154,8 +168,8 @@ export default function SignupPage() {
       body: JSON.stringify({ phone: targetPhone, code: code.trim() }),
     });
     const j = await safeJson(r);
-    const approved = Boolean((j as any).approved);
-    if (!approved) throw new Error(((j as any).error as string) || 'Invalid or expired code.');
+    const approved = Boolean(getBool(j, 'approved'));
+    if (!approved) throw new Error(getStr(j, 'error') ?? 'Invalid or expired code.');
 
     // 2) create user
     const createRes = await fetch('/api/auth/create', {
@@ -164,10 +178,10 @@ export default function SignupPage() {
       body: JSON.stringify({ phone: targetPhone, password }),
     });
     const createJson = await safeJson(createRes);
-    const createOk = createRes.ok && Boolean((createJson as any).ok);
+    const createOk = createRes.ok && Boolean(getBool(createJson, 'ok'));
     if (!createOk) {
-      if (createRes.status === 409) throw new Error(((createJson as any).error as string) || 'Phone already in use.');
-      throw new Error(((createJson as any).error as string) || 'Could not create account.');
+      if (createRes.status === 409) throw new Error(getStr(createJson, 'error') ?? 'Phone already in use.');
+      throw new Error(getStr(createJson, 'error') ?? 'Could not create account.');
     }
 
     // 3) sign in with phone + password
@@ -195,7 +209,7 @@ export default function SignupPage() {
         if (signUpError) throw new Error(signUpError.message);
         setNotice('Check your email to confirm your account.');
         setStep('done');
-      } catch (e) {
+      } catch (e: unknown) {
         if (e instanceof Error && /already/i.test(e.message)) setError('This email is already in use.');
         else setError(e instanceof Error ? e.message : 'Something went wrong.');
       } finally { setLoading(false); }
@@ -216,7 +230,7 @@ export default function SignupPage() {
     setLoading(true);
     try {
       await verifyPhoneAndCreate(sentToPhone);
-    } catch (e) {
+    } catch (e: unknown) {
       if (e instanceof Error) {
         const msg = e.message.toLowerCase();
         if (msg.includes('expired') || msg.includes('invalid')) setError('Invalid or expired code. Enter the newest code.');
