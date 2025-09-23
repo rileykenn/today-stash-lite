@@ -69,40 +69,33 @@ export default function SignupPage() {
     [password, confirm]
   );
 
-  // ——— debounced availability check via your RPC ———
-  useEffect(() => {
-    const t = setTimeout(async () => {
-      const raw = identifier.trim();
-      if (!raw) { setEmailTaken(false); setPhoneTaken(false); return; }
+  // ——— debounced availability check via server route ———
+useEffect(() => {
+  const t = setTimeout(async () => {
+    const raw = identifier.trim();
+    if (!raw) { setEmailTaken(false); setPhoneTaken(false); return; }
 
-      const email = isEmail(raw) ? raw : null;
-      const phone = !email ? normalizePhoneAU(raw) : null;
+    const email = isEmail(raw) ? raw : null;
+    const phone = !email ? normalizePhoneAU(raw) : null;
 
-      try {
-        const { data, error } = await sb.rpc('check_identifier_available', {
-          p_email: email,
-          p_phone: phone,
-        });
-        if (error) return;
+    try {
+      const res = await fetch('/api/auth/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, phone }),
+      });
+      const j = await res.json();
+      if (!res.ok || j.error) return;
+      setEmailTaken(Boolean(j.email_taken));
+      setPhoneTaken(Boolean(j.phone_taken));
+    } catch {
+      // ignore transient errors
+    }
+  }, 350);
+  return () => clearTimeout(t);
+}, [identifier]);
 
-        const emailFlag =
-          typeof (data as { email_taken?: unknown })?.email_taken === 'boolean'
-            ? (data as { email_taken: boolean }).email_taken
-            : false;
 
-        const phoneFlag =
-          typeof (data as { phone_taken?: unknown })?.phone_taken === 'boolean'
-            ? (data as { phone_taken: boolean }).phone_taken
-            : false;
-
-        setEmailTaken(Boolean(emailFlag));
-        setPhoneTaken(Boolean(phoneFlag));
-      } catch {
-        // ignore RPC flakiness
-      }
-    }, 350);
-    return () => clearTimeout(t);
-  }, [identifier]);
 
   // block signup when already used
   const alreadyUsed = (isEmail(identifier) && emailTaken) || (!isEmail(identifier) && phoneTaken);
