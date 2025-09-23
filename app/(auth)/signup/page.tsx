@@ -10,35 +10,29 @@ function isEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 }
 
-/**
- * AU phone normalizer:
- * - "0499 545 069"  -> "+61499545069"
- * - "61499545069"   -> "+61499545069"
- * - "+61499545069"  -> "+61499545069"
- * Leaves other countries mostly intact (adds '+' if all digits).
- */
+/** AU phone normalizer -> always +61XXXXXXXXX */
 function normalizePhoneAU(input: string): string {
   let raw = input.replace(/\s+/g, '');
-  // strip leading zeros for local formats (e.g., 04xxxxxxxx -> 4xxxxxxxx)
-  raw = raw.replace(/^0+/, '');
-
-  // +61XXXXXXXXX (mobile is 4XXXXXXXX)
+  raw = raw.replace(/^0+/, '');          // "0499..." -> "499..."
   if (/^\+61\d{9}$/.test(raw)) return raw;
-
-  // 61XXXXXXXXX -> +61XXXXXXXXX
   if (/^61\d{9}$/.test(raw)) return `+${raw}`;
-
-  // 4XXXXXXXX -> +614XXXXXXXX
   if (/^4\d{8}$/.test(raw)) return `+61${raw}`;
-
-  // if all digits and missing +, prefix +
   if (/^\d+$/.test(raw)) return `+${raw}`;
-
   return raw;
 }
 
+/** Never trust res.json(); safely handle empty/HTML bodies */
+async function safeJson(res: Response): Promise<Record<string, unknown>> {
+  try {
+    const text = await res.text();
+    return text ? (JSON.parse(text) as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
 export default function SignupPage() {
-  // Session banner (no instant redirect)
+  // Session banner (no auto-redirect)
   const [sessionChecked, setSessionChecked] = useState(false);
   const [alreadySignedIn, setAlreadySignedIn] = useState(false);
   useEffect(() => {
@@ -52,28 +46,27 @@ export default function SignupPage() {
   const [step, setStep] = useState<Step>('form');
 
   // form fields
-  const [identifier, setIdentifier] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
-  const [confirm, setConfirm] = useState<string>('');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
 
-  // availability
-  const [emailTaken, setEmailTaken] = useState<boolean>(false);
-  const [phoneTaken, setPhoneTaken] = useState<boolean>(false);
+  // availability flags
+  const [emailTaken, setEmailTaken] = useState(false);
+  const [phoneTaken, setPhoneTaken] = useState(false);
 
   // phone verify state
   const [sentToPhone, setSentToPhone] = useState<string | null>(null);
-  const [code, setCode] = useState<string>('');
-  const [cooldown, setCooldown] = useState<number>(0);
-  const [otpSending, setOtpSending] = useState<boolean>(false);
+  const [code, setCode] = useState('');
+  const [cooldown, setCooldown] = useState(0);
+  const [otpSending, setOtpSending] = useState(false);
 
   // UX
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const resetAlerts = () => { setError(null); setNotice(null); };
 
-  function resetAlerts() { setError(null); setNotice(null); }
-
-  // resend cooldown
+  // resend cooldown ticker
   useEffect(() => {
     if (cooldown <= 0) return;
     const id = setInterval(() => setCooldown((s) => s - 1), 1000);
@@ -85,7 +78,7 @@ export default function SignupPage() {
     [password, confirm]
   );
 
-  // Debounced availability check (server-side, normalized phone)
+  // Debounced availability check (server-side; normalized phone)
   useEffect(() => {
     const t = setTimeout(async () => {
       const raw = identifier.trim();
@@ -100,21 +93,21 @@ export default function SignupPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, phone }),
         });
-        const j = await res.json();
-        if (!res.ok || j.error) return;
-
-        setEmailTaken(Boolean(j.email_taken));
-        setPhoneTaken(Boolean(j.phone_taken));
+        const j = await safeJson(res);
+        if (!res.ok || (j as any).error) return;
+        setEmailTaken(Boolean((j as any).email_taken));
+        setPhoneTaken(Boolean((j as any).phone_taken));
       } catch {
         // ignore transient errors; don't block typing
       }
     }, 300);
-
     return () => clearTimeout(t);
   }, [identifier]);
 
-  // Block when taken
-  const alreadyUsed = (isEmail(identifier) && emailTaken) || (!isEmail(identifier) && phoneTaken);
+  // Disable submit when taken / weak / loading
+  const alreadyUsed =
+    (isEmail(identifier) && emailTaken) ||
+    (!isEmail(identifier) && phoneTaken);
 
   const canSubmitForm =
     step === 'form' &&
@@ -137,47 +130,47 @@ export default function SignupPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: targetPhone }),
       });
-      const j: unknown = await r.json();
-      const ok = r.ok && (j as { error?: string | null })?.error == null;
-      if (!ok) throw new Error((j as { error?: string })?.error || 'Failed to send code');
+      const j = await safeJson(r);
+      const ok = r.ok && !(j as any).error;
+      if (!ok) throw new Error(((j as any).error as string) || 'Failed to send code');
 
       setSentToPhone(targetPhone);
       setCooldown(10);
       setStep('phone_verify');
       setNotice('We sent a code via SMS. Enter it below to finish signup.');
-    } catch (e: unknown) {
+    } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to send code.');
     } finally {
       setOtpSending(false);
     }
   }
 
-  // Verify code -> create user (store +61) -> sign in
+  // Verify -> create user (store +61) -> sign in
   async function verifyPhoneAndCreate(targetPhone: string) {
-    // 1) verify
+    // 1) verify code
     const r = await fetch('/api/verify/check', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone: targetPhone, code: code.trim() }),
     });
-    const j: unknown = await r.json();
-    const approved = Boolean((j as { approved?: unknown })?.approved);
-    if (!approved) throw new Error((j as { error?: string })?.error || 'Invalid or expired code.');
+    const j = await safeJson(r);
+    const approved = Boolean((j as any).approved);
+    if (!approved) throw new Error(((j as any).error as string) || 'Invalid or expired code.');
 
-    // 2) create (ensure +61 stored)
+    // 2) create user
     const createRes = await fetch('/api/auth/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone: targetPhone, password }),
     });
-    const createJson: unknown = await createRes.json();
-    const createOk = createRes.ok && (createJson as { ok?: boolean })?.ok === true;
+    const createJson = await safeJson(createRes);
+    const createOk = createRes.ok && Boolean((createJson as any).ok);
     if (!createOk) {
-      if (createRes.status === 409) throw new Error((createJson as { error?: string })?.error || 'Phone already in use.');
-      throw new Error((createJson as { error?: string })?.error || 'Could not create account.');
+      if (createRes.status === 409) throw new Error(((createJson as any).error as string) || 'Phone already in use.');
+      throw new Error(((createJson as any).error as string) || 'Could not create account.');
     }
 
-    // 3) sign in
+    // 3) sign in with phone + password
     const { error: signInErr } = await sb.auth.signInWithPassword({ phone: targetPhone, password });
     if (signInErr) throw new Error(signInErr.message);
 
@@ -185,7 +178,7 @@ export default function SignupPage() {
     if (typeof window !== 'undefined') window.location.replace('/consumer');
   }
 
-  // Handlers
+  // Submit
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     resetAlerts();
@@ -202,7 +195,7 @@ export default function SignupPage() {
         if (signUpError) throw new Error(signUpError.message);
         setNotice('Check your email to confirm your account.');
         setStep('done');
-      } catch (e: unknown) {
+      } catch (e) {
         if (e instanceof Error && /already/i.test(e.message)) setError('This email is already in use.');
         else setError(e instanceof Error ? e.message : 'Something went wrong.');
       } finally { setLoading(false); }
@@ -223,7 +216,7 @@ export default function SignupPage() {
     setLoading(true);
     try {
       await verifyPhoneAndCreate(sentToPhone);
-    } catch (e: unknown) {
+    } catch (e) {
       if (e instanceof Error) {
         const msg = e.message.toLowerCase();
         if (msg.includes('expired') || msg.includes('invalid')) setError('Invalid or expired code. Enter the newest code.');
