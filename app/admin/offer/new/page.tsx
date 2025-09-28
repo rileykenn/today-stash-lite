@@ -7,8 +7,22 @@ import { useRouter } from 'next/navigation';
 type Me = { user_id: string; role: 'admin' | 'merchant' | 'consumer' };
 type Merchant = { id: string; name: string; is_active: boolean };
 
+/** Insert payload for the `offers` table */
+type OfferInsert = {
+  merchant_id: string;
+  title: string;
+  description: string | null;
+  terms: string | null;
+  is_active: boolean;
+  image_url: string | null;
+  savings_cents: number | null;
+  valid_from?: string; // ISO
+  valid_to?: string;   // ISO
+  daily_limit?: number;
+  total_limit?: number;
+};
+
 function uuid() {
-  // lightweight uuid for file paths (no external dep)
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
     const r = (crypto.getRandomValues(new Uint8Array(1))[0] & 15) >> 0;
     const v = c === 'x' ? r : (r & 0x3) | 0x8;
@@ -28,13 +42,13 @@ export default function AdminCreateOfferPage() {
   const [description, setDescription] = useState('');
   const [terms, setTerms] = useState('');
 
-  const [validFrom, setValidFrom] = useState<string>(''); // ISO local datetime
+  const [validFrom, setValidFrom] = useState<string>('');
   const [validTo, setValidTo] = useState<string>('');
 
-  const [dailyLimit, setDailyLimit] = useState<string>(''); // optional
-  const [totalLimit, setTotalLimit] = useState<string>(''); // optional
+  const [dailyLimit, setDailyLimit] = useState<string>('');
+  const [totalLimit, setTotalLimit] = useState<string>('');
 
-  const [savings, setSavings] = useState<string>(''); // dollars input, we convert to cents
+  const [savings, setSavings] = useState<string>(''); // dollars text; convert to cents
   const [isActive, setIsActive] = useState(true);
 
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -51,11 +65,14 @@ export default function AdminCreateOfferPage() {
       setMe((data as Me) ?? null);
       setLoading(false);
 
-      const { data: merch } = await sb.from('merchants')
+      const { data: merch } = await sb
+        .from('merchants')
         .select('id,name,is_active')
         .order('name', { ascending: true });
-      setMerchants(merch ?? []);
-      if ((merch ?? []).length > 0) setMerchantId(merch![0].id);
+
+      const list = merch ?? [];
+      setMerchants(list);
+      if (list.length > 0) setMerchantId(list[0].id);
     })();
   }, []);
 
@@ -84,7 +101,7 @@ export default function AdminCreateOfferPage() {
     // 1) Upload image (optional)
     let image_url: string | null = null;
     if (imageFile) {
-      const ext = imageFile.name.split('.').pop() || 'jpg';
+      const ext = (imageFile.name.split('.').pop() || 'jpg').toLowerCase();
       const objectPath = `${merchantId}/${uuid()}.${ext}`;
       const up = await sb.storage.from('offer-media').upload(objectPath, imageFile, {
         cacheControl: '3600',
@@ -95,30 +112,30 @@ export default function AdminCreateOfferPage() {
       image_url = pub.data.publicUrl;
     }
 
-    // 2) Insert offer
-    const insertPayload: any = {
+    // 2) Insert offer (fully typed)
+    const payload: OfferInsert = {
       merchant_id: merchantId,
       title: title.trim(),
-      description: description.trim() || null,
-      terms: terms.trim() || null,
+      description: description.trim() ? description.trim() : null,
+      terms: terms.trim() ? terms.trim() : null,
       is_active: isActive,
       image_url,
-      savings_cents: savingsCents || null,
+      savings_cents: savingsCents > 0 ? savingsCents : null,
     };
 
-    if (validFrom) insertPayload.valid_from = new Date(validFrom).toISOString();
-    if (validTo) insertPayload.valid_to = new Date(validTo).toISOString();
+    if (validFrom) payload.valid_from = new Date(validFrom).toISOString();
+    if (validTo) payload.valid_to = new Date(validTo).toISOString();
 
     const dl = Number(dailyLimit);
     const tl = Number(totalLimit);
-    if (!Number.isNaN(dl) && dl > 0) insertPayload.daily_limit = dl;
-    if (!Number.isNaN(tl) && tl > 0) insertPayload.total_limit = tl;
+    if (!Number.isNaN(dl) && dl > 0) payload.daily_limit = dl;
+    if (!Number.isNaN(tl) && tl > 0) payload.total_limit = tl;
 
-    const { error } = await sb.from('offers').insert(insertPayload);
+    const { error } = await sb.from('offers').insert(payload);
     setSaving(false);
 
     if (error) { setError(error.message); return; }
-    router.push('/admin'); // back to admin home
+    router.push('/admin');
   };
 
   return (
@@ -240,6 +257,7 @@ export default function AdminCreateOfferPage() {
           onChange={(e) => onFile(e.target.files?.[0] ?? null)}
         />
         {imagePreview && (
+          // <Image /> is recommended for perf, but <img> is fine for now.
           <img src={imagePreview} alt="preview" className="mt-2 max-w-xs rounded border" />
         )}
       </label>
