@@ -9,10 +9,20 @@ type Offer = {
   title: string;
   description: string | null;
   merchant_id: string;
-  image_url: string | null;   // 👈 add this
+  image_url: string | null;
 };
 
-type Me = { user_id: string; role: 'admin'|'merchant'|'consumer'; paid?: boolean };
+type MeRow = {
+  user_id: string;
+  role: 'admin' | 'merchant' | 'consumer';
+  paid: boolean | null;
+};
+
+type Me = {
+  user_id: string;
+  role: 'admin' | 'merchant' | 'consumer';
+  paid: boolean;
+};
 
 type RowState = {
   loading: boolean;
@@ -29,57 +39,128 @@ export default function ConsumerPage() {
   const [rowState, setRowState] = useState<Record<string, RowState>>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
 
+  // Load offers + me
   useEffect(() => {
-    // fetch offers (include image_url)
-    sb.from('offers')
-      .select('id,title,description,merchant_id,image_url')
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-      .then(({ data, error }) => {
-        if (error) setGlobalError(error.message);
-        setOffers((data ?? []) as Offer[]);
-      });
+    // Offers
+    (async () => {
+      const { data, error } = await sb
+        .from('offers')
+        .select('id,title,description,merchant_id,image_url')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+      if (error) setGlobalError(error.message);
+      setOffers((data ?? []) as Offer[]);
+    })();
 
-    // fetch me (to know paid status)
+    // Me (includes paid)
     (async () => {
       const { data: sessionRes } = await sb.auth.getSession();
-      if (!sessionRes?.session) { setMe(null); return; }
-      const { data: meRow } = await sb.from('me').select('*').single();
-      if (meRow && typeof (meRow as any).paid === 'boolean') setMe(meRow as Me);
-      else setMe({ user_id: sessionRes.session.user.id, role: (meRow as any)?.role ?? 'consumer', paid: false });
+      if (!sessionRes?.session) {
+        setMe(null);
+        return;
+      }
+      const { data, error } = await sb
+        .from('me')
+        .select('user_id,role,paid')
+        .single();
+      if (error || !data) {
+        // fall back to minimal identity if the view is missing
+        setMe({
+          user_id: sessionRes.session.user.id,
+          role: 'consumer',
+          paid: false,
+        });
+        return;
+      }
+      const row = data as MeRow;
+      setMe({
+        user_id: row.user_id,
+        role: row.role,
+        paid: !!row.paid,
+      });
     })();
   }, []);
 
   const createToken = async (offer: Offer) => {
-    setRowState(s => ({ ...s, [offer.id]: { loading: true, error: null, tokenId: null, expiresAt: null }}));
+    setRowState((s) => ({
+      ...s,
+      [offer.id]: { loading: true, error: null, tokenId: null, expiresAt: null },
+    }));
 
+    // require login
     const { data: sessionRes } = await sb.auth.getSession();
-    const userId = sessionRes?.session?.user?.id;
+    const userId = sessionRes?.session?.user?.id ?? null;
     if (!userId) {
-      setRowState(s => ({ ...s, [offer.id]: { loading: false, error: 'Please sign in to generate a QR.', tokenId: null, expiresAt: null }}));
+      setRowState((s) => ({
+        ...s,
+        [offer.id]: {
+          loading: false,
+          error: 'Please sign in to generate a QR.',
+          tokenId: null,
+          expiresAt: null,
+        },
+      }));
       return;
     }
 
-    const { data: meRow } = await sb.from('me').select('*').single();
-    const paid = !!(meRow as any)?.paid;
+    // check paid from view
+    const { data, error: meErr } = await sb
+      .from('me')
+      .select('user_id,role,paid')
+      .single();
+
+    const paid = !meErr && !!(data as MeRow).paid;
     if (!paid) {
-      setRowState(s => ({ ...s, [offer.id]: { loading: false, error: 'Pay the one-time $99 to unlock redemptions.', tokenId: null, expiresAt: null }}));
+      setRowState((s) => ({
+        ...s,
+        [offer.id]: {
+          loading: false,
+          error: 'Pay the one-time $99 to unlock redemptions.',
+          tokenId: null,
+          expiresAt: null,
+        },
+      }));
       return;
     }
 
-    const expires = new Date(Date.now() + TOKEN_TTL_SECONDS * 1000).toISOString();
-    const { data: tokenInsert, error } = await sb
+    // insert short-lived token
+    const expiresAtISO = new Date(
+      Date.now() + TOKEN_TTL_SECONDS * 1000
+    ).toISOString();
+
+    const { data: tokenRow, error } = await sb
       .from('tokens')
-      .insert({ user_id: userId, offer_id: offer.id, merchant_id: offer.merchant_id, expires_at: expires })
+      .insert({
+        user_id: userId,
+        offer_id: offer.id,
+        merchant_id: offer.merchant_id,
+        expires_at: expiresAtISO,
+      })
       .select('id,expires_at')
       .single();
 
-    if (error || !tokenInsert) {
-      setRowState(s => ({ ...s, [offer.id]: { loading: false, error: error?.message || 'Failed to create token', tokenId: null, expiresAt: null }}));
+    if (error || !tokenRow) {
+      setRowState((s) => ({
+        ...s,
+        [offer.id]: {
+          loading: false,
+          error: error?.message ?? 'Failed to create token',
+          tokenId: null,
+          expiresAt: null,
+        },
+      }));
       return;
     }
 
-    setRowState(s => ({ ...s, [offer.id]: { loading: false, error: null, tokenId: tokenInsert.id, expiresAt: tokenInsert.expires_at }}));
+    setRowState((s) => ({
+      ...s,
+      [offer.id]: {
+        loading: false,
+        error: null,
+        tokenId: tokenRow.id as string,
+        expiresAt: tokenRow.expires_at as string,
+      },
+    }));
   };
 
   return (
@@ -91,8 +172,17 @@ export default function ConsumerPage() {
 
       <ul className="space-y-4">
         {offers.map((o) => {
-          const state = rowState[o.id] || { loading: false, error: null, tokenId: null, expiresAt: null };
-          const expiresText = state.expiresAt ? `Expires at ${new Date(state.expiresAt).toLocaleTimeString()}` : '';
+          const state: RowState =
+            rowState[o.id] ?? {
+              loading: false,
+              error: null,
+              tokenId: null,
+              expiresAt: null,
+            };
+          const expiresText =
+            state.expiresAt !== null
+              ? `Expires at ${new Date(state.expiresAt).toLocaleTimeString()}`
+              : '';
 
           return (
             <li key={o.id} className="border rounded p-3">
@@ -101,13 +191,20 @@ export default function ConsumerPage() {
                   <img
                     src={o.image_url}
                     alt={o.title}
-                    style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8 }}
+                    style={{
+                      width: 96,
+                      height: 96,
+                      objectFit: 'cover',
+                      borderRadius: 8,
+                    }}
                   />
                 )}
 
                 <div className="flex-1">
                   <div className="font-medium">{o.title}</div>
-                  {o.description && <div className="text-sm text-gray-600">{o.description}</div>}
+                  {o.description && (
+                    <div className="text-sm text-gray-600">{o.description}</div>
+                  )}
 
                   {!state.tokenId ? (
                     <button
@@ -119,15 +216,21 @@ export default function ConsumerPage() {
                     </button>
                   ) : (
                     <div className="mt-3">
-                      <div className="text-xs text-gray-600 mb-2">{expiresText}</div>
+                      <div className="text-xs text-gray-600 mb-2">
+                        {expiresText}
+                      </div>
                       <div className="inline-block bg-white p-2 rounded">
-                        {/* raw UUID as value */}
+                        {/* Raw UUID — matches merchant scanner expectation */}
                         <QRCode value={state.tokenId} />
                       </div>
                     </div>
                   )}
 
-                  {state.error && <div className="mt-2 text-red-500 text-sm">Error: {state.error}</div>}
+                  {state.error && (
+                    <div className="mt-2 text-red-500 text-sm">
+                      Error: {state.error}
+                    </div>
+                  )}
                 </div>
               </div>
             </li>
