@@ -16,15 +16,16 @@ type OfferInsert = {
   is_active: boolean;
   image_url: string | null;
   savings_cents: number | null;
-  valid_from?: string; // ISO
-  valid_to?: string;   // ISO
+  valid_from?: string; // ISO string
+  valid_to?: string;   // ISO string
   daily_limit?: number;
   total_limit?: number;
 };
 
 function uuid() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-    const r = (crypto.getRandomValues(new Uint8Array(1))[0] & 15) >> 0;
+  // simple uuid v4 (client-side) for storage paths
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (crypto.getRandomValues(new Uint8Array(1))[0] & 15) >>> 0;
     const v = c === 'x' ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
@@ -32,6 +33,7 @@ function uuid() {
 
 export default function AdminCreateOfferPage() {
   const router = useRouter();
+
   const [me, setMe] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -42,13 +44,13 @@ export default function AdminCreateOfferPage() {
   const [description, setDescription] = useState('');
   const [terms, setTerms] = useState('');
 
-  const [validFrom, setValidFrom] = useState<string>('');
-  const [validTo, setValidTo] = useState<string>('');
+  const [validFrom, setValidFrom] = useState<string>(''); // datetime-local
+  const [validTo, setValidTo] = useState<string>('');     // datetime-local
 
-  const [dailyLimit, setDailyLimit] = useState<string>('');
-  const [totalLimit, setTotalLimit] = useState<string>('');
+  const [dailyLimit, setDailyLimit] = useState<string>(''); // text -> number
+  const [totalLimit, setTotalLimit] = useState<string>(''); // text -> number
 
-  const [savings, setSavings] = useState<string>(''); // dollars text; convert to cents
+  const [savings, setSavings] = useState<string>(''); // AUD text; convert to cents
   const [isActive, setIsActive] = useState(true);
 
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -57,22 +59,36 @@ export default function AdminCreateOfferPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Load me + merchants, with surfaced errors and empty-state handling
   useEffect(() => {
     (async () => {
-      const { data: { session } } = await sb.auth.getSession();
-      if (!session) { setMe(null); setLoading(false); return; }
-      const { data } = await sb.from('me').select('*').single();
-      setMe((data as Me) ?? null);
+      const { data: sessionRes } = await sb.auth.getSession();
+      if (!sessionRes?.session) {
+        setMe(null);
+        setLoading(false);
+        return;
+      }
+
+      const { data: meRow } = await sb.from('me').select('*').single();
+      setMe((meRow as Me) ?? null);
       setLoading(false);
 
-      const { data: merch } = await sb
+      const { data: merch, error: mErr } = await sb
         .from('merchants')
         .select('id,name,is_active')
         .order('name', { ascending: true });
 
+      if (mErr) {
+        console.error('Merchants fetch error:', mErr);
+        setError(`Merchants fetch error: ${mErr.message}`);
+        setMerchants([]);
+        setMerchantId('');
+        return;
+      }
+
       const list = merch ?? [];
       setMerchants(list);
-      if (list.length > 0) setMerchantId(list[0].id);
+      setMerchantId(list.length > 0 ? list[0].id : '');
     })();
   }, []);
 
@@ -82,9 +98,6 @@ export default function AdminCreateOfferPage() {
     return Math.round(n * 100);
   }, [savings]);
 
-  if (loading) return <div className="p-4">Loading…</div>;
-  if (!me || me.role !== 'admin') return <div className="p-4">Admin only.</div>;
-
   const onFile = (f: File | null) => {
     setImageFile(f);
     setImagePreview(f ? URL.createObjectURL(f) : null);
@@ -93,8 +106,18 @@ export default function AdminCreateOfferPage() {
   const submit = async () => {
     setError(null);
 
-    if (!merchantId) { setError('Select a merchant.'); return; }
-    if (!title.trim()) { setError('Title is required.'); return; }
+    if (!me || me.role !== 'admin') {
+      setError('Admin only.');
+      return;
+    }
+    if (!merchantId) {
+      setError('Select a merchant.');
+      return;
+    }
+    if (!title.trim()) {
+      setError('Title is required.');
+      return;
+    }
 
     setSaving(true);
 
@@ -107,12 +130,16 @@ export default function AdminCreateOfferPage() {
         cacheControl: '3600',
         upsert: false,
       });
-      if (up.error) { setSaving(false); setError(up.error.message); return; }
+      if (up.error) {
+        setSaving(false);
+        setError(up.error.message);
+        return;
+      }
       const pub = sb.storage.from('offer-media').getPublicUrl(objectPath);
       image_url = pub.data.publicUrl;
     }
 
-    // 2) Insert offer (fully typed)
+    // 2) Build payload (fully typed)
     const payload: OfferInsert = {
       merchant_id: merchantId,
       title: title.trim(),
@@ -131,12 +158,18 @@ export default function AdminCreateOfferPage() {
     if (!Number.isNaN(dl) && dl > 0) payload.daily_limit = dl;
     if (!Number.isNaN(tl) && tl > 0) payload.total_limit = tl;
 
-    const { error } = await sb.from('offers').insert(payload);
+    const { error: insertErr } = await sb.from('offers').insert(payload);
     setSaving(false);
 
-    if (error) { setError(error.message); return; }
+    if (insertErr) {
+      setError(insertErr.message);
+      return;
+    }
     router.push('/admin');
   };
+
+  if (loading) return <div className="p-4">Loading…</div>;
+  if (!me || me.role !== 'admin') return <div className="p-4">Admin only.</div>;
 
   return (
     <div className="p-4 space-y-4">
@@ -144,19 +177,30 @@ export default function AdminCreateOfferPage() {
 
       {error && <p className="text-red-500 text-sm">{error}</p>}
 
+      {/* Merchant selector with empty state */}
       <label className="block">
         <div className="text-sm mb-1">Merchant</div>
-        <select
-          className="border p-2 rounded w-full"
-          value={merchantId}
-          onChange={(e) => setMerchantId(e.target.value)}
-        >
-          {merchants.map(m => (
-            <option key={m.id} value={m.id}>
-              {m.name}{!m.is_active ? ' (inactive)' : ''}
-            </option>
-          ))}
-        </select>
+
+        {merchants.length === 0 ? (
+          <div className="text-sm">
+            <div className="mb-2 border border-dashed rounded p-2">
+              No merchants found.
+            </div>
+            <a href="/admin/merchant/new" className="underline">Create a merchant</a>
+          </div>
+        ) : (
+          <select
+            className="border p-2 rounded w-full"
+            value={merchantId}
+            onChange={(e) => setMerchantId(e.target.value)}
+          >
+            {merchants.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}{!m.is_active ? ' (inactive)' : ''}
+              </option>
+            ))}
+          </select>
+        )}
       </label>
 
       <label className="block">
@@ -199,7 +243,6 @@ export default function AdminCreateOfferPage() {
             onChange={(e) => setValidFrom(e.target.value)}
           />
         </label>
-
         <label className="block">
           <div className="text-sm mb-1">Valid to (optional)</div>
           <input
@@ -221,7 +264,6 @@ export default function AdminCreateOfferPage() {
             placeholder="e.g., 50"
           />
         </label>
-
         <label className="block">
           <div className="text-sm mb-1">Total limit (optional)</div>
           <input
@@ -241,11 +283,17 @@ export default function AdminCreateOfferPage() {
           onChange={(e) => setSavings(e.target.value)}
           placeholder="e.g., 5.00"
         />
-        <div className="text-xs text-gray-500 mt-1">Stored as cents: {savingsCents}</div>
+        <div className="text-xs text-gray-500 mt-1">
+          Stored as cents: {savingsCents}
+        </div>
       </label>
 
       <label className="flex items-center gap-2">
-        <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+        <input
+          type="checkbox"
+          checked={isActive}
+          onChange={(e) => setIsActive(e.target.checked)}
+        />
         <span>Active</span>
       </label>
 
@@ -257,7 +305,6 @@ export default function AdminCreateOfferPage() {
           onChange={(e) => onFile(e.target.files?.[0] ?? null)}
         />
         {imagePreview && (
-          // <Image /> is recommended for perf, but <img> is fine for now.
           <img src={imagePreview} alt="preview" className="mt-2 max-w-xs rounded border" />
         )}
       </label>
