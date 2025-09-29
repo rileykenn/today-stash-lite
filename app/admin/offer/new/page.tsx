@@ -2,320 +2,338 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { sb } from '@/lib/supabaseBrowser';
-import { useRouter } from 'next/navigation';
 
-type Me = { user_id: string; role: 'admin' | 'merchant' | 'consumer' };
-type Merchant = { id: string; name: string; is_active: boolean };
+type Merchant = {
+  id: string;
+  name: string;
+  is_active: boolean;
+};
 
-/** Insert payload for the `offers` table */
 type OfferInsert = {
   merchant_id: string;
   title: string;
   description: string | null;
   terms: string | null;
+  valid_from: string | null; // ISO string (date or datetime)
+  valid_to: string | null;   // ISO string
   is_active: boolean;
-  image_url: string | null;
+  daily_limit: number | null;
+  total_limit: number | null;
   savings_cents: number | null;
-  valid_from?: string; // ISO string
-  valid_to?: string;   // ISO string
-  daily_limit?: number;
-  total_limit?: number;
+  image_url: string | null;
 };
 
-function uuid() {
-  // simple uuid v4 (client-side) for storage paths
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (crypto.getRandomValues(new Uint8Array(1))[0] & 15) >>> 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
-
-export default function AdminCreateOfferPage() {
-  const router = useRouter();
-
-  const [me, setMe] = useState<Me | null>(null);
-  const [loading, setLoading] = useState(true);
-
+export default function AdminOfferNewPage() {
+  // Form state
   const [merchants, setMerchants] = useState<Merchant[]>([]);
   const [merchantId, setMerchantId] = useState<string>('');
+  const [title, setTitle] = useState<string>('');
+  const [description, setDescription] = useState<string>('');
+  const [terms, setTerms] = useState<string>('');
+  const [validFrom, setValidFrom] = useState<string>(''); // HTML datetime-local value
+  const [validTo, setValidTo] = useState<string>('');
+  const [isActive, setIsActive] = useState<boolean>(true);
+  const [dailyLimit, setDailyLimit] = useState<string>(''); // keep as string, parse later
+  const [totalLimit, setTotalLimit] = useState<string>('');
+  const [savingsDollars, setSavingsDollars] = useState<string>(''); // e.g. "5.00" -> 500 cents
+  const [file, setFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
 
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [terms, setTerms] = useState('');
-
-  const [validFrom, setValidFrom] = useState<string>(''); // datetime-local
-  const [validTo, setValidTo] = useState<string>('');     // datetime-local
-
-  const [dailyLimit, setDailyLimit] = useState<string>(''); // text -> number
-  const [totalLimit, setTotalLimit] = useState<string>(''); // text -> number
-
-  const [savings, setSavings] = useState<string>(''); // AUD text; convert to cents
-  const [isActive, setIsActive] = useState(true);
-
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-
+  // UX state
+  const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
 
-  // Load me + merchants, with surfaced errors and empty-state handling
+  // Load merchants (public read)
   useEffect(() => {
     (async () => {
-      const { data: sessionRes } = await sb.auth.getSession();
-      if (!sessionRes?.session) {
-        setMe(null);
-        setLoading(false);
-        return;
-      }
-
-      const { data: meRow } = await sb.from('me').select('*').single();
-      setMe((meRow as Me) ?? null);
-      setLoading(false);
-
-      const { data: merch, error: mErr } = await sb
+      const { data, error: err } = await sb
         .from('merchants')
         .select('id,name,is_active')
         .order('name', { ascending: true });
-
-      if (mErr) {
-        console.error('Merchants fetch error:', mErr);
-        setError(`Merchants fetch error: ${mErr.message}`);
-        setMerchants([]);
-        setMerchantId('');
+      if (err) {
+        setError(err.message);
         return;
       }
-
-      const list = merch ?? [];
-      setMerchants(list);
-      setMerchantId(list.length > 0 ? list[0].id : '');
+      setMerchants((data ?? []) as Merchant[]);
+      // default pick first active merchant
+      const active = (data ?? []).find((m) => (m as Merchant).is_active) as Merchant | undefined;
+      if (active) setMerchantId(active.id);
     })();
   }, []);
 
-  const savingsCents = useMemo(() => {
-    const n = Number(savings.replace(/[^0-9.]/g, ''));
-    if (Number.isNaN(n)) return 0;
-    return Math.round(n * 100);
-  }, [savings]);
+  // Preview selected image
+  useEffect(() => {
+    if (!file) {
+      setFilePreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setFilePreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
 
-  const onFile = (f: File | null) => {
-    setImageFile(f);
-    setImagePreview(f ? URL.createObjectURL(f) : null);
-  };
+  const canSubmit = useMemo(() => {
+    return merchantId !== '' && title.trim().length > 0 && !submitting;
+  }, [merchantId, title, submitting]);
 
-  const submit = async () => {
+  function toISOFromLocal(local: string): string | null {
+    // local from <input type="datetime-local"> like "2025-09-23T14:30"
+    if (!local) return null;
+    const d = new Date(local);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toISOString();
+  }
+
+  async function handleUploadToStorage(
+    f: File,
+    merchant: string
+  ): Promise<string> {
+    const parts = f.name.split('.');
+    const ext = parts.length > 1 ? parts.pop() as string : 'jpg';
+    const objectPath = `offers/${merchant}/${crypto.randomUUID()}.${ext}`;
+
+    const { error: uploadErr } = await sb
+      .storage
+      .from('offer-media')
+      .upload(objectPath, f, { upsert: true });
+
+    if (uploadErr) throw uploadErr;
+
+    const { data } = sb.storage.from('offer-media').getPublicUrl(objectPath);
+    return data.publicUrl; // full, public HTTPS URL
+  }
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
     setError(null);
+    setSuccess(null);
 
-    if (!me || me.role !== 'admin') {
-      setError('Admin only.');
-      return;
-    }
-    if (!merchantId) {
-      setError('Select a merchant.');
-      return;
-    }
-    if (!title.trim()) {
-      setError('Title is required.');
-      return;
-    }
-
-    setSaving(true);
-
-    // 1) Upload image (optional)
-    let image_url: string | null = null;
-    if (imageFile) {
-      const ext = (imageFile.name.split('.').pop() || 'jpg').toLowerCase();
-      const objectPath = `${merchantId}/${uuid()}.${ext}`;
-      const up = await sb.storage.from('offer-media').upload(objectPath, imageFile, {
-        cacheControl: '3600',
-        upsert: false,
-      });
-      if (up.error) {
-        setSaving(false);
-        setError(up.error.message);
-        return;
+    try {
+      // Resolve optional image
+      let imageUrl: string | null = null;
+      if (file) {
+        imageUrl = await handleUploadToStorage(file, merchantId);
       }
-      const pub = sb.storage.from('offer-media').getPublicUrl(objectPath);
-      image_url = pub.data.publicUrl;
+
+      // Parse numeric inputs
+      const dailyParsed = dailyLimit.trim() === '' ? null : Number.parseInt(dailyLimit, 10);
+      const totalParsed = totalLimit.trim() === '' ? null : Number.parseInt(totalLimit, 10);
+
+      if (dailyParsed !== null && Number.isNaN(dailyParsed)) {
+        throw new Error('Daily limit must be a whole number');
+      }
+      if (totalParsed !== null && Number.isNaN(totalParsed)) {
+        throw new Error('Total limit must be a whole number');
+      }
+
+      // Dollars → cents
+      const cents =
+        savingsDollars.trim() === ''
+          ? null
+          : Math.round(Number.parseFloat(savingsDollars) * 100);
+
+      if (cents !== null && Number.isNaN(cents)) {
+        throw new Error('Savings must be a valid number (e.g., 5 or 5.50)');
+      }
+
+      const payload: OfferInsert = {
+        merchant_id: merchantId,
+        title: title.trim(),
+        description: description.trim() === '' ? null : description.trim(),
+        terms: terms.trim() === '' ? null : terms.trim(),
+        valid_from: toISOFromLocal(validFrom),
+        valid_to: toISOFromLocal(validTo),
+        is_active: isActive,
+        daily_limit: dailyParsed,
+        total_limit: totalParsed,
+        savings_cents: cents,
+        image_url: imageUrl, // FULL PUBLIC URL (null if no image)
+      };
+
+      const { error: insertErr } = await sb.from('offers').insert(payload);
+      if (insertErr) throw insertErr;
+
+      setSuccess('Offer created successfully 🎉');
+      // Reset form (keep merchant selection)
+      setTitle('');
+      setDescription('');
+      setTerms('');
+      setValidFrom('');
+      setValidTo('');
+      setIsActive(true);
+      setDailyLimit('');
+      setTotalLimit('');
+      setSavingsDollars('');
+      setFile(null);
+      setFilePreview(null);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to create offer';
+      setError(msg);
+    } finally {
+      setSubmitting(false);
     }
-
-    // 2) Build payload (fully typed)
-    const payload: OfferInsert = {
-      merchant_id: merchantId,
-      title: title.trim(),
-      description: description.trim() ? description.trim() : null,
-      terms: terms.trim() ? terms.trim() : null,
-      is_active: isActive,
-      image_url,
-      savings_cents: savingsCents > 0 ? savingsCents : null,
-    };
-
-    if (validFrom) payload.valid_from = new Date(validFrom).toISOString();
-    if (validTo) payload.valid_to = new Date(validTo).toISOString();
-
-    const dl = Number(dailyLimit);
-    const tl = Number(totalLimit);
-    if (!Number.isNaN(dl) && dl > 0) payload.daily_limit = dl;
-    if (!Number.isNaN(tl) && tl > 0) payload.total_limit = tl;
-
-    const { error: insertErr } = await sb.from('offers').insert(payload);
-    setSaving(false);
-
-    if (insertErr) {
-      setError(insertErr.message);
-      return;
-    }
-    router.push('/admin');
-  };
-
-  if (loading) return <div className="p-4">Loading…</div>;
-  if (!me || me.role !== 'admin') return <div className="p-4">Admin only.</div>;
+  }
 
   return (
-    <div className="p-4 space-y-4">
-      <h1 className="text-xl font-semibold">Create deal</h1>
+    <div className="p-5 max-w-2xl">
+      <h1 className="text-2xl font-semibold mb-4">Create a New Deal</h1>
 
-      {error && <p className="text-red-500 text-sm">{error}</p>}
+      {error && <div className="mb-3 text-sm text-red-600">Error: {error}</div>}
+      {success && <div className="mb-3 text-sm text-green-600">{success}</div>}
 
-      {/* Merchant selector with empty state */}
-      <label className="block">
-        <div className="text-sm mb-1">Merchant</div>
-
-        {merchants.length === 0 ? (
-          <div className="text-sm">
-            <div className="mb-2 border border-dashed rounded p-2">
-              No merchants found.
-            </div>
-            <a href="/admin/merchant/new" className="underline">Create a merchant</a>
-          </div>
-        ) : (
+      <form onSubmit={onSubmit} className="space-y-4">
+        {/* Merchant */}
+        <label className="block">
+          <span className="block text-sm font-medium mb-1">Merchant</span>
           <select
-            className="border p-2 rounded w-full"
             value={merchantId}
             onChange={(e) => setMerchantId(e.target.value)}
+            className="w-full border rounded px-3 py-2"
           >
             {merchants.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.name}{!m.is_active ? ' (inactive)' : ''}
+                {m.name} {m.is_active ? '' : '(inactive)'}
               </option>
             ))}
           </select>
-        )}
-      </label>
+        </label>
 
-      <label className="block">
-        <div className="text-sm mb-1">Title</div>
-        <input
-          className="border p-2 rounded w-full"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="e.g., Free Small Coffee"
-        />
-      </label>
-
-      <label className="block">
-        <div className="text-sm mb-1">Description (optional)</div>
-        <textarea
-          className="border p-2 rounded w-full"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Short blurb"
-        />
-      </label>
-
-      <label className="block">
-        <div className="text-sm mb-1">Terms</div>
-        <textarea
-          className="border p-2 rounded w-full"
-          value={terms}
-          onChange={(e) => setTerms(e.target.value)}
-          placeholder="One per customer. Today only. Not valid with other offers."
-        />
-      </label>
-
-      <div className="grid gap-3 sm:grid-cols-2">
+        {/* Title */}
         <label className="block">
-          <div className="text-sm mb-1">Valid from (optional)</div>
+          <span className="block text-sm font-medium mb-1">Title</span>
           <input
-            type="datetime-local"
-            className="border p-2 rounded w-full"
-            value={validFrom}
-            onChange={(e) => setValidFrom(e.target.value)}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full border rounded px-3 py-2"
+            placeholder="e.g. Buy 1 Get 1 Free Coffee"
+            required
           />
         </label>
-        <label className="block">
-          <div className="text-sm mb-1">Valid to (optional)</div>
-          <input
-            type="datetime-local"
-            className="border p-2 rounded w-full"
-            value={validTo}
-            onChange={(e) => setValidTo(e.target.value)}
-          />
-        </label>
-      </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+        {/* Description */}
         <label className="block">
-          <div className="text-sm mb-1">Daily limit (optional)</div>
-          <input
-            className="border p-2 rounded w-full"
-            value={dailyLimit}
-            onChange={(e) => setDailyLimit(e.target.value)}
-            placeholder="e.g., 50"
+          <span className="block text-sm font-medium mb-1">Description</span>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="w-full border rounded px-3 py-2"
+            rows={3}
+            placeholder="Optional details"
           />
         </label>
-        <label className="block">
-          <div className="text-sm mb-1">Total limit (optional)</div>
-          <input
-            className="border p-2 rounded w-full"
-            value={totalLimit}
-            onChange={(e) => setTotalLimit(e.target.value)}
-            placeholder="e.g., 200"
-          />
-        </label>
-      </div>
 
-      <label className="block">
-        <div className="text-sm mb-1">Customer saves (AUD, optional)</div>
-        <input
-          className="border p-2 rounded w-full"
-          value={savings}
-          onChange={(e) => setSavings(e.target.value)}
-          placeholder="e.g., 5.00"
-        />
-        <div className="text-xs text-gray-500 mt-1">
-          Stored as cents: {savingsCents}
+        {/* Terms */}
+        <label className="block">
+          <span className="block text-sm font-medium mb-1">Terms</span>
+          <textarea
+            value={terms}
+            onChange={(e) => setTerms(e.target.value)}
+            className="w-full border rounded px-3 py-2"
+            rows={2}
+            placeholder="Optional conditions"
+          />
+        </label>
+
+        {/* Dates */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label className="block">
+            <span className="block text-sm font-medium mb-1">Valid From</span>
+            <input
+              type="datetime-local"
+              value={validFrom}
+              onChange={(e) => setValidFrom(e.target.value)}
+              className="w-full border rounded px-3 py-2"
+            />
+          </label>
+
+          <label className="block">
+            <span className="block text-sm font-medium mb-1">Valid To</span>
+            <input
+              type="datetime-local"
+              value={validTo}
+              onChange={(e) => setValidTo(e.target.value)}
+              className="w-full border rounded px-3 py-2"
+            />
+          </label>
         </div>
-      </label>
 
-      <label className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          checked={isActive}
-          onChange={(e) => setIsActive(e.target.checked)}
-        />
-        <span>Active</span>
-      </label>
+        {/* Limits */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <label className="block">
+            <span className="block text-sm font-medium mb-1">Daily Limit</span>
+            <input
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={dailyLimit}
+              onChange={(e) => setDailyLimit(e.target.value)}
+              className="w-full border rounded px-3 py-2"
+              placeholder="e.g. 50"
+            />
+          </label>
 
-      <label className="block">
-        <div className="text-sm mb-1">Photo (optional)</div>
-        <input
-          type="file"
-          accept="image/*"
-          onChange={(e) => onFile(e.target.files?.[0] ?? null)}
-        />
-        {imagePreview && (
-          <img src={imagePreview} alt="preview" className="mt-2 max-w-xs rounded border" />
-        )}
-      </label>
+          <label className="block">
+            <span className="block text-sm font-medium mb-1">Total Limit</span>
+            <input
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={totalLimit}
+              onChange={(e) => setTotalLimit(e.target.value)}
+              className="w-full border rounded px-3 py-2"
+              placeholder="e.g. 200"
+            />
+          </label>
 
-      <button
-        onClick={submit}
-        disabled={saving}
-        className="px-4 py-2 rounded bg-black text-white disabled:opacity-50"
-      >
-        {saving ? 'Saving…' : 'Create deal'}
-      </button>
+          <label className="block">
+            <span className="block text-sm font-medium mb-1">Savings ($)</span>
+            <input
+              inputMode="decimal"
+              value={savingsDollars}
+              onChange={(e) => setSavingsDollars(e.target.value)}
+              className="w-full border rounded px-3 py-2"
+              placeholder="e.g. 5 or 5.50"
+            />
+          </label>
+        </div>
+
+        {/* Active */}
+        <label className="inline-flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={isActive}
+            onChange={(e) => setIsActive(e.target.checked)}
+          />
+          <span className="text-sm">Active</span>
+        </label>
+
+        {/* Image upload */}
+        <div>
+          <span className="block text-sm font-medium mb-1">Deal Image (optional)</span>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => setFile(e.target.files && e.target.files[0] ? e.target.files[0] : null)}
+          />
+          {filePreview && (
+            <div className="mt-2">
+              <img
+                src={filePreview}
+                alt="Preview"
+                style={{ width: 160, height: 160, objectFit: 'cover', borderRadius: 8 }}
+              />
+            </div>
+          )}
+        </div>
+
+        <button
+          type="submit"
+          disabled={!canSubmit}
+          className="px-4 py-2 rounded bg-black text-white disabled:opacity-50"
+        >
+          {submitting ? 'Saving…' : 'Create Offer'}
+        </button>
+      </form>
     </div>
   );
 }
