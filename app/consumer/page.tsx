@@ -4,25 +4,14 @@ import { useEffect, useState } from 'react';
 import { sb } from '@/lib/supabaseBrowser';
 import QRCode from 'react-qr-code';
 
-function resolveOfferImageUrl(image_url: string | null): string | null {
-  if (!image_url) return null;
-  // Already a full URL?
-  if (image_url.startsWith('http://') || image_url.startsWith('https://')) {
-    return image_url;
-  }
-  // Treat it as a storage object path in the 'offer-media' bucket
-  const base = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  // ensure no double slashes if base ends with '/'
-  const trimmed = base.endsWith('/') ? base.slice(0, -1) : base;
-  return `${trimmed}/storage/v1/object/public/offer-media/${image_url}`;
-}
+const OFFER_BUCKET = 'offer-media';
 
 type Offer = {
   id: string;
   title: string;
   description: string | null;
   merchant_id: string;
-  image_url: string | null;
+  image_url: string | null; // can be a full URL or a storage path
 };
 
 type MeRow = {
@@ -46,23 +35,38 @@ type RowState = {
 
 const TOKEN_TTL_SECONDS = 120;
 
+/** Resolve a value in offers.image_url to a usable <img src>. */
+function resolveOfferImageUrl(image_url: string | null): string | null {
+  if (!image_url) return null;
+  const val = image_url.trim();
+  if (val.startsWith('http://') || val.startsWith('https://')) return val;
+
+  // Treat as Storage object path in the 'offer-media' bucket
+  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/+$/, '');
+  return `${base}/storage/v1/object/public/offer-media/${val.replace(/^\/+/, '')}`;
+}
+
 export default function ConsumerPage() {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [me, setMe] = useState<Me | null>(null);
   const [rowState, setRowState] = useState<Record<string, RowState>>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
+  const [loadingOffers, setLoadingOffers] = useState<boolean>(true);
 
   // Load offers + me
   useEffect(() => {
     // Offers
     (async () => {
+      setLoadingOffers(true);
       const { data, error } = await sb
         .from('offers')
         .select('id,title,description,merchant_id,image_url')
         .eq('is_active', true)
         .order('created_at', { ascending: false });
+
       if (error) setGlobalError(error.message);
       setOffers((data ?? []) as Offer[]);
+      setLoadingOffers(false);
     })();
 
     // Me (includes paid)
@@ -76,8 +80,8 @@ export default function ConsumerPage() {
         .from('me')
         .select('user_id,role,paid')
         .single();
+
       if (error || !data) {
-        // fall back to minimal identity if the view is missing
         setMe({
           user_id: sessionRes.session.user.id,
           role: 'consumer',
@@ -180,8 +184,9 @@ export default function ConsumerPage() {
     <div className="p-4 space-y-4">
       <h1 className="text-xl font-semibold">Deals</h1>
 
-      {globalError && <p className="text-red-500 text-sm">{globalError}</p>}
-      {offers.length === 0 && <p className="text-sm">No active deals yet.</p>}
+      {globalError && <p className="text-red-500 text-sm">Error: {globalError}</p>}
+      {loadingOffers && <p className="text-sm">Loading deals…</p>}
+      {!loadingOffers && offers.length === 0 && <p className="text-sm">No active deals yet.</p>}
 
       <ul className="space-y-4">
         {offers.map((o) => {
@@ -192,23 +197,34 @@ export default function ConsumerPage() {
               tokenId: null,
               expiresAt: null,
             };
+
           const expiresText =
             state.expiresAt !== null
               ? `Expires at ${new Date(state.expiresAt).toLocaleTimeString()}`
               : '';
 
+          const src = resolveOfferImageUrl(o.image_url);
+
           return (
             <li key={o.id} className="border rounded p-3">
               <div className="flex gap-3 items-start">
-                {o.image_url && (
+                {src && (
                   <img
-                    src={o.image_url}
+                    src={src}
                     alt={o.title}
+                    decoding="async"
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      console.warn('Image failed to load:', src);
+                      (e.currentTarget as HTMLImageElement).style.display = 'none';
+                    }}
                     style={{
                       width: 96,
                       height: 96,
                       objectFit: 'cover',
                       borderRadius: 8,
+                      background: '#f3f4f6',
                     }}
                   />
                 )}
