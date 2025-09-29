@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { sb } from '@/lib/supabaseBrowser';
 import QRCode from 'react-qr-code';
 
@@ -9,7 +9,7 @@ type Offer = {
   title: string;
   description: string | null;
   merchant_id: string;
-  image_url: string | null; // can be a full URL or a storage path
+  image_url: string | null; // full URL or storage path
 };
 
 type MeRow = {
@@ -64,7 +64,6 @@ export default function ConsumerPage() {
 
   // Load offers + me
   useEffect(() => {
-    // Offers
     (async () => {
       setLoadingOffers(true);
       const { data, error } = await sb
@@ -78,7 +77,6 @@ export default function ConsumerPage() {
       setLoadingOffers(false);
     })();
 
-    // Me (includes paid)
     (async () => {
       const { data: sessionRes } = await sb.auth.getSession();
       if (!sessionRes?.session) {
@@ -113,7 +111,6 @@ export default function ConsumerPage() {
       [offer.id]: { loading: true, error: null, tokenId: null, expiresAt: null },
     }));
 
-    // require login
     const { data: sessionRes } = await sb.auth.getSession();
     const userId = sessionRes?.session?.user?.id ?? null;
     if (!userId) {
@@ -129,7 +126,6 @@ export default function ConsumerPage() {
       return;
     }
 
-    // check paid from view
     const { data, error: meErr } = await sb
       .from('me')
       .select('user_id,role,paid')
@@ -149,7 +145,6 @@ export default function ConsumerPage() {
       return;
     }
 
-    // insert short-lived token
     const expiresAtISO = new Date(
       Date.now() + TOKEN_TTL_SECONDS * 1000
     ).toISOString();
@@ -190,7 +185,6 @@ export default function ConsumerPage() {
       },
     }));
 
-    // open modal with the new token
     setModalOfferTitle(offer.title);
     setModalTokenId(token.id);
     setModalExpiresAt(token.expires_at);
@@ -198,89 +192,124 @@ export default function ConsumerPage() {
   };
 
   return (
-    <div className="min-h-dvh bg-[#0B1210] text-[#E8FFF3] p-4 space-y-4">
-      <header className="sticky top-0 z-10 -mx-4 px-4 py-3 backdrop-blur-md bg-[#0B1210]/70 border-b border-white/10">
-        <h1 className="text-xl font-black tracking-tight">Today&apos;s Stash</h1>
-        <p className="text-xs text-[#9ADABF] mt-0.5">Pay $99 • Save up to $3,000</p>
-      </header>
-
-      {globalError && (
-        <p className="text-[#FCA5A5] text-sm">Error: {globalError}</p>
-      )}
-      {loadingOffers && <p className="text-sm text-[#9ADABF]">Loading deals…</p>}
-      {!loadingOffers && offers.length === 0 && (
-        <p className="text-sm text-[#9ADABF]">No active deals yet.</p>
-      )}
-
-      <ul className="space-y-4">
-        {offers.map((o) => {
-          const state: RowState =
-            rowState[o.id] ?? {
-              loading: false,
-              error: null,
-              tokenId: null,
-              expiresAt: null,
-            };
-
-          const src = resolveOfferImageUrl(o.image_url);
-
-          return (
-            <li
-              key={o.id}
-              className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-md p-3"
-            >
-              <div className="flex gap-3 items-start">
-                {src && (
-                  <img
-                    src={src}
-                    alt={o.title}
-                    decoding="async"
-                    loading="lazy"
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      // hide broken image
-                      (e.currentTarget as HTMLImageElement).style.display = 'none';
-                    }}
-                    className="w-24 h-24 object-cover rounded-xl bg-black/30"
-                  />
-                )}
-
-                <div className="flex-1">
-                  <div className="font-bold text-[#E8FFF3] leading-tight">
-                    {o.title}
-                  </div>
-                  {o.description && (
-                    <div className="text-sm text-[#9ADABF] mt-0.5">
-                      {o.description}
-                    </div>
-                  )}
-
-                  <div className="mt-3">
-                    <GlowButton
-                      onClick={() => createToken(o)}
-                      disabled={state.loading}
-                    >
-                      {state.loading ? 'Creating…' : 'Show QR'}
-                    </GlowButton>
-                  </div>
-
-                  {state.error && (
-                    <div className="mt-2 text-[#FCA5A5] text-sm">
-                      Error: {state.error}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-
-      <div className="text-xs text-[#9ADABF]">
-        {me?.paid ? 'Your account: Paid' : 'Your account: Not paid'}
+    <div className="min-h-dvh bg-[#0B1210] text-[#E8FFF3]">
+      {/* HERO / PROMO */}
+      <div className="relative px-5 pt-8 pb-6 border-b border-white/10 overflow-hidden">
+        <div className="absolute -top-16 -right-16 h-56 w-56 rounded-full bg-[#14F195]/20 blur-3xl" />
+        <h1 className="text-3xl font-black leading-tight">
+          SAVE <span className="text-[#14F195] drop-shadow-[0_0_24px_rgba(20,241,149,.4)]">up to $3,000</span>
+        </h1>
+        <p className="text-sm text-[#9ADABF] mt-1">
+          Pay <span className="font-semibold text-white">$99</span> once. Unlock hundreds in local freebies today.
+        </p>
       </div>
 
-      {/* QR MODAL (no extra files/libs) */}
+      {/* CONTENT */}
+      <div className="p-4">
+        {globalError && (
+          <p className="text-[#FCA5A5] text-sm mb-3">Error: {globalError}</p>
+        )}
+        {loadingOffers && (
+          <p className="text-sm text-[#9ADABF] mb-3">Loading deals…</p>
+        )}
+        {!loadingOffers && offers.length === 0 && (
+          <p className="text-sm text-[#9ADABF] mb-3">No active deals yet.</p>
+        )}
+
+        {/* TICKET GRID */}
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+          {offers.map((o) => {
+            const state: RowState =
+              rowState[o.id] ?? {
+                loading: false,
+                error: null,
+                tokenId: null,
+                expiresAt: null,
+              };
+
+            const src = resolveOfferImageUrl(o.image_url);
+
+            return (
+              <li key={o.id} className="relative">
+                {/* Ticket card */}
+                <div
+                  className="group rounded-3xl border border-white/10 bg-white/5 backdrop-blur-md overflow-hidden shadow-[0_10px_30px_rgba(20,241,149,.15)]"
+                >
+                  {/* Square image area */}
+                  <div className="relative aspect-square">
+                    {src ? (
+                      <img
+                        src={src}
+                        alt={o.title}
+                        decoding="async"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).style.display = 'none';
+                        }}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="h-full w-full bg-black/30" />
+                    )}
+                    {/* value glow badge example (optional; hidden if no desc) */}
+                    {o.description && (
+                      <div className="absolute bottom-2 left-2 rounded-full bg-[#14F195] px-2.5 py-1 text-[11px] font-bold text-[#0B1210] shadow-[0_0_18px_rgba(20,241,149,.45)]">
+                        Deal
+                      </div>
+                    )}
+                  </div>
+
+                  {/* perforation & content */}
+                  <div className="relative p-3">
+                    {/* perforated edge */}
+                    <div
+                      className="absolute -top-2 left-0 right-0 h-2 bg-repeat-x opacity-40"
+                      style={{
+                        backgroundImage:
+                          'radial-gradient(circle, #0B1210 2px, transparent 2px)',
+                        backgroundSize: '10px 2px',
+                        backgroundPosition: 'center',
+                      }}
+                      aria-hidden
+                    />
+                    <div className="text-[13px] font-bold leading-tight line-clamp-2">
+                      {o.title}
+                    </div>
+                    {o.description && (
+                      <div className="mt-1 text-[11px] text-[#9ADABF] line-clamp-2">
+                        {o.description}
+                      </div>
+                    )}
+
+                    <div className="mt-2">
+                      <GlowButton
+                        onClick={() => createToken(o)}
+                        disabled={state.loading}
+                      >
+                        {state.loading ? 'Creating…' : 'Show QR'}
+                      </GlowButton>
+                    </div>
+
+                    {state.error && (
+                      <div className="mt-1 text-[11px] text-[#FCA5A5]">
+                        {state.error}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+
+        {/* account banner */}
+        <div className="mt-6 text-xs text-[#9ADABF]">
+          {me?.paid ? 'Your account: Paid' : 'Your account: Not paid'}
+        </div>
+      </div>
+
+      {/* QR MODAL */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4">
           <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-[#0B1210] p-5 shadow-[0_0_30px_rgba(20,241,149,.25)]">
@@ -300,7 +329,6 @@ export default function ConsumerPage() {
 
             <div className="mt-4 grid place-items-center">
               <div className="rounded-2xl p-3 bg-white">
-                {/* Raw UUID — matches merchant scanner expectation */}
                 <QRCode value={modalTokenId} />
               </div>
               <div className="mt-3 text-xs text-[#9ADABF] text-center">
@@ -324,7 +352,7 @@ export default function ConsumerPage() {
   );
 }
 
-/** Money-green glow button with a subtle shine sweep (no custom CSS required). */
+/** Money-green glow button with a subtle shine sweep (Tailwind-only). */
 function GlowButton(
   {
     children,
@@ -336,14 +364,12 @@ function GlowButton(
     onClick?: () => void;
   }
 ) {
-  // avoid string concat for classNames to stay simple
   const base =
-    'relative inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 font-semibold ' +
-    'text-[#0B1210] bg-[#14F195] shadow-[0_10px_30px_rgba(20,241,149,.35)] ' +
+    'relative inline-flex w-full items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-semibold ' +
+    'text-[#0B1210] bg-[#14F195] shadow-[0_10px_26px_rgba(20,241,149,.35)] ' +
     'transition-transform active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-[#14F195]/40 ' +
     'overflow-hidden disabled:opacity-60';
 
-  // simple CSS-only shine using a pseudo element
   const shine =
     'before:content-[\"\"] before:absolute before:inset-0 before:-translate-x-full ' +
     'before:bg-gradient-to-r before:from-transparent before:via-white/40 before:to-transparent ' +
