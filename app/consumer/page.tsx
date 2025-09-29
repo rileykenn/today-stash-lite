@@ -3,10 +3,6 @@
 import { useEffect, useState } from 'react';
 import { sb } from '@/lib/supabaseBrowser';
 import QRCode from 'react-qr-code';
-import dynamic from 'next/dynamic';
-
-// Load the neon SVG heading on the client (avoids SSR filter quirks)
-const NeonHeading = dynamic(() => import('@/components/NeonHeading'), { ssr: false });
 
 type Offer = {
   id: string;
@@ -48,7 +44,6 @@ function resolveOfferImageUrl(image_url: string | null): string | null {
   const val = image_url.trim();
   if (val.startsWith('http://') || val.startsWith('https://')) return val;
 
-  // Treat as Storage object path in the 'offer-media' bucket
   const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/+$/, '');
   return `${base}/storage/v1/object/public/offer-media/${val.replace(/^\/+/, '')}`;
 }
@@ -60,13 +55,11 @@ export default function ConsumerPage() {
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [loadingOffers, setLoadingOffers] = useState<boolean>(true);
 
-  // QR modal state
-  const [modalOpen, setModalOpen] = useState<boolean>(false);
-  const [modalOfferTitle, setModalOfferTitle] = useState<string>('');
-  const [modalTokenId, setModalTokenId] = useState<string>('');
-  const [modalExpiresAt, setModalExpiresAt] = useState<string>('');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalOfferTitle, setModalOfferTitle] = useState('');
+  const [modalTokenId, setModalTokenId] = useState('');
+  const [modalExpiresAt, setModalExpiresAt] = useState('');
 
-  // Load offers + me
   useEffect(() => {
     (async () => {
       setLoadingOffers(true);
@@ -87,10 +80,7 @@ export default function ConsumerPage() {
         setMe(null);
         return;
       }
-      const { data, error } = await sb
-        .from('me')
-        .select('user_id,role,paid')
-        .single();
+      const { data, error } = await sb.from('me').select('user_id,role,paid').single();
 
       if (error || !data) {
         setMe({
@@ -130,11 +120,7 @@ export default function ConsumerPage() {
       return;
     }
 
-    const { data, error: meErr } = await sb
-      .from('me')
-      .select('user_id,role,paid')
-      .single();
-
+    const { data, error: meErr } = await sb.from('me').select('user_id,role,paid').single();
     const paid = !meErr && !!(data as MeRow).paid;
     if (!paid) {
       setRowState((s) => ({
@@ -149,10 +135,7 @@ export default function ConsumerPage() {
       return;
     }
 
-    const expiresAtISO = new Date(
-      Date.now() + TOKEN_TTL_SECONDS * 1000
-    ).toISOString();
-
+    const expiresAtISO = new Date(Date.now() + TOKEN_TTL_SECONDS * 1000).toISOString();
     const { data: tokenRow, error } = await sb
       .from('tokens')
       .insert({
@@ -178,7 +161,6 @@ export default function ConsumerPage() {
     }
 
     const token = tokenRow as TokenRow;
-
     setRowState((s) => ({
       ...s,
       [offer.id]: {
@@ -199,8 +181,10 @@ export default function ConsumerPage() {
     <div className="min-h-dvh bg-[#0B1210] text-[#E8FFF3]">
       {/* HERO / PROMO */}
       <div className="relative px-5 pt-8 pb-6 border-b border-white/10 overflow-hidden">
-        <div className="absolute -top-16 -right-16 h-56 w-56 rounded-full bg-fuchsia-500/20 blur-3xl" />
-        <NeonHeading text="SAVE up to $3,000" />
+        <div className="absolute -top-16 -right-16 h-56 w-56 rounded-full bg-[#14F195]/20 blur-3xl" />
+        <h1 className="text-3xl font-black leading-tight">
+          SAVE <span className="text-[#14F195] drop-shadow-[0_0_24px_rgba(20,241,149,.4)]">up to $3,200</span>
+        </h1>
         <p className="text-sm text-[#9ADABF] mt-1">
           Pay <span className="font-semibold text-white">$99</span> once. Unlock hundreds in local freebies today.
         </p>
@@ -208,112 +192,64 @@ export default function ConsumerPage() {
 
       {/* CONTENT */}
       <div className="p-4">
-        {globalError && (
-          <p className="text-[#FCA5A5] text-sm mb-3">Error: {globalError}</p>
-        )}
-        {loadingOffers && (
-          <p className="text-sm text-[#9ADABF] mb-3">Loading deals…</p>
-        )}
+        {globalError && <p className="text-[#FCA5A5] text-sm mb-3">Error: {globalError}</p>}
+        {loadingOffers && <p className="text-sm text-[#9ADABF] mb-3">Loading deals…</p>}
         {!loadingOffers && offers.length === 0 && (
           <p className="text-sm text-[#9ADABF] mb-3">No active deals yet.</p>
         )}
 
-        {/* COUPON LIST (single column, one ticket per row) */}
+        {/* COUPON LIST */}
         <ul className="space-y-4">
           {offers.map((o) => {
             const state: RowState =
-              rowState[o.id] ?? {
-                loading: false,
-                error: null,
-                tokenId: null,
-                expiresAt: null,
-              };
-
+              rowState[o.id] ?? { loading: false, error: null, tokenId: null, expiresAt: null };
             const src = resolveOfferImageUrl(o.image_url);
 
             return (
               <li key={o.id}>
-                <div
-                  className={[
-                    'relative overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.06] backdrop-blur',
-                    'shadow-[0_10px_30px_rgba(20,241,149,.15)]',
-                  ].join(' ')}
-                >
-                  {/* Ticket body */}
+                <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.06] backdrop-blur shadow-[0_10px_30px_rgba(20,241,149,.15)]">
                   <div className="relative flex">
-                    {/* LEFT: image pane */}
+                    {/* LEFT: image */}
                     <div className="relative w-[40%] max-w-[240px] min-w-[180px]">
                       <div className="aspect-[4/3] w-full">
                         {src ? (
                           <img
                             src={src}
                             alt={o.title}
-                            decoding="async"
-                            loading="lazy"
-                            referrerPolicy="no-referrer"
-                            onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).style.display = 'none';
-                            }}
                             className="h-full w-full object-cover"
+                            loading="lazy"
                           />
                         ) : (
                           <div className="h-full w-full bg-black/30" />
                         )}
                       </div>
-
-                      {/* left & middle notches */}
                       <div className="pointer-events-none absolute inset-y-0 -left-4 my-auto h-8 w-8 rounded-full bg-[#0B1210] border border-white/10" />
                       <div className="pointer-events-none absolute inset-y-0 left-[calc(40%)] -translate-x-1/2 my-auto h-8 w-8 rounded-full bg-[#0B1210] border border-white/10" />
                     </div>
 
-                    {/* MIDDLE: perforated divider */}
-                    <div className="relative hidden sm:flex items-stretch">
-                      <div className="relative mx-2">
-                        <div className="h-full w-px border-l border-dashed border-white/20" />
-                      </div>
-                    </div>
-
-                    {/* RIGHT: content */}
+                    {/* RIGHT */}
                     <div className="flex-1 p-4 sm:p-5">
                       <div className="flex items-start justify-between gap-3">
-                        <h3 className="text-base sm:text-lg font-extrabold leading-snug line-clamp-2">
-                          {o.title}
-                        </h3>
-                        {/* right notch */}
+                        <h3 className="text-base sm:text-lg font-extrabold leading-snug line-clamp-2">{o.title}</h3>
                         <div className="pointer-events-none relative">
                           <div className="absolute -right-6 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-[#0B1210] border border-white/10" />
                         </div>
                       </div>
-
                       {o.description && (
-                        <p className="mt-1 text-xs sm:text-sm text-[#9ADABF] line-clamp-3">
-                          {o.description}
-                        </p>
+                        <p className="mt-1 text-xs sm:text-sm text-[#9ADABF] line-clamp-3">{o.description}</p>
                       )}
-
                       <div className="mt-3 max-w-sm">
-                        <GlowButton
-                          onClick={() => createToken(o)}
-                          disabled={state.loading}
-                        >
+                        <GlowButton onClick={() => createToken(o)} disabled={state.loading}>
                           {state.loading ? 'Creating…' : 'Show QR'}
                         </GlowButton>
                       </div>
-
-                      {state.error && (
-                        <div className="mt-2 text-[11px] text-[#FCA5A5]">
-                          {state.error}
-                        </div>
-                      )}
+                      {state.error && <div className="mt-2 text-[11px] text-[#FCA5A5]">{state.error}</div>}
                     </div>
                   </div>
-
-                  {/* top perforation accent */}
                   <div
                     className="pointer-events-none absolute left-[40%] top-0 -translate-x-1/2 h-2 w-[60%] opacity-40"
                     style={{
-                      backgroundImage:
-                        'radial-gradient(circle, rgba(232,255,243,0.0) 2px, transparent 2px)',
+                      backgroundImage: 'radial-gradient(circle, rgba(232,255,243,0.0) 2px, transparent 2px)',
                       backgroundSize: '10px 2px',
                       backgroundRepeat: 'repeat-x',
                       maskImage: 'linear-gradient(to right, transparent, white 10%, white 90%, transparent)',
@@ -325,7 +261,6 @@ export default function ConsumerPage() {
           })}
         </ul>
 
-        {/* account banner */}
         <div className="mt-6 text-xs text-[#9ADABF]">
           {me?.paid ? 'Your account: Paid' : 'Your account: Not paid'}
         </div>
@@ -343,12 +278,10 @@ export default function ConsumerPage() {
               <button
                 onClick={() => setModalOpen(false)}
                 className="ml-3 rounded-full bg-white/10 px-3 py-1.5 text-sm text-white hover:bg-white/20"
-                aria-label="Close"
               >
                 Close
               </button>
             </div>
-
             <div className="mt-4 grid place-items-center">
               <div className="rounded-2xl p-3 bg-white">
                 <QRCode value={modalTokenId} />
@@ -363,7 +296,6 @@ export default function ConsumerPage() {
                 Code: <span className="text-white font-semibold">{modalTokenId}</span>
               </div>
             </div>
-
             <div className="mt-5">
               <GlowButton onClick={() => setModalOpen(false)}>Done</GlowButton>
             </div>
@@ -374,7 +306,6 @@ export default function ConsumerPage() {
   );
 }
 
-/** Money-green glow button with a subtle shine sweep (Tailwind-only). */
 function GlowButton({
   children,
   disabled,
