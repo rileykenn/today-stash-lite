@@ -9,7 +9,7 @@ type Offer = {
   title: string;
   description: string | null;
   merchant_id: string;
-  image_url: string | null; // full URL or storage path
+  image_url: string | null; // full UsssL or storage path
 };
 
 type MeRow = {
