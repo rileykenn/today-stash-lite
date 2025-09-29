@@ -5,13 +5,13 @@ import { useEffect, useState } from 'react';
 import { sb } from '@/lib/supabaseBrowser';
 import QRCode from 'react-qr-code';
 
-/* ---------- Types (no any) ---------- */
+/* ---------- Types ---------- */
 type Offer = {
   id: string;
   title: string;
   description: string | null;
-  merchant_id: string;           // we'll show this as the merchant label (no schema changes)
-  image_url: string | null;      // full URL or Supabase storage path
+  merchant_id: string;
+  image_url: string | null;
 };
 
 type MeRow = {
@@ -83,10 +83,7 @@ export default function ConsumerPage() {
         setMe(null);
         return;
       }
-      const { data, error } = await sb
-        .from('me')
-        .select('user_id,role,paid')
-        .single();
+      const { data, error } = await sb.from('me').select('user_id,role,paid').single();
 
       if (error || !data) {
         setMe({
@@ -126,11 +123,7 @@ export default function ConsumerPage() {
       return;
     }
 
-    const { data, error: meErr } = await sb
-      .from('me')
-      .select('user_id,role,paid')
-      .single();
-
+    const { data, error: meErr } = await sb.from('me').select('user_id,role,paid').single();
     const paid = !meErr && !!(data as MeRow).paid;
     if (!paid) {
       setRowState((s) => ({
@@ -190,21 +183,22 @@ export default function ConsumerPage() {
   }
 
   return (
-    <div className="min-h-dvh bg-black text-white">
-      {/* header copy */}
+    <div className="relative z-0 min-h-screen bg-neutral-950 text-white overflow-x-hidden">
+      {/* header */}
       <section className="px-5 pt-6 pb-3 border-b border-white/10">
         <h2 className="text-2xl font-extrabold">Sussex Inlet Deals</h2>
-        <p className="text-sm text-gray-300">Tap a coupon ticket and show the QR to staff at checkout.</p>
+        <p className="text-sm text-gray-300">
+          Tap a coupon ticket and show the QR to staff at checkout.
+        </p>
       </section>
 
-      <section className="max-w-screen-md mx-auto px-4 py-5">
+      <section className="max-w-screen-md mx-auto px-4 py-5 relative z-10">
         {globalError && <p className="text-rose-300 mb-3 text-sm">Error: {globalError}</p>}
         {loadingOffers && <p className="text-gray-300 mb-3 text-sm">Loading deals…</p>}
         {!loadingOffers && offers.length === 0 && (
           <p className="text-gray-300 mb-3 text-sm">No active deals yet.</p>
         )}
 
-        {/* ONE column list of tickets */}
         <ul className="list-none p-0 space-y-5">
           {offers.map((o) => {
             const state: RowState =
@@ -298,20 +292,10 @@ function TicketCard({
   return (
     <div
       className="
-        relative flex overflow-hidden rounded-2xl border border-gray-700
+        relative z-10 flex overflow-hidden rounded-2xl border border-emerald-500/40
         bg-gradient-to-br from-[#1A1A27] to-[#0E0E14]
         shadow-[0_10px_30px_rgba(0,0,0,.45)]
       "
-      /* scalloped (notched) sides using masks; graceful if unsupported */
-      style={{
-        WebkitMaskImage:
-          'radial-gradient(circle at left center, transparent 10px, black 11px), radial-gradient(circle at right center, transparent 10px, black 11px)',
-        WebkitMaskComposite: 'destination-in',
-        maskComposite: 'intersect',
-        WebkitMaskRepeat: 'no-repeat',
-        WebkitMaskSize: '22px 100%',
-        WebkitMaskPosition: 'left center, right center',
-      }}
     >
       {/* LEFT: image sticker */}
       <div className="flex-shrink-0 p-3 flex items-center justify-center">
@@ -326,22 +310,24 @@ function TicketCard({
         </div>
       </div>
 
-      {/* PERFORATED DIVIDER + scissors */}
+      {/* PERFORATED DIVIDER */}
       <div className="flex flex-col items-center px-1">
         <div className="h-full border-l-2 border-dashed border-gray-600" />
-        <div className="-mt-5 text-gray-500 text-xs" aria-hidden>✂️</div>
+        <div className="-mt-5 text-gray-500 text-xs" aria-hidden>
+          ✂️
+        </div>
       </div>
 
       {/* RIGHT: text + CTA */}
       <div className="flex-1 p-4">
         <div>
           <h3 className="text-lg font-extrabold text-white leading-tight">{title}</h3>
-          {description && (
-            <p className="text-sm text-gray-300 mt-1">{description}</p>
-          )}
+          {description && <p className="text-sm text-gray-300 mt-1">{description}</p>}
           {merchantName && (
             <div className="flex items-center gap-1 text-xs text-gray-400 mt-2">
-              <span role="img" aria-label="merchant">🏪</span>
+              <span role="img" aria-label="merchant">
+                🏪
+              </span>
               <span className="truncate">{merchantName}</span>
             </div>
           )}
@@ -373,7 +359,6 @@ function RedeemButton({
     'relative inline-flex w-full items-center justify-center rounded-full px-6 py-2 text-sm font-bold ' +
     'text-black bg-emerald-400 hover:bg-emerald-300 transition ' +
     'shadow-[0_6px_18px_rgba(16,185,129,.55)] disabled:opacity-60';
-  // subtle shine on hover
   const shine =
     'before:content-[\" \"] before:absolute before:inset-0 before:-translate-x-full ' +
     'before:bg-gradient-to-r before:from-transparent before:via-white/50 before:to-transparent ' +
