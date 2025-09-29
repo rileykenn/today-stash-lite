@@ -4,6 +4,19 @@ import { useEffect, useState } from 'react';
 import { sb } from '@/lib/supabaseBrowser';
 import QRCode from 'react-qr-code';
 
+function resolveOfferImageUrl(image_url: string | null): string | null {
+  if (!image_url) return null;
+  // Already a full URL?
+  if (image_url.startsWith('http://') || image_url.startsWith('https://')) {
+    return image_url;
+  }
+  // Treat it as a storage object path in the 'offer-media' bucket
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  // ensure no double slashes if base ends with '/'
+  const trimmed = base.endsWith('/') ? base.slice(0, -1) : base;
+  return `${trimmed}/storage/v1/object/public/offer-media/${image_url}`;
+}
+
 type Offer = {
   id: string;
   title: string;
