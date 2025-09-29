@@ -1,10 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { sb } from '@/lib/supabaseBrowser';
 import QRCode from 'react-qr-code';
-
-const OFFER_BUCKET = 'offer-media';
 
 type Offer = {
   id: string;
@@ -33,6 +31,11 @@ type RowState = {
   expiresAt: string | null;
 };
 
+type TokenRow = {
+  id: string;
+  expires_at: string;
+};
+
 const TOKEN_TTL_SECONDS = 120;
 
 /** Resolve a value in offers.image_url to a usable <img src>. */
@@ -52,6 +55,12 @@ export default function ConsumerPage() {
   const [rowState, setRowState] = useState<Record<string, RowState>>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [loadingOffers, setLoadingOffers] = useState<boolean>(true);
+
+  // QR modal state
+  const [modalOpen, setModalOpen] = useState<boolean>(false);
+  const [modalOfferTitle, setModalOfferTitle] = useState<string>('');
+  const [modalTokenId, setModalTokenId] = useState<string>('');
+  const [modalExpiresAt, setModalExpiresAt] = useState<string>('');
 
   // Load offers + me
   useEffect(() => {
@@ -169,24 +178,39 @@ export default function ConsumerPage() {
       return;
     }
 
+    const token = tokenRow as TokenRow;
+
     setRowState((s) => ({
       ...s,
       [offer.id]: {
         loading: false,
         error: null,
-        tokenId: tokenRow.id as string,
-        expiresAt: tokenRow.expires_at as string,
+        tokenId: token.id,
+        expiresAt: token.expires_at,
       },
     }));
+
+    // open modal with the new token
+    setModalOfferTitle(offer.title);
+    setModalTokenId(token.id);
+    setModalExpiresAt(token.expires_at);
+    setModalOpen(true);
   };
 
   return (
-    <div className="p-4 space-y-4">
-      <h1 className="text-xl font-semibold">Deals</h1>
+    <div className="min-h-dvh bg-[#0B1210] text-[#E8FFF3] p-4 space-y-4">
+      <header className="sticky top-0 z-10 -mx-4 px-4 py-3 backdrop-blur-md bg-[#0B1210]/70 border-b border-white/10">
+        <h1 className="text-xl font-black tracking-tight">Today&apos;s Stash</h1>
+        <p className="text-xs text-[#9ADABF] mt-0.5">Pay $99 • Save up to $3,000</p>
+      </header>
 
-      {globalError && <p className="text-red-500 text-sm">Error: {globalError}</p>}
-      {loadingOffers && <p className="text-sm">Loading deals…</p>}
-      {!loadingOffers && offers.length === 0 && <p className="text-sm">No active deals yet.</p>}
+      {globalError && (
+        <p className="text-[#FCA5A5] text-sm">Error: {globalError}</p>
+      )}
+      {loadingOffers && <p className="text-sm text-[#9ADABF]">Loading deals…</p>}
+      {!loadingOffers && offers.length === 0 && (
+        <p className="text-sm text-[#9ADABF]">No active deals yet.</p>
+      )}
 
       <ul className="space-y-4">
         {offers.map((o) => {
@@ -198,15 +222,13 @@ export default function ConsumerPage() {
               expiresAt: null,
             };
 
-          const expiresText =
-            state.expiresAt !== null
-              ? `Expires at ${new Date(state.expiresAt).toLocaleTimeString()}`
-              : '';
-
           const src = resolveOfferImageUrl(o.image_url);
 
           return (
-            <li key={o.id} className="border rounded p-3">
+            <li
+              key={o.id}
+              className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-md p-3"
+            >
               <div className="flex gap-3 items-start">
                 {src && (
                   <img
@@ -216,47 +238,34 @@ export default function ConsumerPage() {
                     loading="lazy"
                     referrerPolicy="no-referrer"
                     onError={(e) => {
-                      console.warn('Image failed to load:', src);
+                      // hide broken image
                       (e.currentTarget as HTMLImageElement).style.display = 'none';
                     }}
-                    style={{
-                      width: 96,
-                      height: 96,
-                      objectFit: 'cover',
-                      borderRadius: 8,
-                      background: '#f3f4f6',
-                    }}
+                    className="w-24 h-24 object-cover rounded-xl bg-black/30"
                   />
                 )}
 
                 <div className="flex-1">
-                  <div className="font-medium">{o.title}</div>
+                  <div className="font-bold text-[#E8FFF3] leading-tight">
+                    {o.title}
+                  </div>
                   {o.description && (
-                    <div className="text-sm text-gray-600">{o.description}</div>
+                    <div className="text-sm text-[#9ADABF] mt-0.5">
+                      {o.description}
+                    </div>
                   )}
 
-                  {!state.tokenId ? (
-                    <button
-                      className="mt-2 px-3 py-1.5 rounded bg-black text-white disabled:opacity-50"
+                  <div className="mt-3">
+                    <GlowButton
                       onClick={() => createToken(o)}
                       disabled={state.loading}
                     >
                       {state.loading ? 'Creating…' : 'Show QR'}
-                    </button>
-                  ) : (
-                    <div className="mt-3">
-                      <div className="text-xs text-gray-600 mb-2">
-                        {expiresText}
-                      </div>
-                      <div className="inline-block bg-white p-2 rounded">
-                        {/* Raw UUID — matches merchant scanner expectation */}
-                        <QRCode value={state.tokenId} />
-                      </div>
-                    </div>
-                  )}
+                    </GlowButton>
+                  </div>
 
                   {state.error && (
-                    <div className="mt-2 text-red-500 text-sm">
+                    <div className="mt-2 text-[#FCA5A5] text-sm">
                       Error: {state.error}
                     </div>
                   )}
@@ -267,9 +276,82 @@ export default function ConsumerPage() {
         })}
       </ul>
 
-      <div className="text-xs text-gray-500">
+      <div className="text-xs text-[#9ADABF]">
         {me?.paid ? 'Your account: Paid' : 'Your account: Not paid'}
       </div>
+
+      {/* QR MODAL (no extra files/libs) */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4">
+          <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-[#0B1210] p-5 shadow-[0_0_30px_rgba(20,241,149,.25)]">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="text-sm text-[#9ADABF]">Present to staff</div>
+                <div className="text-lg font-bold text-white">{modalOfferTitle}</div>
+              </div>
+              <button
+                onClick={() => setModalOpen(false)}
+                className="ml-3 rounded-full bg-white/10 px-3 py-1.5 text-sm text-white hover:bg-white/20"
+                aria-label="Close"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-4 grid place-items-center">
+              <div className="rounded-2xl p-3 bg-white">
+                {/* Raw UUID — matches merchant scanner expectation */}
+                <QRCode value={modalTokenId} />
+              </div>
+              <div className="mt-3 text-xs text-[#9ADABF] text-center">
+                Expires at{' '}
+                <span className="text-white font-semibold">
+                  {new Date(modalExpiresAt).toLocaleTimeString()}
+                </span>
+              </div>
+              <div className="mt-1 text-[11px] text-[#9ADABF] text-center break-all">
+                Code: <span className="text-white font-semibold">{modalTokenId}</span>
+              </div>
+            </div>
+
+            <div className="mt-5">
+              <GlowButton onClick={() => setModalOpen(false)}>Done</GlowButton>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+/** Money-green glow button with a subtle shine sweep (no custom CSS required). */
+function GlowButton(
+  {
+    children,
+    disabled,
+    onClick,
+  }: {
+    children: React.ReactNode;
+    disabled?: boolean;
+    onClick?: () => void;
+  }
+) {
+  // avoid string concat for classNames to stay simple
+  const base =
+    'relative inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 font-semibold ' +
+    'text-[#0B1210] bg-[#14F195] shadow-[0_10px_30px_rgba(20,241,149,.35)] ' +
+    'transition-transform active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-[#14F195]/40 ' +
+    'overflow-hidden disabled:opacity-60';
+
+  // simple CSS-only shine using a pseudo element
+  const shine =
+    'before:content-[\"\"] before:absolute before:inset-0 before:-translate-x-full ' +
+    'before:bg-gradient-to-r before:from-transparent before:via-white/40 before:to-transparent ' +
+    'hover:before:translate-x-full before:transition-transform before:duration-700';
+
+  return (
+    <button className={`${base} ${shine}`} disabled={disabled} onClick={onClick}>
+      {children}
+    </button>
   );
 }
