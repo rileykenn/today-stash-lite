@@ -3,6 +3,10 @@
 import { useEffect, useState } from 'react';
 import { sb } from '@/lib/supabaseBrowser';
 import QRCode from 'react-qr-code';
+import dynamic from 'next/dynamic';
+
+// Load the neon SVG heading on the client (avoids SSR filter quirks)
+const NeonHeading = dynamic(() => import('@/components/NeonHeading'), { ssr: false });
 
 type Offer = {
   id: string;
@@ -195,10 +199,8 @@ export default function ConsumerPage() {
     <div className="min-h-dvh bg-[#0B1210] text-[#E8FFF3]">
       {/* HERO / PROMO */}
       <div className="relative px-5 pt-8 pb-6 border-b border-white/10 overflow-hidden">
-        <div className="absolute -top-16 -right-16 h-56 w-56 rounded-full bg-[#14F195]/20 blur-3xl" />
-        <h1 className="text-3xl font-black leading-tight">
-          SAVE <span className="text-[#14F195] drop-shadow-[0_0_24px_rgba(20,241,149,.4)]">up to $3,000</span>
-        </h1>
+        <div className="absolute -top-16 -right-16 h-56 w-56 rounded-full bg-fuchsia-500/20 blur-3xl" />
+        <NeonHeading text="SAVE up to $3,000" />
         <p className="text-sm text-[#9ADABF] mt-1">
           Pay <span className="font-semibold text-white">$99</span> once. Unlock hundreds in local freebies today.
         </p>
@@ -233,7 +235,6 @@ export default function ConsumerPage() {
               <li key={o.id}>
                 <div
                   className={[
-                    // Ticket shell
                     'relative overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.06] backdrop-blur',
                     'shadow-[0_10px_30px_rgba(20,241,149,.15)]',
                   ].join(' ')}
@@ -318,7 +319,6 @@ export default function ConsumerPage() {
                       maskImage: 'linear-gradient(to right, transparent, white 10%, white 90%, transparent)',
                     }}
                   />
-
                 </div>
               </li>
             );
@@ -375,17 +375,15 @@ export default function ConsumerPage() {
 }
 
 /** Money-green glow button with a subtle shine sweep (Tailwind-only). */
-function GlowButton(
-  {
-    children,
-    disabled,
-    onClick,
-  }: {
-    children: React.ReactNode;
-    disabled?: boolean;
-    onClick?: () => void;
-  }
-) {
+function GlowButton({
+  children,
+  disabled,
+  onClick,
+}: {
+  children: React.ReactNode;
+  disabled?: boolean;
+  onClick?: () => void;
+}) {
   const base =
     'relative inline-flex w-full items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-semibold ' +
     'text-[#0B1210] bg-[#14F195] shadow-[0_10px_26px_rgba(20,241,149,.35)] ' +
