@@ -9,7 +9,7 @@ type Offer = {
   title: string;
   description: string | null;
   merchant_id: string;
-  image_url: string | null; // full UsssL or storage path
+  image_url: string | null;
 };
 
 type MeRow = {
@@ -216,8 +216,8 @@ export default function ConsumerPage() {
           <p className="text-sm text-[#9ADABF] mb-3">No active deals yet.</p>
         )}
 
-        {/* TICKET GRID */}
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+        {/* COUPON LIST (single column, one ticket per row) */}
+        <ul className="space-y-4">
           {offers.map((o) => {
             const state: RowState =
               rowState[o.id] ?? {
@@ -230,73 +230,95 @@ export default function ConsumerPage() {
             const src = resolveOfferImageUrl(o.image_url);
 
             return (
-              <li key={o.id} className="relative">
-                {/* Ticket card */}
+              <li key={o.id}>
                 <div
-                  className="group rounded-3xl border border-white/10 bg-white/5 backdrop-blur-md overflow-hidden shadow-[0_10px_30px_rgba(20,241,149,.15)]"
+                  className={[
+                    // Ticket shell
+                    'relative overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.06] backdrop-blur',
+                    'shadow-[0_10px_30px_rgba(20,241,149,.15)]',
+                  ].join(' ')}
                 >
-                  {/* Square image area */}
-                  <div className="relative aspect-square">
-                    {src ? (
-                      <img
-                        src={src}
-                        alt={o.title}
-                        decoding="async"
-                        loading="lazy"
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).style.display = 'none';
-                        }}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="h-full w-full bg-black/30" />
-                    )}
-                    {/* value glow badge example (optional; hidden if no desc) */}
-                    {o.description && (
-                      <div className="absolute bottom-2 left-2 rounded-full bg-[#14F195] px-2.5 py-1 text-[11px] font-bold text-[#0B1210] shadow-[0_0_18px_rgba(20,241,149,.45)]">
-                        Deal
+                  {/* Ticket body */}
+                  <div className="relative flex">
+                    {/* LEFT: image pane */}
+                    <div className="relative w-[40%] max-w-[240px] min-w-[180px]">
+                      <div className="aspect-[4/3] w-full">
+                        {src ? (
+                          <img
+                            src={src}
+                            alt={o.title}
+                            decoding="async"
+                            loading="lazy"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).style.display = 'none';
+                            }}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="h-full w-full bg-black/30" />
+                        )}
                       </div>
-                    )}
-                  </div>
 
-                  {/* perforation & content */}
-                  <div className="relative p-3">
-                    {/* perforated edge */}
-                    <div
-                      className="absolute -top-2 left-0 right-0 h-2 bg-repeat-x opacity-40"
-                      style={{
-                        backgroundImage:
-                          'radial-gradient(circle, #0B1210 2px, transparent 2px)',
-                        backgroundSize: '10px 2px',
-                        backgroundPosition: 'center',
-                      }}
-                      aria-hidden
-                    />
-                    <div className="text-[13px] font-bold leading-tight line-clamp-2">
-                      {o.title}
-                    </div>
-                    {o.description && (
-                      <div className="mt-1 text-[11px] text-[#9ADABF] line-clamp-2">
-                        {o.description}
-                      </div>
-                    )}
-
-                    <div className="mt-2">
-                      <GlowButton
-                        onClick={() => createToken(o)}
-                        disabled={state.loading}
-                      >
-                        {state.loading ? 'Creating…' : 'Show QR'}
-                      </GlowButton>
+                      {/* left & middle notches */}
+                      <div className="pointer-events-none absolute inset-y-0 -left-4 my-auto h-8 w-8 rounded-full bg-[#0B1210] border border-white/10" />
+                      <div className="pointer-events-none absolute inset-y-0 left-[calc(40%)] -translate-x-1/2 my-auto h-8 w-8 rounded-full bg-[#0B1210] border border-white/10" />
                     </div>
 
-                    {state.error && (
-                      <div className="mt-1 text-[11px] text-[#FCA5A5]">
-                        {state.error}
+                    {/* MIDDLE: perforated divider */}
+                    <div className="relative hidden sm:flex items-stretch">
+                      <div className="relative mx-2">
+                        <div className="h-full w-px border-l border-dashed border-white/20" />
                       </div>
-                    )}
+                    </div>
+
+                    {/* RIGHT: content */}
+                    <div className="flex-1 p-4 sm:p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <h3 className="text-base sm:text-lg font-extrabold leading-snug line-clamp-2">
+                          {o.title}
+                        </h3>
+                        {/* right notch */}
+                        <div className="pointer-events-none relative">
+                          <div className="absolute -right-6 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-[#0B1210] border border-white/10" />
+                        </div>
+                      </div>
+
+                      {o.description && (
+                        <p className="mt-1 text-xs sm:text-sm text-[#9ADABF] line-clamp-3">
+                          {o.description}
+                        </p>
+                      )}
+
+                      <div className="mt-3 max-w-sm">
+                        <GlowButton
+                          onClick={() => createToken(o)}
+                          disabled={state.loading}
+                        >
+                          {state.loading ? 'Creating…' : 'Show QR'}
+                        </GlowButton>
+                      </div>
+
+                      {state.error && (
+                        <div className="mt-2 text-[11px] text-[#FCA5A5]">
+                          {state.error}
+                        </div>
+                      )}
+                    </div>
                   </div>
+
+                  {/* top perforation accent */}
+                  <div
+                    className="pointer-events-none absolute left-[40%] top-0 -translate-x-1/2 h-2 w-[60%] opacity-40"
+                    style={{
+                      backgroundImage:
+                        'radial-gradient(circle, rgba(232,255,243,0.0) 2px, transparent 2px)',
+                      backgroundSize: '10px 2px',
+                      backgroundRepeat: 'repeat-x',
+                      maskImage: 'linear-gradient(to right, transparent, white 10%, white 90%, transparent)',
+                    }}
+                  />
+
                 </div>
               </li>
             );
@@ -371,7 +393,7 @@ function GlowButton(
     'overflow-hidden disabled:opacity-60';
 
   const shine =
-    'before:content-[\"\"] before:absolute before:inset-0 before:-translate-x-full ' +
+    "before:content-[''] before:absolute before:inset-0 before:-translate-x-full " +
     'before:bg-gradient-to-r before:from-transparent before:via-white/40 before:to-transparent ' +
     'hover:before:translate-x-full before:transition-transform before:duration-700';
 
