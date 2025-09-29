@@ -1,15 +1,17 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import { useEffect, useState } from 'react';
 import { sb } from '@/lib/supabaseBrowser';
 import QRCode from 'react-qr-code';
 
+/* ---------- Types (no any) ---------- */
 type Offer = {
   id: string;
   title: string;
   description: string | null;
-  merchant_id: string;
-  image_url: string | null;
+  merchant_id: string;           // we'll show this as the merchant label (no schema changes)
+  image_url: string | null;      // full URL or Supabase storage path
 };
 
 type MeRow = {
@@ -38,16 +40,16 @@ type TokenRow = {
 
 const TOKEN_TTL_SECONDS = 120;
 
-/** Resolve a value in offers.image_url to a usable <img src>. */
+/* ---------- Helpers ---------- */
 function resolveOfferImageUrl(image_url: string | null): string | null {
   if (!image_url) return null;
   const val = image_url.trim();
   if (val.startsWith('http://') || val.startsWith('https://')) return val;
-
   const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/+$/, '');
   return `${base}/storage/v1/object/public/offer-media/${val.replace(/^\/+/, '')}`;
 }
 
+/* ---------- Page ---------- */
 export default function ConsumerPage() {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [me, setMe] = useState<Me | null>(null);
@@ -55,10 +57,11 @@ export default function ConsumerPage() {
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [loadingOffers, setLoadingOffers] = useState<boolean>(true);
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalOfferTitle, setModalOfferTitle] = useState('');
-  const [modalTokenId, setModalTokenId] = useState('');
-  const [modalExpiresAt, setModalExpiresAt] = useState('');
+  // QR modal state
+  const [modalOpen, setModalOpen] = useState<boolean>(false);
+  const [modalOfferTitle, setModalOfferTitle] = useState<string>('');
+  const [modalTokenId, setModalTokenId] = useState<string>('');
+  const [modalExpiresAt, setModalExpiresAt] = useState<string>('');
 
   useEffect(() => {
     (async () => {
@@ -80,7 +83,10 @@ export default function ConsumerPage() {
         setMe(null);
         return;
       }
-      const { data, error } = await sb.from('me').select('user_id,role,paid').single();
+      const { data, error } = await sb
+        .from('me')
+        .select('user_id,role,paid')
+        .single();
 
       if (error || !data) {
         setMe({
@@ -91,11 +97,15 @@ export default function ConsumerPage() {
         return;
       }
       const row = data as MeRow;
-      setMe({ user_id: row.user_id, role: row.role, paid: !!row.paid });
+      setMe({
+        user_id: row.user_id,
+        role: row.role,
+        paid: !!row.paid,
+      });
     })();
   }, []);
 
-  const createToken = async (offer: Offer) => {
+  async function createToken(offer: Offer) {
     setRowState((s) => ({
       ...s,
       [offer.id]: { loading: true, error: null, tokenId: null, expiresAt: null },
@@ -116,7 +126,11 @@ export default function ConsumerPage() {
       return;
     }
 
-    const { data, error: meErr } = await sb.from('me').select('user_id,role,paid').single();
+    const { data, error: meErr } = await sb
+      .from('me')
+      .select('user_id,role,paid')
+      .single();
+
     const paid = !meErr && !!(data as MeRow).paid;
     if (!paid) {
       setRowState((s) => ({
@@ -132,6 +146,7 @@ export default function ConsumerPage() {
     }
 
     const expiresAtISO = new Date(Date.now() + TOKEN_TTL_SECONDS * 1000).toISOString();
+
     const { data: tokenRow, error } = await sb
       .from('tokens')
       .insert({
@@ -157,6 +172,7 @@ export default function ConsumerPage() {
     }
 
     const token = tokenRow as TokenRow;
+
     setRowState((s) => ({
       ...s,
       [offer.id]: {
@@ -171,30 +187,25 @@ export default function ConsumerPage() {
     setModalTokenId(token.id);
     setModalExpiresAt(token.expires_at);
     setModalOpen(true);
-  };
+  }
 
   return (
-    <div className="min-h-dvh bg-[#0B1210] text-[#E8FFF3]">
-      {/* HERO / PROMO */}
-      <div className="relative px-5 pt-8 pb-6 border-b border-white/10 overflow-hidden">
-        <h1 className="text-3xl font-black leading-tight">
-          SAVE <span className="text-[#14F195]">up to $3,200</span>
-        </h1>
-        <p className="text-sm text-[#9ADABF] mt-1">
-          Pay <span className="font-semibold text-white">$99</span> once. Unlock hundreds in local freebies today.
-        </p>
-      </div>
+    <div className="min-h-dvh bg-black text-white">
+      {/* header copy */}
+      <section className="px-5 pt-6 pb-3 border-b border-white/10">
+        <h2 className="text-2xl font-extrabold">Sussex Inlet Deals</h2>
+        <p className="text-sm text-gray-300">Tap a coupon ticket and show the QR to staff at checkout.</p>
+      </section>
 
-      {/* CONTENT */}
-      <div className="p-4">
-        {globalError && <p className="text-[#FCA5A5] text-sm mb-3">Error: {globalError}</p>}
-        {loadingOffers && <p className="text-sm text-[#9ADABF] mb-3">Loading deals…</p>}
+      <section className="max-w-screen-md mx-auto px-4 py-5">
+        {globalError && <p className="text-rose-300 mb-3 text-sm">Error: {globalError}</p>}
+        {loadingOffers && <p className="text-gray-300 mb-3 text-sm">Loading deals…</p>}
         {!loadingOffers && offers.length === 0 && (
-          <p className="text-sm text-[#9ADABF] mb-3">No active deals yet.</p>
+          <p className="text-gray-300 mb-3 text-sm">No active deals yet.</p>
         )}
 
-        {/* TICKETS */}
-        <ul className="space-y-4">
+        {/* ONE column list of tickets */}
+        <ul className="list-none p-0 space-y-5">
           {offers.map((o) => {
             const state: RowState =
               rowState[o.id] ?? { loading: false, error: null, tokenId: null, expiresAt: null };
@@ -202,98 +213,62 @@ export default function ConsumerPage() {
 
             return (
               <li key={o.id}>
-                <div className="relative overflow-hidden rounded-[22px] border-2 border-[#22C55E] bg-[#0B1210]">
-                  {/* notches left & right */}
-                  <div className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 h-8 w-8 rounded-full bg-[#0B1210] border-2 border-[#22C55E]" />
-                  <div className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 h-8 w-8 rounded-full bg-[#0B1210] border-2 border-[#22C55E]" />
-
-                  <div className="flex items-stretch">
-                    {/* LEFT: vertical image strip (barcode vibe) */}
-                    <div className="relative w-24 sm:w-28 md:w-32 shrink-0 border-r-2 border-dashed border-[#22C55E]">
-                      <div className="h-full min-h-[116px]">
-                        {src ? (
-                          <img
-                            src={src}
-                            alt={o.title}
-                            className="h-full w-full object-cover"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="h-full w-full bg-black/30" />
-                        )}
-                      </div>
-                      {/* small center nib */}
-                      <div className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 -translate-x-1/2 h-4 w-4 rounded-full bg-[#0B1210] border border-[#22C55E]" />
-                    </div>
-
-                    {/* RIGHT: content */}
-                    <div className="flex-1 p-4 sm:p-5">
-                      <h3 className="text-lg sm:text-xl font-extrabold leading-tight">{o.title}</h3>
-                      {o.description && (
-                        <p className="mt-1 text-sm text-[#9ADABF]">{o.description}</p>
-                      )}
-
-                      <div className="mt-3 max-w-xs">
-                        <PlainGreenButton
-                          onClick={() => createToken(o)}
-                          disabled={state.loading}
-                        >
-                          {state.loading ? 'Creating…' : 'Show QR'}
-                        </PlainGreenButton>
-                      </div>
-
-                      {state.error && (
-                        <div className="mt-2 text-[12px] text-[#FCA5A5]">
-                          {state.error}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                <TicketCard
+                  title={o.title}
+                  description={o.description}
+                  imageSrc={src}
+                  merchantName={o.merchant_id || null}
+                  loading={state.loading}
+                  error={state.error}
+                  onRedeem={() => createToken(o)}
+                />
               </li>
             );
           })}
         </ul>
 
-        <div className="mt-6 text-xs text-[#9ADABF]">
+        <div className="mt-6 text-xs text-gray-300">
           {me?.paid ? 'Your account: Paid' : 'Your account: Not paid'}
         </div>
-      </div>
+      </section>
 
       {/* QR MODAL */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4">
-          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#0B1210] p-5">
-            <div className="flex items-start justify-between">
-              <div>
-                <div className="text-sm text-[#9ADABF]">Present to staff</div>
-                <div className="text-lg font-bold text-white">{modalOfferTitle}</div>
+        <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/70">
+          <div className="w-full max-w-sm rounded-3xl overflow-hidden border border-emerald-400/30 bg-[#0f1220]">
+            <div className="p-5">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="text-xs text-gray-300">Present to staff</div>
+                  <div className="text-lg font-extrabold">{modalOfferTitle}</div>
+                </div>
+                <button
+                  onClick={() => setModalOpen(false)}
+                  className="ml-3 rounded-full bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20"
+                  aria-label="Close"
+                >
+                  Close
+                </button>
               </div>
-              <button
-                onClick={() => setModalOpen(false)}
-                className="ml-3 rounded-md bg-white/10 px-3 py-1.5 text-sm text-white hover:bg-white/20"
-              >
-                Close
-              </button>
-            </div>
 
-            <div className="mt-4 grid place-items-center">
-              <div className="rounded-md p-3 bg-white">
-                <QRCode value={modalTokenId} />
+              <div className="mt-4 grid place-items-center">
+                <div className="rounded-2xl p-3 bg-white shadow-[0_0_40px_rgba(16,185,129,.35)]">
+                  <QRCode value={modalTokenId} />
+                </div>
+                <div className="mt-3 text-xs text-gray-300 text-center">
+                  Expires at{' '}
+                  <span className="font-semibold text-white">
+                    {new Date(modalExpiresAt).toLocaleTimeString()}
+                  </span>
+                </div>
+                <div className="mt-1 text-[11px] text-gray-300 text-center break-all">
+                  Code: <span className="font-semibold text-white">{modalTokenId}</span>
+                </div>
               </div>
-              <div className="mt-3 text-xs text-[#9ADABF] text-center">
-                Expires at{' '}
-                <span className="text-white font-semibold">
-                  {new Date(modalExpiresAt).toLocaleTimeString()}
-                </span>
-              </div>
-              <div className="mt-1 text-[11px] text-[#9ADABF] text-center break-all">
-                Code: <span className="text-white font-semibold">{modalTokenId}</span>
-              </div>
-            </div>
 
-            <div className="mt-5">
-              <PlainGreenButton onClick={() => setModalOpen(false)}>Done</PlainGreenButton>
+              <div className="mt-5">
+                <RedeemButton onClick={() => setModalOpen(false)}>Done</RedeemButton>
+              </div>
             </div>
           </div>
         </div>
@@ -302,8 +277,90 @@ export default function ConsumerPage() {
   );
 }
 
-/** Simple green button (no glow) */
-function PlainGreenButton({
+/* ---------- Ticket Card ---------- */
+function TicketCard({
+  title,
+  description,
+  imageSrc,
+  merchantName,
+  loading,
+  error,
+  onRedeem,
+}: {
+  title: string;
+  description: string | null;
+  imageSrc: string | null;
+  merchantName: string | null;
+  loading: boolean;
+  error: string | null;
+  onRedeem: () => void;
+}) {
+  return (
+    <div
+      className="
+        relative flex overflow-hidden rounded-2xl border border-gray-700
+        bg-gradient-to-br from-[#1A1A27] to-[#0E0E14]
+        shadow-[0_10px_30px_rgba(0,0,0,.45)]
+      "
+      /* scalloped (notched) sides using masks; graceful if unsupported */
+      style={{
+        WebkitMaskImage:
+          'radial-gradient(circle at left center, transparent 10px, black 11px), radial-gradient(circle at right center, transparent 10px, black 11px)',
+        WebkitMaskComposite: 'destination-in',
+        maskComposite: 'intersect',
+        WebkitMaskRepeat: 'no-repeat',
+        WebkitMaskSize: '22px 100%',
+        WebkitMaskPosition: 'left center, right center',
+      }}
+    >
+      {/* LEFT: image sticker */}
+      <div className="flex-shrink-0 p-3 flex items-center justify-center">
+        <div className="w-24 h-24 rounded-xl overflow-hidden bg-gray-800 ring-2 ring-white/10">
+          {imageSrc ? (
+            <img src={imageSrc} alt={title} className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-xs text-gray-400">
+              No Image
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* PERFORATED DIVIDER + scissors */}
+      <div className="flex flex-col items-center px-1">
+        <div className="h-full border-l-2 border-dashed border-gray-600" />
+        <div className="-mt-5 text-gray-500 text-xs" aria-hidden>✂️</div>
+      </div>
+
+      {/* RIGHT: text + CTA */}
+      <div className="flex-1 p-4">
+        <div>
+          <h3 className="text-lg font-extrabold text-white leading-tight">{title}</h3>
+          {description && (
+            <p className="text-sm text-gray-300 mt-1">{description}</p>
+          )}
+          {merchantName && (
+            <div className="flex items-center gap-1 text-xs text-gray-400 mt-2">
+              <span role="img" aria-label="merchant">🏪</span>
+              <span className="truncate">{merchantName}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 flex justify-center">
+          <RedeemButton onClick={onRedeem} disabled={loading}>
+            {loading ? 'Loading…' : 'Redeem Now'}
+          </RedeemButton>
+        </div>
+
+        {error && <p className="mt-2 text-xs text-rose-300">Error: {error}</p>}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Bright green pill CTA ---------- */
+function RedeemButton({
   children,
   disabled,
   onClick,
@@ -312,12 +369,17 @@ function PlainGreenButton({
   disabled?: boolean;
   onClick?: () => void;
 }) {
+  const base =
+    'relative inline-flex w-full items-center justify-center rounded-full px-6 py-2 text-sm font-bold ' +
+    'text-black bg-emerald-400 hover:bg-emerald-300 transition ' +
+    'shadow-[0_6px_18px_rgba(16,185,129,.55)] disabled:opacity-60';
+  // subtle shine on hover
+  const shine =
+    'before:content-[\" \"] before:absolute before:inset-0 before:-translate-x-full ' +
+    'before:bg-gradient-to-r before:from-transparent before:via-white/50 before:to-transparent ' +
+    'hover:before:translate-x-full before:transition-transform before:duration-700 rounded-full overflow-hidden';
   return (
-    <button
-      disabled={disabled}
-      onClick={onClick}
-      className="w-full rounded-lg border-2 border-[#22C55E] px-4 py-2 text-sm font-semibold text-[#22C55E] hover:bg-[#22C55E]/10 disabled:opacity-60"
-    >
+    <button className={`${base} ${shine}`} disabled={disabled} onClick={onClick}>
       {children}
     </button>
   );
