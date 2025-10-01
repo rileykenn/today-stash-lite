@@ -1,381 +1,296 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { sb } from '@/lib/supabaseBrowser';
-import QRCode from 'react-qr-code';
 
-/* ---------- Types ---------- */
-type Offer = {
+/* =======================
+   Types
+   ======================= */
+type Merchant = {
+  name: string;
+  photo_url: string | null;
+  address_text: string | null;
+};
+
+type OfferRow = {
   id: string;
   title: string;
-  description: string | null; // used as "Terms" in UI
-  merchant_id: string;
+  terms: string | null;
+  total_value: number | null;
   image_url: string | null;
-  // If you later add a total_value column in Supabase, you can plumb it in:
-  // total_value?: number | null;
+  // Supabase can return a single object or an array depending on how the relation is defined.
+  merchant: Merchant | Merchant[] | null;
 };
 
-type MeRow = {
-  user_id: string;
-  role: 'admin' | 'merchant' | 'consumer';
-  paid: boolean | null;
-};
-
-type Me = {
-  user_id: string;
-  role: 'admin' | 'merchant' | 'consumer';
-  paid: boolean;
-};
-
-type RowState = {
-  loading: boolean;
-  error: string | null;
-  tokenId: string | null;
-  expiresAt: string | null;
-};
-
-type TokenRow = {
+type Coupon = {
   id: string;
-  expires_at: string;
+  title: string;
+  terms: string;
+  totalValue: number;
+  imageUrl: string | null;
+  merchant: {
+    name: string;
+    photoUrl: string | null;
+    addressText: string | null;
+  } | null;
 };
-
-const TOKEN_TTL_SECONDS = 120;
 
 /* ---------- Helpers ---------- */
-function resolveOfferImageUrl(image_url: string | null): string | null {
-  if (!image_url) return null;
-  const val = image_url.trim();
-  if (val.startsWith('http://') || val.startsWith('https://')) return val;
-  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/+$/, '');
-  return `${base}/storage/v1/object/public/offer-media/${val.replace(/^\/+/, '')}`;
+function isAbsoluteUrl(u: string) {
+  return /^https?:\/\//i.test(u);
 }
 
-/* ---------- Page ---------- */
-export default function ConsumerPage() {
-  const [offers, setOffers] = useState<Offer[]>([]);
-  const [me, setMe] = useState<Me | null>(null);
-  const [rowState, setRowState] = useState<Record<string, RowState>>({});
-  const [globalError, setGlobalError] = useState<string | null>(null);
-  const [loadingOffers, setLoadingOffers] = useState<boolean>(true);
+/** Resolve a public storage path to a full URL if needed. */
+function resolvePublicUrl(maybePath: string | null, bucket = 'offer-media'): string | null {
+  if (!maybePath) return null;
+  const trimmed = maybePath.trim();
+  if (isAbsoluteUrl(trimmed)) return trimmed;
 
-  // QR modal state
-  const [modalOpen, setModalOpen] = useState<boolean>(false);
-  const [modalOfferTitle, setModalOfferTitle] = useState<string>('');
-  const [modalTokenId, setModalTokenId] = useState<string>('');
-  const [modalExpiresAt, setModalExpiresAt] = useState<string>('');
+  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/+$/, '');
+  return `${base}/storage/v1/object/public/${bucket}/${trimmed.replace(/^\/+/, '')}`;
+}
+
+/* Normalize merchant field (object or array) to a single Merchant or null */
+function normalizeMerchant(m: OfferRow['merchant']): Merchant | null {
+  if (!m) return null;
+  if (Array.isArray(m)) return m[0] ?? null;
+  return m;
+}
+
+/* =======================
+   Page
+   ======================= */
+export default function ConsumerDealsPage() {
+  const [deals, setDeals] = useState<Coupon[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
+    let mounted = true;
+
     (async () => {
-      setLoadingOffers(true);
+      setLoading(true);
+      setErr(null);
+
+      // Pull real data from Supabase with a merchant join
       const { data, error } = await sb
         .from('offers')
-        .select('id,title,description,merchant_id,image_url')
+        .select(
+          `
+          id,
+          title,
+          terms,
+          total_value,
+          image_url,
+          merchant:merchants (
+            name,
+            photo_url,
+            address_text
+          )
+        `
+        )
         .eq('is_active', true)
         .order('created_at', { ascending: false });
 
-      if (error) setGlobalError(error.message);
-      setOffers((data ?? []) as Offer[]);
-      setLoadingOffers(false);
-    })();
+      if (!mounted) return;
 
-    (async () => {
-      const { data: sessionRes } = await sb.auth.getSession();
-      if (!sessionRes?.session) {
-        setMe(null);
+      if (error) {
+        setErr(error.message);
+        setDeals([]);
+        setLoading(false);
         return;
       }
-      const { data, error } = await sb.from('me').select('user_id,role,paid').single();
 
-      if (error || !data) {
-        setMe({
-          user_id: sessionRes.session.user.id,
-          role: 'consumer',
-          paid: false,
-        });
-        return;
-      }
-      const row = data as MeRow;
-      setMe({
-        user_id: row.user_id,
-        role: row.role,
-        paid: !!row.paid,
+      const rows = (data ?? []) as OfferRow[];
+
+      // Map rows into Coupon UI shape
+      const mapped: Coupon[] = rows.map((r) => {
+        const imageUrl = resolvePublicUrl(r.image_url, 'offer-media');
+
+        const m = normalizeMerchant(r.merchant);
+        const merchPhoto = resolvePublicUrl(m?.photo_url ?? null, 'merchant-media'); // change bucket if needed
+
+        return {
+          id: r.id,
+          title: r.title,
+          terms: r.terms ?? '',
+          totalValue: Number.isFinite(r.total_value as number) ? (r.total_value as number) : 0,
+          imageUrl,
+          merchant: m
+            ? {
+                name: m.name,
+                photoUrl: merchPhoto,
+                addressText: m.address_text,
+              }
+            : null,
+        };
       });
+
+      setDeals(mapped);
+      setLoading(false);
     })();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  async function createToken(offer: Offer) {
-    setRowState((s) => ({
-      ...s,
-      [offer.id]: { loading: true, error: null, tokenId: null, expiresAt: null },
-    }));
-
-    const { data: sessionRes } = await sb.auth.getSession();
-    const userId = sessionRes?.session?.user?.id ?? null;
-    if (!userId) {
-      setRowState((s) => ({
-        ...s,
-        [offer.id]: {
-          loading: false,
-          error: 'Please sign in to generate a QR.',
-          tokenId: null,
-          expiresAt: null,
-        },
-      }));
-      return;
+  const content = useMemo(() => {
+    if (loading) {
+      return <p className="text-blue-100 text-sm">Loading deals…</p>;
     }
-
-    const { data, error: meErr } = await sb.from('me').select('user_id,role,paid').single();
-    const paid = !meErr && !!(data as MeRow).paid;
-    if (!paid) {
-      setRowState((s) => ({
-        ...s,
-        [offer.id]: {
-          loading: false,
-          error: 'Pay the one-time $99 to unlock redemptions.',
-          tokenId: null,
-          expiresAt: null,
-        },
-      }));
-      return;
+    if (err) {
+      return (
+        <p className="text-red-200 text-sm">
+          Error loading deals: <span className="font-medium">{err}</span>
+        </p>
+      );
     }
-
-    const expiresAtISO = new Date(Date.now() + TOKEN_TTL_SECONDS * 1000).toISOString();
-
-    const { data: tokenRow, error } = await sb
-      .from('tokens')
-      .insert({
-        user_id: userId,
-        offer_id: offer.id,
-        merchant_id: offer.merchant_id,
-        expires_at: expiresAtISO,
-      })
-      .select('id,expires_at')
-      .single();
-
-    if (error || !tokenRow) {
-      setRowState((s) => ({
-        ...s,
-        [offer.id]: {
-          loading: false,
-          error: error?.message ?? 'Failed to create token',
-          tokenId: null,
-          expiresAt: null,
-        },
-      }));
-      return;
+    if (deals.length === 0) {
+      return <p className="text-blue-100 text-sm">No deals yet.</p>;
     }
-
-    const token = tokenRow as TokenRow;
-
-    setRowState((s) => ({
-      ...s,
-      [offer.id]: {
-        loading: false,
-        error: null,
-        tokenId: token.id,
-        expiresAt: token.expires_at,
-      },
-    }));
-
-    setModalOfferTitle(offer.title);
-    setModalTokenId(token.id);
-    setModalExpiresAt(token.expires_at);
-    setModalOpen(true);
-  }
+    return (
+      <ul className="space-y-4">
+        {deals.map((d) => (
+          <li key={d.id}>
+            <CouponCard
+              deal={d}
+              primaryLabel="Show QR"
+              onPrimary={(id) => {
+                // TODO: wire your token/QR modal here
+              }}
+            />
+          </li>
+        ))}
+      </ul>
+    );
+  }, [loading, err, deals]);
 
   return (
-    <div className="relative z-0 min-h-screen bg-neutral-950 text-white overflow-x-hidden">
-      {/* header */}
-      <section className="px-5 pt-6 pb-3 border-b border-white/10">
-        <h2 className="text-2xl font-extrabold">Sussex Inlet Deals</h2>
-        <p className="text-sm text-gray-300">
-          Tap a coupon ticket and show the QR to staff at checkout.
-        </p>
-      </section>
-
-      <section className="max-w-screen-md mx-auto px-4 py-5 relative z-10">
-        {globalError && <p className="text-rose-300 mb-3 text-sm">Error: {globalError}</p>}
-        {loadingOffers && <p className="text-gray-300 mb-3 text-sm">Loading deals…</p>}
-        {!loadingOffers && offers.length === 0 && (
-          <p className="text-gray-300 mb-3 text-sm">No active deals yet.</p>
-        )}
-
-        <ul className="list-none p-0 space-y-4">
-          {offers.map((o) => {
-            const state: RowState =
-              rowState[o.id] ?? { loading: false, error: null, tokenId: null, expiresAt: null };
-            const src = resolveOfferImageUrl(o.image_url);
-
-            return (
-              <li key={o.id}>
-                <TicketCard
-                  title={o.title}
-                  terms={o.description}
-                  totalValue={null /* plug a value if you have it */}
-                  imageSrc={src}
-                  merchantName={o.merchant_id || null}
-                  loading={state.loading}
-                  error={state.error}
-                  onRedeem={() => createToken(o)}
-                />
-              </li>
-            );
-          })}
-        </ul>
-
-        <div className="mt-6 text-xs text-gray-300">
-          {me?.paid ? 'Your account: Paid' : 'Your account: Not paid'}
-        </div>
-      </section>
-
-      {/* QR MODAL */}
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/70">
-          <div className="w-full max-w-sm rounded-2xl overflow-hidden border border-emerald-400/30 bg-[#0f1220]">
-            <div className="p-5">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="text-xs text-gray-300">Present to staff</div>
-                  <div className="text-lg font-extrabold">{modalOfferTitle}</div>
-                </div>
-                <button
-                  onClick={() => setModalOpen(false)}
-                  className="ml-3 rounded-full bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20"
-                  aria-label="Close"
-                >
-                  Close
-                </button>
-              </div>
-
-              <div className="mt-4 grid place-items-center">
-                <div className="rounded-2xl p-3 bg-white">
-                  <QRCode value={modalTokenId} />
-                </div>
-                <div className="mt-3 text-xs text-gray-300 text-center">
-                  Expires at{' '}
-                  <span className="font-semibold text-white">
-                    {new Date(modalExpiresAt).toLocaleTimeString()}
-                  </span>
-                </div>
-                <div className="mt-1 text-[11px] text-gray-300 text-center break-all">
-                  Code: <span className="font-semibold text-white">{modalTokenId}</span>
-                </div>
-              </div>
-
-              <div className="mt-5">
-                <RedeemButton onClick={() => setModalOpen(false)}>Done</RedeemButton>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    <main className="min-h-screen bg-blue-950">
+      <section className="mx-auto max-w-4xl px-4 py-6 md:py-10">{content}</section>
+    </main>
   );
 }
 
-/* ---------- Sleek single-row Ticket Card ---------- */
-function TicketCard({
-  title,
-  terms,
-  totalValue,
-  imageSrc,
-  merchantName,
-  loading,
-  error,
-  onRedeem,
+/* =======================
+   Coupon Card (inline)
+   ======================= */
+function CouponCard({
+  deal,
+  primaryLabel = 'Get Deal',
+  onPrimary,
 }: {
-  title: string;
-  terms: string | null;
-  totalValue?: string | number | null;
-  imageSrc: string | null;
-  merchantName: string | null;
-  loading: boolean;
-  error: string | null;
-  onRedeem: () => void;
+  deal: Coupon;
+  primaryLabel?: string;
+  onPrimary?: (id: string) => void;
 }) {
+  const { id, title, terms, totalValue, imageUrl, merchant } = deal;
+
   return (
-    <div
+    <article
       className="
-        grid grid-cols-[88px_1fr_auto] items-center gap-3
-        rounded-xl border border-emerald-500/30 bg-neutral-900
-        p-3
+        group grid gap-4 rounded-2xl border border-blue-800 bg-blue-900 p-3 shadow-sm
+        transition hover:ring-1 hover:ring-green-400/40
+        md:grid-cols-[176px,1fr,auto] md:items-stretch md:gap-5 md:p-4
       "
     >
-      {/* LEFT: photo */}
-      <div className="h-20 w-20 overflow-hidden rounded-lg bg-neutral-800">
-        {imageSrc ? (
-          <img src={imageSrc} alt={title} className="h-full w-full object-cover" />
+      {/* LEFT: Image (square on mobile, fixed width on md+) */}
+      <div className="relative overflow-hidden rounded-xl bg-blue-800">
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={title}
+            className="
+              h-36 w-full object-cover
+              md:h-full md:w-[176px] md:object-cover
+            "
+          />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-[11px] text-gray-400">
-            No Image
+          <div className="flex h-36 w-full items-center justify-center text-xs text-blue-200 md:h-full md:w-[176px]">
+            No image
           </div>
         )}
       </div>
 
-      {/* MIDDLE: text block */}
+      {/* MIDDLE: Content */}
       <div className="min-w-0">
-        <div className="flex items-start gap-2">
-          <h3 className="text-base font-bold text-white truncate">{title}</h3>
-          {typeof totalValue !== 'undefined' && totalValue !== null && (
-            <span className="flex-shrink-0 rounded-full border border-emerald-500/40 bg-emerald-400/10 px-2 py-[2px] text-[11px] font-semibold text-emerald-300">
-              ${totalValue} value
-            </span>
-          )}
-        </div>
+        <h3 className="text-base font-semibold text-white truncate">{title}</h3>
 
         {terms && (
-          <p className="mt-1 text-[13px] text-gray-300 overflow-hidden text-ellipsis whitespace-nowrap">
+          <p className="mt-1 text-sm text-blue-100 overflow-hidden text-ellipsis whitespace-nowrap">
             {terms}
           </p>
         )}
 
-        {merchantName && (
-          <div className="mt-1 text-[12px] text-gray-400 overflow-hidden text-ellipsis whitespace-nowrap">
-            🏪 {merchantName}
+        {/* Merchant row */}
+        {merchant && (
+          <div className="mt-2 flex items-center gap-2 text-xs text-blue-200">
+            {merchant.photoUrl ? (
+              <img
+                src={merchant.photoUrl}
+                alt={`${merchant.name} logo`}
+                className="h-5 w-5 rounded-full object-cover"
+              />
+            ) : (
+              <span
+                aria-hidden
+                className="grid h-5 w-5 place-items-center rounded-full bg-blue-800 text-[10px] text-blue-200"
+                title={merchant.name}
+              >
+                🏪
+              </span>
+            )}
+            <span className="truncate">{merchant.name}</span>
           </div>
         )}
-      </div>
 
-      {/* RIGHT: full-height CTA */}
-      <div className="flex items-stretch">
-        <RedeemButton onClick={onRedeem} disabled={loading} fullHeight>
-          {loading ? 'Loading…' : 'Redeem Now'}
-        </RedeemButton>
-      </div>
-
-      {error && (
-        <div className="col-span-full mt-2 text-[12px] text-rose-300">
-          Error: {error}
+        {/* Total value highlight */}
+        <div className="mt-3 inline-flex items-center rounded-full border border-green-400/30 bg-green-500/10 px-2 py-1 text-xs font-medium text-green-300">
+          Save up to ${Number.isFinite(totalValue) ? totalValue : 0}
         </div>
-      )}
-    </div>
+
+        {/* Mobile CTA (stacked) */}
+        <div className="mt-4 md:hidden">
+          <PrimaryButton
+            label={primaryLabel}
+            onClick={() => onPrimary?.(id)}
+          />
+        </div>
+      </div>
+
+      {/* RIGHT: Desktop CTA */}
+      <div className="hidden md:flex md:items-center">
+        <PrimaryButton
+          label={primaryLabel}
+          onClick={() => onPrimary?.(id)}
+        />
+      </div>
+    </article>
   );
 }
 
-/* ---------- Bright green CTA (one piece) ---------- */
-function RedeemButton({
-  children,
-  disabled,
+/* ---------- UI: Primary Button (Accessible) ---------- */
+function PrimaryButton({
+  label,
   onClick,
-  fullHeight,
 }: {
-  children: React.ReactNode;
-  disabled?: boolean;
+  label: string;
   onClick?: () => void;
-  fullHeight?: boolean;
 }) {
-  const base =
-    'inline-flex items-center justify-center rounded-lg px-4 md:px-6 text-sm font-bold ' +
-    'text-black bg-emerald-400 hover:bg-emerald-300 transition ' +
-    'disabled:opacity-60 disabled:cursor-not-allowed';
   return (
     <button
-      className={`${base} ${fullHeight ? 'h-12 md:h-14' : 'h-12'} whitespace-nowrap`}
-      disabled={disabled}
+      type="button"
       onClick={onClick}
+      className="
+        inline-flex h-11 items-center justify-center rounded-lg
+        bg-green-500 px-4 text-sm font-semibold text-black
+        transition hover:bg-green-600
+        focus:outline-none focus-visible:ring-2 focus-visible:ring-green-400 focus-visible:ring-offset-2 focus-visible:ring-offset-blue-900
+      "
     >
-      {children}
+      {label}
     </button>
   );
 }
