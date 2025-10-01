@@ -9,9 +9,11 @@ import QRCode from 'react-qr-code';
 type Offer = {
   id: string;
   title: string;
-  description: string | null;
+  description: string | null; // used as "Terms" in UI
   merchant_id: string;
   image_url: string | null;
+  // If you later add a total_value column in Supabase, you can plumb it in:
+  // total_value?: number | null;
 };
 
 type MeRow = {
@@ -199,7 +201,7 @@ export default function ConsumerPage() {
           <p className="text-gray-300 mb-3 text-sm">No active deals yet.</p>
         )}
 
-        <ul className="list-none p-0 space-y-5">
+        <ul className="list-none p-0 space-y-4">
           {offers.map((o) => {
             const state: RowState =
               rowState[o.id] ?? { loading: false, error: null, tokenId: null, expiresAt: null };
@@ -209,7 +211,8 @@ export default function ConsumerPage() {
               <li key={o.id}>
                 <TicketCard
                   title={o.title}
-                  description={o.description}
+                  terms={o.description}
+                  totalValue={null /* plug a value if you have it */}
                   imageSrc={src}
                   merchantName={o.merchant_id || null}
                   loading={state.loading}
@@ -229,7 +232,7 @@ export default function ConsumerPage() {
       {/* QR MODAL */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/70">
-          <div className="w-full max-w-sm rounded-3xl overflow-hidden border border-emerald-400/30 bg-[#0f1220]">
+          <div className="w-full max-w-sm rounded-2xl overflow-hidden border border-emerald-400/30 bg-[#0f1220]">
             <div className="p-5">
               <div className="flex items-start justify-between">
                 <div>
@@ -246,7 +249,7 @@ export default function ConsumerPage() {
               </div>
 
               <div className="mt-4 grid place-items-center">
-                <div className="rounded-2xl p-3 bg-white shadow-[0_0_40px_rgba(16,185,129,.35)]">
+                <div className="rounded-2xl p-3 bg-white">
                   <QRCode value={modalTokenId} />
                 </div>
                 <div className="mt-3 text-xs text-gray-300 text-center">
@@ -271,10 +274,11 @@ export default function ConsumerPage() {
   );
 }
 
-/* ---------- Ticket Card ---------- */
+/* ---------- Sleek single-row Ticket Card ---------- */
 function TicketCard({
   title,
-  description,
+  terms,
+  totalValue,
   imageSrc,
   merchantName,
   loading,
@@ -282,7 +286,8 @@ function TicketCard({
   onRedeem,
 }: {
   title: string;
-  description: string | null;
+  terms: string | null;
+  totalValue?: string | number | null;
   imageSrc: string | null;
   merchantName: string | null;
   loading: boolean;
@@ -292,79 +297,84 @@ function TicketCard({
   return (
     <div
       className="
-        relative z-10 flex overflow-hidden rounded-2xl border border-emerald-500/40
-        bg-gradient-to-br from-[#1A1A27] to-[#0E0E14]
-        shadow-[0_10px_30px_rgba(0,0,0,.45)]
+        grid grid-cols-[88px_1fr_auto] items-center gap-3
+        rounded-xl border border-emerald-500/30 bg-neutral-900
+        p-3
       "
     >
-      {/* LEFT: image sticker */}
-      <div className="flex-shrink-0 p-3 flex items-center justify-center">
-        <div className="w-24 h-24 rounded-xl overflow-hidden bg-gray-800 ring-2 ring-white/10">
-          {imageSrc ? (
-            <img src={imageSrc} alt={title} className="h-full w-full object-cover" />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-xs text-gray-400">
-              No Image
-            </div>
-          )}
-        </div>
+      {/* LEFT: photo */}
+      <div className="h-20 w-20 overflow-hidden rounded-lg bg-neutral-800">
+        {imageSrc ? (
+          <img src={imageSrc} alt={title} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-[11px] text-gray-400">
+            No Image
+          </div>
+        )}
       </div>
 
-      {/* PERFORATED DIVIDER */}
-      <div className="flex flex-col items-center px-1">
-        <div className="h-full border-l-2 border-dashed border-gray-600" />
-        <div className="-mt-5 text-gray-500 text-xs" aria-hidden>
-          ✂️
-        </div>
-      </div>
-
-      {/* RIGHT: text + CTA */}
-      <div className="flex-1 p-4">
-        <div>
-          <h3 className="text-lg font-extrabold text-white leading-tight">{title}</h3>
-          {description && <p className="text-sm text-gray-300 mt-1">{description}</p>}
-          {merchantName && (
-            <div className="flex items-center gap-1 text-xs text-gray-400 mt-2">
-              <span role="img" aria-label="merchant">
-                🏪
-              </span>
-              <span className="truncate">{merchantName}</span>
-            </div>
+      {/* MIDDLE: text block */}
+      <div className="min-w-0">
+        <div className="flex items-start gap-2">
+          <h3 className="text-base font-bold text-white truncate">{title}</h3>
+          {typeof totalValue !== 'undefined' && totalValue !== null && (
+            <span className="flex-shrink-0 rounded-full border border-emerald-500/40 bg-emerald-400/10 px-2 py-[2px] text-[11px] font-semibold text-emerald-300">
+              ${totalValue} value
+            </span>
           )}
         </div>
 
-        <div className="mt-4 flex justify-center">
-          <RedeemButton onClick={onRedeem} disabled={loading}>
-            {loading ? 'Loading…' : 'Redeem Now'}
-          </RedeemButton>
-        </div>
+        {terms && (
+          <p className="mt-1 text-[13px] text-gray-300 overflow-hidden text-ellipsis whitespace-nowrap">
+            {terms}
+          </p>
+        )}
 
-        {error && <p className="mt-2 text-xs text-rose-300">Error: {error}</p>}
+        {merchantName && (
+          <div className="mt-1 text-[12px] text-gray-400 overflow-hidden text-ellipsis whitespace-nowrap">
+            🏪 {merchantName}
+          </div>
+        )}
       </div>
+
+      {/* RIGHT: full-height CTA */}
+      <div className="flex items-stretch">
+        <RedeemButton onClick={onRedeem} disabled={loading} fullHeight>
+          {loading ? 'Loading…' : 'Redeem Now'}
+        </RedeemButton>
+      </div>
+
+      {error && (
+        <div className="col-span-full mt-2 text-[12px] text-rose-300">
+          Error: {error}
+        </div>
+      )}
     </div>
   );
 }
 
-/* ---------- Bright green pill CTA ---------- */
+/* ---------- Bright green CTA (one piece) ---------- */
 function RedeemButton({
   children,
   disabled,
   onClick,
+  fullHeight,
 }: {
   children: React.ReactNode;
   disabled?: boolean;
   onClick?: () => void;
+  fullHeight?: boolean;
 }) {
   const base =
-    'relative inline-flex w-full items-center justify-center rounded-full px-6 py-2 text-sm font-bold ' +
+    'inline-flex items-center justify-center rounded-lg px-4 md:px-6 text-sm font-bold ' +
     'text-black bg-emerald-400 hover:bg-emerald-300 transition ' +
-    'shadow-[0_6px_18px_rgba(16,185,129,.55)] disabled:opacity-60';
-  const shine =
-    'before:content-[\" \"] before:absolute before:inset-0 before:-translate-x-full ' +
-    'before:bg-gradient-to-r before:from-transparent before:via-white/50 before:to-transparent ' +
-    'hover:before:translate-x-full before:transition-transform before:duration-700 rounded-full overflow-hidden';
+    'disabled:opacity-60 disabled:cursor-not-allowed';
   return (
-    <button className={`${base} ${shine}`} disabled={disabled} onClick={onClick}>
+    <button
+      className={`${base} ${fullHeight ? 'h-12 md:h-14' : 'h-12'} whitespace-nowrap`}
+      disabled={disabled}
+      onClick={onClick}
+    >
       {children}
     </button>
   );
