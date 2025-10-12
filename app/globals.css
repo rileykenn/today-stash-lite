@@ -1,17 +1,60 @@
+/* =========================
+   Tailwind v4 import
+   ========================= */
 @import "tailwindcss";
 
+/* Bebas Neue Pro Expanded ExtraBold Italic */
+@font-face {
+  font-family: "BebasNeueExpandedPro";
+  src:
+    url("/fonts/bebas/BebasNeueProExpandedExtraBoldIt.woff2") format("woff2"),
+    url("/fonts/bebas/Bebas-Neue-Pro-Expanded-ExtraBold-Italic-BF66cf3d7962375.ttf") format("truetype");
+  font-weight: 900;   /* matches font-black */
+  font-style: italic; /* file is italic */
+  font-display: swap;
+}
+
+/* Map your utility alias to that face */
+.font-bada {
+  font-family: "BebasNeueExpandedPro", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif !important;
+  font-weight: 900;
+  font-style: italic;
+}
+
+
+/* =========================
+   2) Base color tokens (light)
+   ========================= */
 :root {
   --background: #ffffff;
   --foreground: #171717;
 }
 
+/* =========================
+   3) Tailwind inline theme tokens
+   ========================= */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+
+  /* Gold palette */
+  --color-gold-50:  #ffe259;
+  --color-gold-400: #ffc233;
+  --color-gold-700: #ff7b00;
+  --color-gold-900: #6b2a00;
+
+  /* Fonts */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-bada: "BebasNeueExpandedProBoldItalic", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 }
 
+/* Ensure class exists */
+.font-bada { font-family: var(--font-bada) !important; }
+
+/* =========================
+   4) Dark mode overrides
+   ========================= */
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
@@ -19,8 +62,109 @@
   }
 }
 
+/* =========================
+   5) Base styles
+   ========================= */
+html, body { height: 100%; }
+
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-family: var(--font-sans);
+}
+
+.visually-hidden {
+  position: absolute !important;
+  height: 1px; width: 1px;
+  overflow: hidden;
+  clip: rect(1px, 1px, 1px, 1px);
+  white-space: nowrap;
+  border: 0; padding: 0; margin: -1px;
+}
+
+/* =========================
+   6) Gold headline helpers
+   ========================= */
+.gold-hero {
+  font-family: var(--font-bada);
+  background-image: linear-gradient(
+    180deg,
+    var(--color-gold-50) 0%,
+    var(--color-gold-400) 55%,
+    var(--color-gold-700) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+
+  text-shadow:
+    0 0 1px rgba(255,255,255,0.95),
+    0 1px 0 rgba(255,255,255,0.9);
+
+  filter:
+    drop-shadow(0 0 0 var(--color-gold-900))
+    drop-shadow(2px 0 0 var(--color-gold-900))
+    drop-shadow(-2px 0 0 var(--color-gold-900))
+    drop-shadow(0 2px 0 var(--color-gold-900))
+    drop-shadow(0 10px 14px rgba(197, 90, 0, 0.6));
+}
+
+.gold-glow {
+  filter:
+    drop-shadow(0 0 20px rgba(255, 190, 60, 0.25))
+    drop-shadow(0 6px 14px rgba(197, 90, 0, 0.45));
+}
+
+/* =========================
+   7) Single 45° shine — LEFT → RIGHT, stable width
+   ========================= */
+.shine-clip {
+  pointer-events: none;
+  /* very narrow bright band = one beam only */
+  background: linear-gradient(
+    45deg,
+    rgba(255,255,255,0) 48%,
+    rgba(255,255,255,0.95) 50%,
+    rgba(255,255,255,0) 52%
+  );
+  /* Stretch only on X to keep the stripe width stable */
+  background-size: 260% 100%;
+  background-repeat: no-repeat;
+  /* start well off the LEFT */
+  background-position: -160% 0;
+
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+
+  /* keep it clean; remove extra blending that can “bloom” */
+  /* mix-blend-mode: screen;  <-- optional; comment out if you saw glow issues */
+
+  animation: shineL2R 3.2s linear infinite;
+  will-change: background-position;
+}
+
+@keyframes shineL2R {
+0% { background-position: 160% 0; }
+100% { background-position: -160% 0; }
+}
+
+
+/* =========================
+   8) Breathe (scale pulse)
+   ========================= */
+.breathe {
+  animation: breathe 5s ease-in-out infinite;
+  transform-origin: center;
+}
+
+@keyframes breathe {
+  0%, 100% {
+    transform: scale(1.18);
+  }
+  50% {
+    transform: scale(1.05);
+  }
 }
