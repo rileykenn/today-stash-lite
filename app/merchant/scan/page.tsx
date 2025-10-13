@@ -25,7 +25,6 @@ export default function MerchantScanPage() {
   const [state, setState] = React.useState<ScanState>({ kind: 'ready' });
   const [manual, setManual] = React.useState('');
 
-  // Stop camera & loop
   const stopStream = React.useCallback(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     if (streamRef.current) {
@@ -37,40 +36,58 @@ export default function MerchantScanPage() {
 
   async function openCamera() {
     try {
-      if (!('mediaDevices' in navigator) || !navigator.mediaDevices.getUserMedia) {
-        setState({ kind: 'error', message: 'Camera API not available', detail: 'No mediaDevices.getUserMedia' });
+      if (!('mediaDevices' in navigator) || !navigator.mediaDevices?.getUserMedia) {
+        setState({
+          kind: 'error',
+          message: 'Camera API not available',
+          detail: 'No mediaDevices.getUserMedia detected — use Safari or Chrome on a secure site (https).',
+        });
         return;
       }
       if (!window.isSecureContext) {
-        setState({ kind: 'error', message: 'Insecure context', detail: 'Use HTTPS or localhost' });
+        setState({
+          kind: 'error',
+          message: 'Insecure context',
+          detail: 'Camera access requires HTTPS or localhost.',
+        });
         return;
       }
 
       setState({ kind: 'opening' });
 
-      // Detect BarcodeDetector support
       let hasDetector = false;
       try {
         // @ts-ignore
         hasDetector = 'BarcodeDetector' in window && (await (window as any).BarcodeDetector.getSupportedFormats?.())?.includes('qr_code');
-      } catch { hasDetector = false; }
+      } catch {
+        hasDetector = false;
+      }
       setSupported(hasDetector);
 
-      // Try rear cam, fallback to any
       let stream: MediaStream | null = null;
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: false,
         });
-      } catch {
+      } catch (err) {
+        console.warn('Camera fallback triggered:', err);
         stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       }
 
-      streamRef.current = stream!;
+      if (!stream) {
+        setState({
+          kind: 'error',
+          message: 'Camera unavailable',
+          detail: 'Could not start camera — ensure you granted permission.',
+        });
+        return;
+      }
+
+      streamRef.current = stream;
       if (videoRef.current) {
         const v = videoRef.current;
-        v.srcObject = stream!;
+        v.srcObject = stream;
         v.setAttribute('playsinline', 'true');
         v.setAttribute('muted', 'true');
         await v.play();
@@ -97,10 +114,14 @@ export default function MerchantScanPage() {
         };
         rafRef.current = requestAnimationFrame(tick);
       } else {
-        setState({ kind: 'scanning' }); // keep preview; use manual input
+        setState({ kind: 'scanning' });
       }
     } catch (e: any) {
-      setState({ kind: 'error', message: 'Camera unavailable', detail: e?.message || 'Unknown' });
+      setState({
+        kind: 'error',
+        message: 'Camera unavailable',
+        detail: e?.message || 'Unknown',
+      });
     }
   }
 
@@ -108,27 +129,30 @@ export default function MerchantScanPage() {
     try {
       setState({ kind: 'redeeming', raw });
 
-      // Get merchant_id from merchant_staff for the logged-in user
       const { data: auth } = await supabase.auth.getUser();
       const uid = auth?.user?.id ?? null;
       let merchantId: string | null = null;
 
+      // ✅ FIXED: check profiles table instead of merchant_staff
       if (uid) {
-        const { data: ms, error: msErr } = await supabase
-          .from('merchant_staff')
+        const { data: profile, error: profErr } = await supabase
+          .from('profiles')
           .select('merchant_id')
           .eq('user_id', uid)
-          .limit(1)
           .maybeSingle();
-        if (msErr) throw msErr;
-        merchantId = ms?.merchant_id ?? null;
+        if (profErr) throw profErr;
+        merchantId = profile?.merchant_id ?? null;
       }
+
       if (!merchantId) {
-        setState({ kind: 'error', message: 'No merchant link', detail: 'Your account is not linked to a merchant.' });
+        setState({
+          kind: 'error',
+          message: 'No merchant link',
+          detail: 'Your account is not linked to a merchant. Contact admin.',
+        });
         return;
       }
 
-      // Accept 5-char manual code OR token/JSON
       const candidate = raw.trim();
       const maybeCode = candidate.toUpperCase();
       const isManualCode = /^[A-Z0-9]{5}$/.test(maybeCode);
@@ -137,7 +161,6 @@ export default function MerchantScanPage() {
       if (isManualCode) {
         args = { p_code: maybeCode, p_token: null, p_merchant_id: merchantId };
       } else {
-        // Parse JSON {"token":"..."} or treat as raw token
         let token = candidate;
         try {
           const parsed = JSON.parse(candidate);
@@ -149,7 +172,6 @@ export default function MerchantScanPage() {
       const { data, error } = await supabase.rpc('redeem_qr', args);
       if (error) throw error;
 
-      // unwrap RPC array
       const row = Array.isArray(data) ? data[0] : data;
       stopStream();
       setState({
@@ -175,7 +197,6 @@ export default function MerchantScanPage() {
           Tap “Start camera” and point at the QR. Or enter the customer’s 5-letter manual code.
         </p>
 
-        {/* Camera viewport */}
         <div className="rounded-2xl overflow-hidden ring-1 ring-white/10 bg-black">
           <video
             ref={videoRef}
@@ -186,7 +207,6 @@ export default function MerchantScanPage() {
           />
         </div>
 
-        {/* Camera controls / notices (same layout) */}
         {state.kind === 'ready' ? (
           <button
             onClick={openCamera}
@@ -202,7 +222,6 @@ export default function MerchantScanPage() {
           </p>
         ) : null}
 
-        {/* Detected */}
         {state.kind === 'detected' && (
           <div className="space-y-2">
             <p className="text-emerald-400 font-medium">QR detected</p>
@@ -216,7 +235,6 @@ export default function MerchantScanPage() {
           </div>
         )}
 
-        {/* Success / Error blocks */}
         {state.kind === 'success' && (
           <div className="rounded-xl bg-emerald-500/10 ring-1 ring-emerald-500/30 p-3 space-y-1">
             <p className="text-emerald-400 font-semibold">{state.message}</p>
@@ -244,7 +262,6 @@ export default function MerchantScanPage() {
           </div>
         )}
 
-        {/* Manual fallback (unchanged layout) */}
         <div className="space-y-2 pt-2">
           <label className="text-sm text-white/80">Manual code</label>
           <input

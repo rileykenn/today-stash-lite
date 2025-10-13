@@ -15,7 +15,6 @@ export default function NavBar() {
       setSignedIn(!!session);
     });
     return () => {
-      // handle both shapes across SDK versions
       sub?.subscription?.unsubscribe?.();
       sub?.unsubscribe?.();
     };
@@ -29,16 +28,17 @@ export default function NavBar() {
   return (
     <nav className="sticky top-0 z-40 border-b border-white/10 bg-[#0B1210]/80 backdrop-blur">
       <div className="mx-auto max-w-5xl h-14 px-4 flex items-center">
-        {/* Left: admin link (renders only if user is admin inside component) */}
+        {/* Left: admin link */}
         <div className="flex-1 min-w-0">
           <AdminLink />
         </div>
 
         {/* Center: brand */}
-        <div className="flex-1 min-w-0 text-center">
+        <div className="flex-1 min-w-0 text-center relative">
           <Link
-            href="/"
-            className="inline-block select-none text-lg sm:text-xl font-extrabold tracking-tight"
+            href="/consumer"
+            aria-label="Go to consumer home"
+            className="inline-block select-none text-lg sm:text-xl font-extrabold tracking-tight hover:opacity-80 transition relative z-10 pointer-events-auto"
           >
             todays <span className="text-[#14F195]">stash</span>
           </Link>

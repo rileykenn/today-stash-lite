@@ -6,7 +6,9 @@ import { usePathname } from 'next/navigation';
 import React from 'react';
 import { sb } from '@/lib/supabaseBrowser';
 
-function Tab({ href, label, active, highlight = false }:{
+function Tab({
+  href, label, active, highlight = false,
+}: {
   href: string; label: string; active?: boolean; highlight?: boolean;
 }) {
   return (
@@ -27,39 +29,43 @@ export default function BottomNav() {
   const pathname = usePathname();
   const [isMerchant, setIsMerchant] = React.useState(false);
 
+  // single function to compute merchant status using RPC
+  const checkMerchant = React.useCallback(async () => {
+    try {
+      const { data: sess } = await sb.auth.getSession();
+      const uid = sess?.session?.user?.id;
+      if (!uid) {
+        setIsMerchant(false);
+        return;
+      }
+      const { data, error } = await sb.rpc('get_my_merchant');
+      if (error) {
+        console.warn('get_my_merchant rpc error', error);
+        setIsMerchant(false);
+        return;
+      }
+      setIsMerchant(!!data); // uuid string => truthy when linked
+    } catch (e) {
+      console.warn('BottomNav merchant check failed', e);
+      setIsMerchant(false);
+    }
+  }, []);
+
   React.useEffect(() => {
     let mounted = true;
-    (async () => {
-      try {
-        const { data: auth, error: authErr } = await sb.auth.getUser();
-        if (authErr) console.warn('getUser error', authErr);
-        const uid = auth?.user?.id;
-        if (!uid) {
-          console.warn('No logged-in user');
-          mounted && setIsMerchant(false);
-          return;
-        }
 
-        const { data, error } = await sb
-          .from('merchant_staff')
-          .select('merchant_id')   // existence-only
-          .eq('user_id', uid)
-          .limit(1);
+    // initial check (after session is available)
+    checkMerchant();
 
-        if (error) {
-          console.warn('merchant_staff select error', error);
-          mounted && setIsMerchant(false);
-          return;
-        }
+    // re-check on auth state changes (login/logout/switch accounts)
+    const { data: sub } = sb.auth.onAuthStateChange(() => {
+      if (mounted) checkMerchant();
+    });
 
-        mounted && setIsMerchant(!!data?.length);
-      } catch (e) {
-        console.warn('BottomNav check failed', e);
-        mounted && setIsMerchant(false);
-      }
-    })();
-    return () => { mounted = false; };
-  }, [pathname]);
+    // also re-check when path changes (cheap extra safety)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { mounted = false; sub?.subscription?.unsubscribe?.(); };
+  }, [checkMerchant, pathname]);
 
   return (
     <nav
