@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import NavBar from "@/components/NavBar";
-import BottomNav from "@/components/BottomNav";
 import Link from "next/link";
+import Header from "@/components/Header";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -64,9 +63,6 @@ function Footer() {
           © {new Date().getFullYear()} Today’s Stash. All rights reserved.
         </div>
       </div>
-
-      {/* spacer so BottomNav never overlaps */}
-      <div className="h-2" />
     </footer>
   );
 }
@@ -74,7 +70,6 @@ function Footer() {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      {/* Optional: keep your custom font preload */}
       <head>
         <link
           rel="preload"
@@ -86,16 +81,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
 
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#0B1210] text-[#E8FFF3]
-        pb-[calc(env(safe-area-inset-bottom)+80px)]`} // room for the fixed BottomNav
+        className={`
+          ${geistSans.variable} ${geistMono.variable}
+          antialiased bg-[#0B1210] text-[#E8FFF3]
+        `}
       >
-        <NavBar />
-        {children}
+        <div className="min-h-screen flex flex-col">
+          {/* Responsive header with hamburger + links */}
+          <Header />
 
-        {/* Global footer (inline above the fixed BottomNav) */}
-        <Footer />
+          {/* Main content */}
+          <main className="flex-1">{children}</main>
 
-        <BottomNav />
+          {/* Global footer */}
+          <Footer />
+        </div>
       </body>
     </html>
   );

@@ -1,12 +1,10 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import QRCode from 'react-qr-code';
+import React, { useEffect, useMemo, useState } from 'react';
 import { sb } from '@/lib/supabaseBrowser';
 import { useRouter } from 'next/navigation';
 import Gold3DBanner from '@/components/Gold3DBanner';
-
 
 /* =======================
    Types
@@ -23,11 +21,14 @@ type Coupon = {
     addressText: string | null;
   } | null;
 
-  // live progress fields (data only; UI unchanged)
   usedCount: number;           // from offers.redeemed_count
   totalLimit: number | null;   // from offers.total_limit (null = unlimited)
+
+  areaKey: string;   // internal key for area/town
+  areaLabel: string; // human label for selector
 };
-type Step = 'info' | 'qr';
+
+type Step = 'instructions' | 'success';
 
 /* =======================
    Helpers
@@ -85,89 +86,133 @@ export default function ConsumerDealsPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
+  const router = useRouter();
 
-const router = useRouter();
+  /** Returns 'pro' | 'free' | 'unknown' by checking profiles.plan/role and auth metadata. */
+  async function getUserRole(): Promise<'pro' | 'free' | 'unknown'> {
+    const {
+      data: { session },
+    } = await sb.auth.getSession();
+    if (!session) return 'unknown';
 
-/** Returns 'pro' | 'free' | 'unknown' by checking profiles.plan/role and auth metadata. */
-async function getUserRole(): Promise<'pro' | 'free' | 'unknown'> {
-  const { data: { session } } = await sb.auth.getSession();
-  if (!session) return 'unknown';
+    const { data: prof, error } = await sb
+      .from('profiles')
+      .select('plan, role')
+      .eq('user_id', session.user.id)
+      .maybeSingle();
 
-  // 1) Prefer your profiles table — note: user_id and plan/role
-  const { data: prof, error } = await sb
-    .from('profiles')
-    .select('plan, role')        // support either column name
-    .eq('user_id', session.user.id) // <-- your schema uses user_id
-    .maybeSingle();
+    if (!error && prof) {
+      const plan = String(prof.plan ?? '').toLowerCase().trim();
+      const role = String(prof.role ?? '').toLowerCase().trim();
+      if (plan === 'pro' || role === 'pro') return 'pro';
+      if (plan === 'free' || role === 'free') return 'free';
+    }
 
-  if (!error && prof) {
-    const plan = String(prof.plan ?? '').toLowerCase().trim();
-    const role = String(prof.role ?? '').toLowerCase().trim();
-    if (plan === 'pro' || role === 'pro') return 'pro';
-    if (plan === 'free' || role === 'free') return 'free';
+    const metaRole = String(
+      (session.user.user_metadata?.role ?? session.user.app_metadata?.role ?? '') as string
+    )
+      .toLowerCase()
+      .trim();
+    const metaPlan = String(
+      (session.user.user_metadata?.plan ?? session.user.app_metadata?.plan ?? '') as string
+    )
+      .toLowerCase()
+      .trim();
+
+    if (metaPlan === 'pro' || metaRole === 'pro') return 'pro';
+    if (metaPlan === 'free' || metaRole === 'free') return 'free';
+
+    return 'unknown';
   }
 
-  // 2) Fallbacks via auth metadata (in case profiles row is missing)
-  const metaRole =
-    String(session.user.user_metadata?.role ?? session.user.app_metadata?.role ?? '').toLowerCase().trim();
-  const metaPlan =
-    String(session.user.user_metadata?.plan ?? session.user.app_metadata?.plan ?? '').toLowerCase().trim();
+  /** Unified gate: anon -> /signup, free/unknown -> /upgrade, pro -> open modal */
+  async function handleShowGate(deal: Coupon) {
+    const {
+      data: { session },
+    } = await sb.auth.getSession();
+    if (!session) {
+      router.push(`/signup?next=${encodeURIComponent('/consumer')}`);
+      return;
+    }
 
-  if (metaPlan === 'pro' || metaRole === 'pro') return 'pro';
-  if (metaPlan === 'free' || metaRole === 'free') return 'free';
+    const role = await getUserRole();
+    if (role !== 'pro') {
+      router.push(`/upgrade?reason=unlock-redemptions&next=${encodeURIComponent('/consumer')}`);
+      return;
+    }
 
-  return 'unknown';
-}
-
-/** Unified gate: anon -> /signup, free/unknown -> /upgrade, pro -> open modal */
-async function handleShowGate(deal: Coupon) {
-  const { data: { session } } = await sb.auth.getSession();
-  if (!session) {
-    router.push(`/signup?next=${encodeURIComponent('/consumer')}`);
-    return;
+    openModal(deal);
   }
 
-  const role = await getUserRole();
-  // Optional: quick debug
-  // console.log('role', role);
-
-  if (role !== 'pro') {
-    router.push(`/upgrade?reason=unlock-redemptions&next=${encodeURIComponent('/consumer')}`);
-    return;
-  }
-
-  openInstructions(deal);
-}
-
-
-  // Modal state
+  // Modal state (for PIN redemption with staff)
   const [modalOpen, setModalOpen] = useState(false);
-  const [step, setStep] = useState<Step>('info');
+  const [step, setStep] = useState<Step>('instructions');
   const [activeDeal, setActiveDeal] = useState<Coupon | null>(null);
 
-  // 90s token + manual code lifecycle
-  const [token, setToken] = useState<string | null>(null);
-  const [manualCode, setManualCode] = useState<string | null>(null);
-  const [expiresAt, setExpiresAt] = useState<number | null>(null); // ms epoch
-  const [countdown, setCountdown] = useState<number>(0);
-  const isRefreshingRef = useRef(false);
+  // PIN flow state
+  const [pinInput, setPinInput] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Open/close
-  const openInstructions = (deal: Coupon) => {
+  // Area/town gate state
+  const [selectedArea, setSelectedArea] = useState<string | null>(null);
+  const [accessCode, setAccessCode] = useState('');
+  const [areaUnlocked, setAreaUnlocked] = useState(false);
+  const [unlockError, setUnlockError] = useState<string | null>(null);
+  const [unlockLoading, setUnlockLoading] = useState(false);
+
+  // Open/close modal
+  const openModal = (deal: Coupon) => {
     setActiveDeal(deal);
-    setStep('info');
+    setStep('instructions');
+    setPinInput('');
+    setSubmitError(null);
+    setSubmitting(false);
     setModalOpen(true);
     document.documentElement.style.overflow = 'hidden';
   };
   const closeModal = () => {
     setModalOpen(false);
     setActiveDeal(null);
-    setToken(null);
-    setManualCode(null);
-    setExpiresAt(null);
-    setCountdown(0);
+    setPinInput('');
+    setSubmitError(null);
+    setSubmitting(false);
     document.documentElement.style.overflow = '';
   };
+
+  // Submit merchant PIN -> redeem
+  async function handleRedeemWithPin() {
+    if (!activeDeal) return;
+    if (!pinInput || pinInput.trim().length < 4) {
+      setSubmitError('Ask the staff to enter their full 4-digit PIN.');
+      return;
+    }
+
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const { error, data } = await sb.rpc('redeem_offer_with_pin', {
+        p_offer_id: activeDeal.id,
+        p_pin: pinInput.trim(),
+      });
+
+      if (error) {
+        console.error('redeem_offer_with_pin failed', error);
+        setSubmitError('PIN incorrect or redemption not allowed. Please confirm with staff.');
+        setSubmitting(false);
+        return;
+      }
+
+      // Optionally inspect `data` if your function returns something
+      setStep('success');
+    } catch (e) {
+      console.error(e);
+      setSubmitError('Something went wrong. Please try again.');
+      setSubmitting(false);
+    } finally {
+      if (step !== 'success') setSubmitting(false);
+    }
+  }
 
   // Fetch deals
   useEffect(() => {
@@ -177,23 +222,25 @@ async function handleShowGate(deal: Coupon) {
       setErr(null);
 
       const { data, error } = await sb
-        .from('offers')
-        .select(`
-  id,
-  title,
-  description,
-  terms,
-  image_url,
-  savings_cents,
-  total_limit,
-  redeemed_count,
-  is_active,
-  created_at,
-  merchant:merchants(*)
-`)
-
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
+  .from('offers')
+  .select(`
+    id,
+    merchant_id,
+    title,
+    description,
+    terms,
+    image_url,
+    savings_cents,
+    total_limit,
+    redeemed_count,
+    is_active,
+    created_at,
+    area_key,
+    area_name,
+    merchant:merchants(*)
+  `)
+  .eq('is_active', true)
+  .order('created_at', { ascending: false });
 
       if (!mounted) return;
 
@@ -220,6 +267,16 @@ async function handleShowGate(deal: Coupon) {
             ? Math.max(0, Math.round(r.savings_cents) / 100)
             : 0;
 
+        const areaKey: string = String(
+          r?.area_key ?? r?.area_slug ?? r?.area ?? r?.area_name ?? 'default'
+        )
+          .toLowerCase()
+          .trim();
+
+        const areaLabel: string = String(
+          r?.area_name ?? r?.area_label ?? r?.area ?? 'Local deals'
+        );
+
         return {
           id: String(r.id),
           title: String(r.title ?? ''),
@@ -233,13 +290,13 @@ async function handleShowGate(deal: Coupon) {
                 addressText: getMerchantAddress(mRaw),
               }
             : null,
-
-          // 👇 wire live progress
           usedCount: Number.isFinite(r?.redeemed_count) ? Number(r.redeemed_count) : 0,
           totalLimit:
             r?.total_limit === null || r?.total_limit === undefined
               ? null
               : Number(r.total_limit),
+          areaKey,
+          areaLabel,
         };
       });
 
@@ -253,49 +310,79 @@ async function handleShowGate(deal: Coupon) {
     };
   }, []);
 
-  // Issue a 90s token + manual code for a deal
-  async function refreshRedemption(dealId: string) {
-    if (isRefreshingRef.current) return;
-    isRefreshingRef.current = true;
+  // Derive unique area options from deals
+  const areaOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const d of deals) {
+      if (!map.has(d.areaKey)) {
+        map.set(d.areaKey, d.areaLabel);
+      }
+    }
+    return Array.from(map.entries()).map(([key, label]) => ({ key, label }));
+  }, [deals]);
+
+  // When areas load, set default selected area
+  useEffect(() => {
+    if (!selectedArea && areaOptions.length > 0) {
+      setSelectedArea(areaOptions[0].key);
+    }
+  }, [areaOptions, selectedArea]);
+
+  // Reset area unlock when switching area
+  useEffect(() => {
+    setAreaUnlocked(false);
+    setAccessCode('');
+    setUnlockError(null);
+  }, [selectedArea]);
+
+  // Filter deals by selected area
+  const visibleDeals = useMemo(() => {
+    if (!selectedArea) return [];
+    return deals.filter((d) => d.areaKey === selectedArea);
+  }, [deals, selectedArea]);
+
+  // Unlock area with a 4-digit code
+  async function handleUnlockArea(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    if (!selectedArea) {
+      setUnlockError('Please select a town/area first.');
+      return;
+    }
+    if (!accessCode || accessCode.trim().length < 4) {
+      setUnlockError('Enter your 4-digit access code.');
+      return;
+    }
+
+    setUnlockLoading(true);
+    setUnlockError(null);
     try {
-      const { data, error } = await sb.rpc('issue_redemption_token', {
-        p_deal_id: dealId,
-        p_ttl_seconds: 90,
+      const { data, error } = await sb.rpc('verify_area_access_code', {
+        p_area_key: selectedArea,
+        p_code: accessCode.trim(),
       });
-      if (error) throw error;
 
-      // Supabase RPC returns an array — unwrap first row
-      const row = Array.isArray(data) ? data[0] : (data as any);
-
-      const nextToken = row?.token ?? null;
-      const nextCode = (row?.manual_code ?? '').toString().toUpperCase() || null;
-      const nextExp =
-        row?.expires_at ? Date.parse(row.expires_at as string) : Date.now() + 90_000;
-
-      setToken(nextToken);
-      setManualCode(nextCode);
-      setExpiresAt(nextExp);
+      if (error) {
+        console.error('verify_area_access_code failed', error);
+        setUnlockError('Invalid code. Please double-check and try again.');
+        setAreaUnlocked(false);
+      } else {
+        const ok = data === true || data?.ok === true;
+        if (!ok) {
+          setUnlockError('Invalid code. Please double-check and try again.');
+          setAreaUnlocked(false);
+        } else {
+          setAreaUnlocked(true);
+        }
+      }
     } catch (e) {
-      console.error('issue_redemption_token failed', e);
+      console.error(e);
+      setUnlockError('Something went wrong. Please try again.');
+      setAreaUnlocked(false);
     } finally {
-      isRefreshingRef.current = false;
+      setUnlockLoading(false);
     }
   }
 
-  // Countdown + auto-refresh
-  useEffect(() => {
-    if (!expiresAt || !activeDeal) return;
-    const id = setInterval(() => {
-      const sec = Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000));
-      setCountdown(sec);
-      if (sec === 0 && activeDeal && !isRefreshingRef.current) {
-        void refreshRedemption(activeDeal.id);
-      }
-    }, 500);
-    return () => clearInterval(id);
-  }, [expiresAt, activeDeal]);
-
-  // Render list
   const body = useMemo(() => {
     if (loading) return <p className="text-gray-300/80 text-sm">Loading deals…</p>;
     if (err)
@@ -304,34 +391,116 @@ async function handleShowGate(deal: Coupon) {
           Error loading deals: <span className="font-semibold">{err}</span>
         </p>
       );
-    if (deals.length === 0) return <p className="text-gray-300/80 text-sm">No active deals yet.</p>;
+    if (!areaOptions.length)
+      return <p className="text-gray-300/80 text-sm">No active deals yet.</p>;
 
     return (
-      <ul className="space-y-8">
-        {deals.map((d) => (
-          <li key={d.id}>
-            <CouponTicket deal={d} onShow={() => handleShowGate(d)} />
-          </li>
-        ))}
-      </ul>
+      <div className="space-y-8">
+        {/* Area selector + access code gate */}
+        <form
+          onSubmit={handleUnlockArea}
+          className="rounded-2xl bg-[#111923] ring-1 ring-white/10 p-4 sm:p-5 space-y-4"
+        >
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-white/70 mb-1.5">
+                Choose your town / area
+              </label>
+              <select
+                className="w-full h-11 rounded-xl bg-white/5 px-3 text-sm text-white outline-none ring-1 ring-white/15 focus:ring-2 focus:ring-emerald-400/70"
+                value={selectedArea ?? ''}
+                onChange={(e) => setSelectedArea(e.target.value || null)}
+              >
+                {areaOptions.map((opt) => (
+                  <option key={opt.key} value={opt.key}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-white/70 mb-1.5">
+                Enter your 4-digit access code
+              </label>
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={6}
+                value={accessCode}
+                onChange={(e) =>
+                  setAccessCode(
+                    e.target.value
+                      .replace(/[^\d]/g, '')
+                      .slice(0, 6)
+                  )
+                }
+                className="w-full h-11 rounded-xl bg-white/5 px-3 text-base tracking-[0.25em] text-center font-semibold outline-none ring-1 ring-white/15 placeholder:text-white/30 focus:ring-2 focus:ring-emerald-400/70"
+                placeholder="••••"
+              />
+            </div>
+          </div>
+
+          {unlockError && <p className="text-xs text-red-400">{unlockError}</p>}
+
+          <div className="flex flex-col sm:flex-row gap-2 pt-1">
+            <button
+              type="submit"
+              disabled={unlockLoading}
+              className="h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed text-sm font-semibold"
+            >
+              {unlockLoading ? 'Checking code…' : 'Unlock deals for this town'}
+            </button>
+          </div>
+        </form>
+
+        {/* Deals grid */}
+        {!areaUnlocked ? (
+          <p className="text-gray-300/80 text-sm">
+            Enter your access code above to view the available deals in this town.
+          </p>
+        ) : visibleDeals.length === 0 ? (
+          <p className="text-gray-300/80 text-sm">
+            No active deals for this town yet. Check back soon.
+          </p>
+        ) : (
+          <ul className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+            {visibleDeals.map((d) => (
+              <li key={d.id}>
+                <CouponTicket deal={d} onShow={() => handleShowGate(d)} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     );
-  }, [loading, err, deals]);
+  }, [
+    loading,
+    err,
+    areaOptions,
+    selectedArea,
+    accessCode,
+    unlockError,
+    unlockLoading,
+    areaUnlocked,
+    visibleDeals,
+  ]);
 
   return (
-  <main className="relative min-h-screen bg-[#0A0F13] overflow-x-hidden">
-    {/* subtle blurry blobs (blue bias) */}
-    <div className="pointer-events-none absolute -top-24 -left-24 h-[380px] w-[380px] rounded-full bg-blue-500/10 blur-3xl" />
-    <div className="pointer-events-none absolute bottom-10 right-[-60px] h-[420px] w-[420px] rounded-full bg-blue-400/10 blur-3xl" />
+    <main className="relative min-h-screen bg-[#0A0F13] overflow-x-hidden">
+      {/* subtle blurry blobs (blue bias) */}
+      <div className="pointer-events-none absolute -top-24 -left-24 h-[380px] w-[380px] rounded-full bg-blue-500/10 blur-3xl" />
+      <div className="pointer-events-none absolute bottom-10 right-[-60px] h-[420px] w-[420px] rounded-full bg-blue-400/10 blur-3xl" />
 
-    {/* ✅ Add the banner here */}
-    <div className="relative z-10 flex justify-center pt-10 pb-4">
-      <Gold3DBanner />
-    </div>
+      {/* Banner */}
+      <div className="relative z-10 flex justify-center pt-10 pb-4">
+        <Gold3DBanner />
+      </div>
 
-    {/* Deals section */}
-    <section className="relative mx-auto max-w-5xl px-4 py-8">{body}</section>
+      {/* Deals section */}
+      <section className="relative mx-auto max-w-5xl px-4 py-8">{body}</section>
 
-      {/* ===== Mobile-first Bottom Sheet Modal ===== */}
+      {/* ===== Bottom Sheet Modal (PIN-based redemption) ===== */}
       {modalOpen && (
         <div
           className="
@@ -392,99 +561,99 @@ async function handleShowGate(deal: Coupon) {
             </div>
 
             {/* Body */}
-            {step === 'info' ? (
+            {step === 'instructions' ? (
               <div className="pt-4 space-y-4">
-                <h4 className="text-lg font-semibold">Ready to redeem?</h4>
+                <h4 className="text-lg font-semibold">Redeem this deal in-store</h4>
 
                 <ol className="list-decimal list-inside space-y-2 text-[13.5px] leading-relaxed text-white/85">
                   <li>
-                    Head into the business and ask the friendly staff to{' '}
-                    <span className="font-semibold text-white">scan your QR code</span>.
+                    Show this screen to the{' '}
+                    <span className="font-semibold text-white">staff at the counter.</span>
                   </li>
-                  <li>Keep this screen open — your QR is unique and time-limited.</li>
-                  <li>Staff will confirm the discount and complete the redemption.</li>
+                  <li>
+                    Ask them to enter their{' '}
+                    <span className="font-semibold text-white">4-digit Today&apos;s Stash PIN</span> on
+                    your phone.
+                  </li>
+                  <li>
+                    Once the PIN is entered, this deal will be{' '}
+                    <span className="font-semibold text-white">marked as redeemed</span> for you.
+                  </li>
                 </ol>
 
                 <div className="rounded-lg bg-[#12202B] text-xs text-white/70 p-3 ring-1 ring-white/10">
-                  Staff must scan your QR or enter your manual code. Codes expire after 90 seconds.
+                  Only staff should enter the PIN. Redemptions may be final and limited per member.
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-2 pt-1">
-                  <button
-                    onClick={async () => {
-                      setStep('qr');
-                      if (activeDeal) await refreshRedemption(activeDeal.id);
-                    }}
-                    className="h-12 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 font-semibold"
-                  >
-                    I’m at the counter — show my QR
-                  </button>
-                  <button
-                    onClick={closeModal}
-                    className="h-12 rounded-xl bg-white/10 hover:bg-white/15"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="pt-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-white/70">Show this to staff to redeem</p>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-white">
-                      {countdown > 0 ? `${countdown}s` : 'Expired'}
-                    </span>
+                <div className="space-y-3 pt-2">
+                  <label className="block text-xs font-medium text-white/70">
+                    Staff 4-digit PIN
+                    <input
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={pinInput}
+                      onChange={(e) =>
+                        setPinInput(
+                          e.target.value
+                            .replace(/[^\d]/g, '')
+                            .slice(0, 6)
+                        )
+                      }
+                      className="
+                        mt-1 w-full h-11 rounded-xl bg-white/5 px-3
+                        text-base tracking-[0.25em] text-center font-semibold
+                        outline-none ring-1 ring-white/15
+                        placeholder:text-white/30
+                        focus:ring-2 focus:ring-emerald-400/70
+                      "
+                      placeholder="••••"
+                    />
+                  </label>
+
+                  {submitError && (
+                    <p className="text-xs text-red-400">{submitError}</p>
+                  )}
+
+                  <div className="flex flex-col sm:flex-row gap-2 pt-1">
                     <button
-                      onClick={() => activeDeal && refreshRedemption(activeDeal.id)}
-                      className="h-9 px-3 rounded-lg bg-white/10 hover:bg-white/15 text-xs"
-                      title="Refresh code"
+                      onClick={handleRedeemWithPin}
+                      disabled={submitting}
+                      className="
+                        h-12 rounded-xl bg-emerald-500 hover:bg-emerald-400
+                        disabled:opacity-60 disabled:cursor-not-allowed
+                        font-semibold
+                      "
                     >
-                      Refresh
+                      {submitting ? 'Redeeming…' : "Staff entered PIN – confirm"}
+                    </button>
+                    <button
+                      onClick={closeModal}
+                      className="h-12 rounded-xl bg-white/10 hover:bg-white/15"
+                    >
+                      Cancel
                     </button>
                   </div>
                 </div>
-
-                {/* QR */}
-                <div className="mx-auto w-full max-w-[280px] rounded-2xl bg-white p-4">
-                  <QRCode value={JSON.stringify({ token: token ?? '' })} size={240} />
+              </div>
+            ) : (
+              <div className="pt-6 space-y-4 text-center">
+                <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10 ring-1 ring-emerald-400/40">
+                  <span className="text-2xl">✅</span>
                 </div>
-
-                {/* --- or --- */}
-                <div className="relative text-center">
-                  <div className="absolute left-0 right-0 top-1/2 h-px bg-white/10" />
-                  <span className="relative inline-block bg-[#0D1620] px-3 text-white/60 text-xs">
-                    — or —
+                <h4 className="text-lg font-semibold">Deal redeemed successfully</h4>
+                <p className="text-sm text-white/75">
+                  This deal has been marked as redeemed on your account. Enjoy your offer at{' '}
+                  <span className="font-semibold">
+                    {activeDeal?.merchant?.name ?? 'the business'}
                   </span>
-                </div>
-
-                {/* Manual code */}
-                <div className="text-center space-y-2">
-                  <p className="text-sm text-white/80">
-                    Ask the friendly staff to enter your <span className="font-semibold">manual code</span>:
-                  </p>
-                  <div className="mx-auto inline-block rounded-xl bg-white/5 ring-1 ring-white/10 px-4 py-3">
-                    <code className="tracking-[0.35em] text-2xl font-extrabold">
-                      {manualCode ?? '•••••'}
-                    </code>
-                  </div>
-                  <p className="text-xs text-white/60">This code and QR expire in 90 seconds.</p>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <button
-                    onClick={() => setStep('info')}
-                    className="h-12 rounded-xl bg-white/10 hover:bg-white/15"
-                  >
-                    Back
-                  </button>
-                  <button
-                    onClick={() => activeDeal && refreshRedemption(activeDeal.id)}
-                    className="h-12 rounded-xl bg-emerald-500 hover:bg-emerald-400 font-semibold"
-                  >
-                    Refresh
-                  </button>
-                </div>
+                  .
+                </p>
+                <button
+                  onClick={closeModal}
+                  className="mt-3 h-11 w-full rounded-xl bg-white/10 hover:bg-white/15 text-sm font-medium"
+                >
+                  Close
+                </button>
               </div>
             )}
           </div>
@@ -494,12 +663,6 @@ async function handleShowGate(deal: Coupon) {
   );
 }
 
-/* =======================
-   Coupon Ticket
-   ======================= */
-/* =======================
-   Coupon Ticket
-   ======================= */
 /* =======================
    Coupon Ticket
    ======================= */
@@ -537,7 +700,7 @@ function CouponTicket({ deal, onShow }: { deal: Coupon; onShow: () => void }) {
         onClick={onShow}
         className="absolute bottom-3 right-3 rounded-full px-3 py-1 text-[12px] font-semibold text-white bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)] active:scale-95 whitespace-nowrap"
       >
-        Show QR
+        Redeem in store
       </button>
 
       {/* Grid */}
@@ -555,7 +718,7 @@ function CouponTicket({ deal, onShow }: { deal: Coupon; onShow: () => void }) {
 
         {/* Text */}
         <div className="min-w-0">
-          {/* Expandable Title — preserves layout */}
+          {/* Expandable Title */}
           <div className="flex items-center gap-1">
             <h3
               className={`block w-full min-w-0 text-[17px] font-extrabold leading-tight text-white transition-all duration-300 ${
@@ -591,7 +754,7 @@ function CouponTicket({ deal, onShow }: { deal: Coupon; onShow: () => void }) {
             </p>
           )}
 
-          {/* Usage + progress bar (unaltered alignment) */}
+          {/* Usage + progress bar */}
           <div className="mt-1 mr-24">
             <p className="text-[12px] text-white/60">
               Used: {used} • Left: {left}

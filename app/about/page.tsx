@@ -63,7 +63,7 @@ export default function AboutPage() {
           </div>
 
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
-            About Today’s Stash
+            Today’s Stash
           </h1>
           <p className="mt-3 text-sm sm:text-base text-white/75">
             From the creators of{" "}

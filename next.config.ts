@@ -4,10 +4,21 @@ const nextConfig = {
     // ✅ Don’t fail the Vercel build because of ESLint errors
     ignoreDuringBuilds: true,
   },
+
   typescript: {
     // Optional: uncomment if TypeScript errors ever block your build
-    // (ship now, fix types later)
     // ignoreBuildErrors: true,
+  },
+
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "ufxmucwtywfavsmorkpr.supabase.co",
+        port: "",
+        pathname: "/storage/v1/object/public/**",
+      },
+    ],
   },
 };
 
