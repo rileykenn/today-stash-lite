@@ -222,8 +222,8 @@ export default function ConsumerDealsPage() {
       setErr(null);
 
       const { data, error } = await sb
-  .from('offers')
-  .select(`
+        .from('offers')
+        .select(`
     id,
     merchant_id,
     title,
@@ -239,8 +239,8 @@ export default function ConsumerDealsPage() {
     area_name,
     merchant:merchants(*)
   `)
-  .eq('is_active', true)
-  .order('created_at', { ascending: false });
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
 
       if (!mounted) return;
 
@@ -568,7 +568,7 @@ export default function ConsumerDealsPage() {
                 <ol className="list-decimal list-inside space-y-2 text-[13.5px] leading-relaxed text-white/85">
                   <li>
                     Show this screen to the{' '}
-                    <span className="font-semibold text-white">staff at the counter.</span>
+                    <span className="font-semibold text:white">staff at the counter.</span>
                   </li>
                   <li>
                     Ask them to enter their{' '}
@@ -755,7 +755,7 @@ function CouponTicket({ deal, onShow }: { deal: Coupon; onShow: () => void }) {
           )}
 
           {/* Usage + progress bar */}
-          <div className="mt-1 mr-24">
+          <div className="mt-1 mr-[140px]">
             <p className="text-[12px] text-white/60">
               Used: {used} • Left: {left}
             </p>
