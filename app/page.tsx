@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import LogoBannerDynamic from "@/components/LogoBannerDynamic";
+import HowItWorksSection from "@/components/HowItWorksSection";
 
 /** ---------- Controls ---------- */
 const HERO_LOGO_WIDTH = 220;
@@ -158,48 +159,8 @@ export default function HomePage() {
           />
         </section>
 
-        {/* HOW IT WORKS */}
-        <section className="mt-10 space-y-6">
-          <header className="max-w-3xl">
-            <h2 className="text-xl font-semibold sm:text-2xl">
-              How Today’s Stash works
-            </h2>
-            <p className="mt-2 text-sm text-white/75">
-              We connect people with real, in-store offers from local
-              businesses. Simple for customers, powerful for venues.
-            </p>
-          </header>
-
-          <div className="grid gap-4 md:grid-cols-3">
-            {[
-              {
-                title: "Discover local offers",
-                body: "Browse verified deals in your area – from cafés and restaurants to beauty, fitness, retail and more.",
-              },
-              {
-                title: "Redeem in-store",
-                body: "Show your secure, time-limited QR in-store to redeem. No awkward haggling, no surprises.",
-              },
-              {
-                title: "Win-win for everyone",
-                body: "You save on your bill while local businesses fill quiet times, reward regulars and attract new customers.",
-              },
-            ].map((item) => (
-              <article
-                key={item.title}
-                className="group rounded-2xl border border-white/10 bg-white/5 p-4 text-sm backdrop-blur transition hover:-translate-y-1 hover:border-emerald-400/50 hover:bg-white/10"
-              >
-                <h3 className="text-sm font-semibold text-white">
-                  {item.title}
-                </h3>
-                <p className="mt-2 text-xs leading-relaxed text-white/75">
-                  {item.body}
-                </p>
-                <div className="mt-4 h-0.5 w-10 rounded-full bg-emerald-400/70 transition group-hover:w-16" />
-              </article>
-            ))}
-          </div>
-        </section>
+        {/* HOW IT WORKS (with phones + scroll animations + success stories CTA) */}
+        <HowItWorksSection />
 
         {/* STORY / LEGACY (INTRO + OUR LEGACY) */}
         <section className="mt-14 grid gap-8 md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] md:items-start">
@@ -226,7 +187,7 @@ export default function HomePage() {
             </p>
 
             <div className="mt-5 grid gap-3 text-xs text-white/70 sm:grid-cols-3">
-              <div className="rounded-2xl bg-white/5 p-3">
+              <div className="rounded-2xl bg:white/5 bg-white/5 p-3">
                 <p className="font-semibold text-white">
                   100% coupon based, no tricks.
                 </p>
@@ -244,7 +205,7 @@ export default function HomePage() {
                 </p>
               </div>
               <div className="rounded-2xl bg-white/5 p-3">
-                <p className="font-semibold text-white">
+                <p className="font-semibold text:white text-white">
                   Designed for this decade.
                 </p>
                 <p className="mt-1 text-[11px] text-white/65">
@@ -375,4 +336,3 @@ export default function HomePage() {
     </div>
   );
 }
-

@@ -69,7 +69,7 @@ function Footer() {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className="h-full bg-[#050B10]">
       <head>
         <link
           rel="preload"
@@ -86,14 +86,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           antialiased bg-[#0B1210] text-[#E8FFF3]
         `}
       >
-        <div className="min-h-screen flex flex-col">
-          {/* Responsive header with hamburger + links */}
+        <div className="min-h-screen flex flex-col bg-[#0B1210]">
           <Header />
-
-          {/* Main content */}
           <main className="flex-1">{children}</main>
-
-          {/* Global footer */}
           <Footer />
         </div>
       </body>

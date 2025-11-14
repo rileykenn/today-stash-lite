@@ -5,9 +5,12 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const navLinks = [
-  { href: "/about", label: "What is Today’s Stash?" },
+  // ⬇️ now points to the main landing page (/)
+  { href: "/", label: "What is Today’s Stash?" },
   { href: "/success-stories", label: "Success Stories" },
   { href: "/consumer", label: "View Deals" },
+  // ⬇️ new business CTA
+  { href: "/merchant", label: "For businesses" },
   { href: "/profile", label: "Profile" },
 ];
 
@@ -93,23 +96,29 @@ export default function Header() {
 
         {/* DESKTOP NAV */}
         <nav className="hidden sm:flex items-center justify-center gap-3 pb-2">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`
-                rounded-full px-4 py-1.5 text-[13px] font-medium
-                transition
-                ${
-                  isActive(link.href)
-                    ? "bg-white text-black shadow-sm"
-                    : "text-white/75 hover:text-white hover:bg-white/10"
-                }
-              `}
-            >
-              {link.label}
-            </Link>
-          ))}
+          {navLinks.map((link) => {
+            const active = isActive(link.href);
+            const isBusiness = link.href === "/merchant";
+
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`
+                  rounded-full px-4 py-1.5 text-[13px] font-medium transition
+                  ${
+                    active
+                      ? "bg-white text-black shadow-sm"
+                      : isBusiness
+                      ? "border border-emerald-500/60 text-emerald-300 hover:bg-emerald-500/10 hover:text-emerald-200"
+                      : "text-white/75 hover:text-white hover:bg-white/10"
+                  }
+                `}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
         </nav>
       </div>
 
@@ -123,23 +132,29 @@ export default function Header() {
           "
         >
           <nav className="mx-auto max-w-5xl px-4 py-3 flex flex-col gap-1">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`
-                  w-full rounded-lg px-3 py-2 text-[13px]
-                  transition
-                  ${
-                    isActive(link.href)
-                      ? "bg-white text-black"
-                      : "text-white/85 hover:text-white hover:bg-white/10"
-                  }
-                `}
-              >
-                {link.label}
-              </Link>
-            ))}
+            {navLinks.map((link) => {
+              const active = isActive(link.href);
+              const isBusiness = link.href === "/merchant";
+
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`
+                    w-full rounded-lg px-3 py-2 text-[13px] transition
+                    ${
+                      active
+                        ? "bg-white text-black"
+                        : isBusiness
+                        ? "border border-emerald-500/60 text-emerald-200 bg-transparent hover:bg-emerald-500/10"
+                        : "text-white/85 hover:text-white hover:bg-white/10"
+                    }
+                  `}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
 
             <button
               className="

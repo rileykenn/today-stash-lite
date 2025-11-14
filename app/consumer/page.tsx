@@ -1,10 +1,10 @@
 /* eslint-disable @next/next/no-img-element */
-'use client';
+"use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { sb } from '@/lib/supabaseBrowser';
-import { useRouter } from 'next/navigation';
-import Gold3DBanner from '@/components/Gold3DBanner';
+import React, { useEffect, useMemo, useState } from "react";
+import { sb } from "@/lib/supabaseBrowser";
+import { useRouter } from "next/navigation";
+import Gold3DBanner from "@/components/Gold3DBanner";
 
 /* =======================
    Types
@@ -21,14 +21,14 @@ type Coupon = {
     addressText: string | null;
   } | null;
 
-  usedCount: number;           // from offers.redeemed_count
-  totalLimit: number | null;   // from offers.total_limit (null = unlimited)
+  usedCount: number; // from offers.redeemed_count
+  totalLimit: number | null; // from offers.total_limit (null = unlimited)
 
-  areaKey: string;   // internal key for area/town
+  areaKey: string; // internal key for area/town
   areaLabel: string; // human label for selector
 };
 
-type Step = 'instructions' | 'success';
+type Step = "instructions" | "success";
 
 /* =======================
    Helpers
@@ -36,13 +36,19 @@ type Step = 'instructions' | 'success';
 function isAbsoluteUrl(u: string) {
   return /^https?:\/\//i.test(u);
 }
-function resolvePublicUrl(maybePath: string | null, bucket = 'offer-media'): string | null {
+function resolvePublicUrl(
+  maybePath: string | null,
+  bucket = "offer-media"
+): string | null {
   if (!maybePath) return null;
   const trimmed = String(maybePath).trim();
   if (!trimmed) return null;
   if (isAbsoluteUrl(trimmed)) return trimmed;
-  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/+$/, '');
-  return `${base}/storage/v1/object/public/${bucket}/${trimmed.replace(/^\/+/, '')}`;
+  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/+$/, "");
+  return `${base}/storage/v1/object/public/${bucket}/${trimmed.replace(
+    /^\/+/,
+    ""
+  )}`;
 }
 function firstOrNull<T>(val: T | T[] | null | undefined): T | null {
   if (!val) return null as any;
@@ -50,7 +56,7 @@ function firstOrNull<T>(val: T | T[] | null | undefined): T | null {
 }
 function getMerchantName(m: unknown): string {
   const mm = m as Record<string, unknown>;
-  return (mm?.name ?? mm?.display_name ?? mm?.title ?? '') as string;
+  return (mm?.name ?? mm?.display_name ?? mm?.title ?? "") as string;
 }
 function getMerchantLogo(m: unknown): string | null {
   const mm = m as Record<string, unknown>;
@@ -66,7 +72,9 @@ function getMerchantLogo(m: unknown): string | null {
 }
 function getMerchantAddress(m: unknown): string | null {
   const mm = m as Record<string, unknown>;
-  return (mm?.address_text ?? mm?.address ?? mm?.location ?? null) as string | null;
+  return (mm?.address_text ?? mm?.address ?? mm?.location ?? null) as
+    | string
+    | null;
 }
 function fmtMoney(v: number) {
   const n = Number.isFinite(v) ? v : 0;
@@ -89,40 +97,44 @@ export default function ConsumerDealsPage() {
   const router = useRouter();
 
   /** Returns 'pro' | 'free' | 'unknown' by checking profiles.plan/role and auth metadata. */
-  async function getUserRole(): Promise<'pro' | 'free' | 'unknown'> {
+  async function getUserRole(): Promise<"pro" | "free" | "unknown"> {
     const {
       data: { session },
     } = await sb.auth.getSession();
-    if (!session) return 'unknown';
+    if (!session) return "unknown";
 
     const { data: prof, error } = await sb
-      .from('profiles')
-      .select('plan, role')
-      .eq('user_id', session.user.id)
+      .from("profiles")
+      .select("plan, role")
+      .eq("user_id", session.user.id)
       .maybeSingle();
 
     if (!error && prof) {
-      const plan = String(prof.plan ?? '').toLowerCase().trim();
-      const role = String(prof.role ?? '').toLowerCase().trim();
-      if (plan === 'pro' || role === 'pro') return 'pro';
-      if (plan === 'free' || role === 'free') return 'free';
+      const plan = String(prof.plan ?? "").toLowerCase().trim();
+      const role = String(prof.role ?? "").toLowerCase().trim();
+      if (plan === "pro" || role === "pro") return "pro";
+      if (plan === "free" || role === "free") return "free";
     }
 
     const metaRole = String(
-      (session.user.user_metadata?.role ?? session.user.app_metadata?.role ?? '') as string
+      (session.user.user_metadata?.role ??
+        session.user.app_metadata?.role ??
+        "") as string
     )
       .toLowerCase()
       .trim();
     const metaPlan = String(
-      (session.user.user_metadata?.plan ?? session.user.app_metadata?.plan ?? '') as string
+      (session.user.user_metadata?.plan ??
+        session.user.app_metadata?.plan ??
+        "") as string
     )
       .toLowerCase()
       .trim();
 
-    if (metaPlan === 'pro' || metaRole === 'pro') return 'pro';
-    if (metaPlan === 'free' || metaRole === 'free') return 'free';
+    if (metaPlan === "pro" || metaRole === "pro") return "pro";
+    if (metaPlan === "free" || metaRole === "free") return "free";
 
-    return 'unknown';
+    return "unknown";
   }
 
   /** Unified gate: anon -> /signup, free/unknown -> /upgrade, pro -> open modal */
@@ -131,13 +143,17 @@ export default function ConsumerDealsPage() {
       data: { session },
     } = await sb.auth.getSession();
     if (!session) {
-      router.push(`/signup?next=${encodeURIComponent('/consumer')}`);
+      router.push(`/signup?next=${encodeURIComponent("/consumer")}`);
       return;
     }
 
     const role = await getUserRole();
-    if (role !== 'pro') {
-      router.push(`/upgrade?reason=unlock-redemptions&next=${encodeURIComponent('/consumer')}`);
+    if (role !== "pro") {
+      router.push(
+        `/upgrade?reason=unlock-redemptions&next=${encodeURIComponent(
+          "/consumer"
+        )}`
+      );
       return;
     }
 
@@ -146,17 +162,17 @@ export default function ConsumerDealsPage() {
 
   // Modal state (for PIN redemption with staff)
   const [modalOpen, setModalOpen] = useState(false);
-  const [step, setStep] = useState<Step>('instructions');
+  const [step, setStep] = useState<Step>("instructions");
   const [activeDeal, setActiveDeal] = useState<Coupon | null>(null);
 
   // PIN flow state
-  const [pinInput, setPinInput] = useState('');
+  const [pinInput, setPinInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Area/town gate state
   const [selectedArea, setSelectedArea] = useState<string | null>(null);
-  const [accessCode, setAccessCode] = useState('');
+  const [accessCode, setAccessCode] = useState("");
   const [areaUnlocked, setAreaUnlocked] = useState(false);
   const [unlockError, setUnlockError] = useState<string | null>(null);
   const [unlockLoading, setUnlockLoading] = useState(false);
@@ -164,53 +180,55 @@ export default function ConsumerDealsPage() {
   // Open/close modal
   const openModal = (deal: Coupon) => {
     setActiveDeal(deal);
-    setStep('instructions');
-    setPinInput('');
+    setStep("instructions");
+    setPinInput("");
     setSubmitError(null);
     setSubmitting(false);
     setModalOpen(true);
-    document.documentElement.style.overflow = 'hidden';
+    document.documentElement.style.overflow = "hidden";
   };
   const closeModal = () => {
     setModalOpen(false);
     setActiveDeal(null);
-    setPinInput('');
+    setPinInput("");
     setSubmitError(null);
     setSubmitting(false);
-    document.documentElement.style.overflow = '';
+    document.documentElement.style.overflow = "";
   };
 
   // Submit merchant PIN -> redeem
   async function handleRedeemWithPin() {
     if (!activeDeal) return;
     if (!pinInput || pinInput.trim().length < 4) {
-      setSubmitError('Ask the staff to enter their full 4-digit PIN.');
+      setSubmitError("Ask the staff to enter their full 4-digit PIN.");
       return;
     }
 
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const { error, data } = await sb.rpc('redeem_offer_with_pin', {
+      const { error, data } = await sb.rpc("redeem_offer_with_pin", {
         p_offer_id: activeDeal.id,
         p_pin: pinInput.trim(),
       });
 
       if (error) {
-        console.error('redeem_offer_with_pin failed', error);
-        setSubmitError('PIN incorrect or redemption not allowed. Please confirm with staff.');
+        console.error("redeem_offer_with_pin failed", error);
+        setSubmitError(
+          "PIN incorrect or redemption not allowed. Please confirm with staff."
+        );
         setSubmitting(false);
         return;
       }
 
       // Optionally inspect `data` if your function returns something
-      setStep('success');
+      setStep("success");
     } catch (e) {
       console.error(e);
-      setSubmitError('Something went wrong. Please try again.');
+      setSubmitError("Something went wrong. Please try again.");
       setSubmitting(false);
     } finally {
-      if (step !== 'success') setSubmitting(false);
+      if (step !== "success") setSubmitting(false);
     }
   }
 
@@ -222,8 +240,9 @@ export default function ConsumerDealsPage() {
       setErr(null);
 
       const { data, error } = await sb
-        .from('offers')
-        .select(`
+        .from("offers")
+        .select(
+          `
     id,
     merchant_id,
     title,
@@ -238,9 +257,10 @@ export default function ConsumerDealsPage() {
     area_key,
     area_name,
     merchant:merchants(*)
-  `)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
+  `
+        )
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
 
       if (!mounted) return;
 
@@ -254,33 +274,34 @@ export default function ConsumerDealsPage() {
       const mapped: Coupon[] = (data ?? []).map((r: any) => {
         const img = resolvePublicUrl(
           r?.image_url ?? null,
-          process.env.NEXT_PUBLIC_OFFER_BUCKET || 'offer-media'
+          process.env.NEXT_PUBLIC_OFFER_BUCKET || "offer-media"
         );
         const mRaw = firstOrNull<any>(r?.merchant);
         const logoPath = getMerchantLogo(mRaw);
         const logoUrl = resolvePublicUrl(
           logoPath,
-          process.env.NEXT_PUBLIC_MERCHANT_BUCKET || 'merchant-media'
+          process.env.NEXT_PUBLIC_MERCHANT_BUCKET || "merchant-media"
         );
         const dollars =
-          typeof r?.savings_cents === 'number' && Number.isFinite(r.savings_cents)
+          typeof r?.savings_cents === "number" &&
+          Number.isFinite(r.savings_cents)
             ? Math.max(0, Math.round(r.savings_cents) / 100)
             : 0;
 
         const areaKey: string = String(
-          r?.area_key ?? r?.area_slug ?? r?.area ?? r?.area_name ?? 'default'
+          r?.area_key ?? r?.area_slug ?? r?.area ?? r?.area_name ?? "default"
         )
           .toLowerCase()
           .trim();
 
         const areaLabel: string = String(
-          r?.area_name ?? r?.area_label ?? r?.area ?? 'Local deals'
+          r?.area_name ?? r?.area_label ?? r?.area ?? "Local deals"
         );
 
         return {
           id: String(r.id),
-          title: String(r.title ?? ''),
-          terms: String(r.terms ?? r.description ?? ''),
+          title: String(r.title ?? ""),
+          terms: String(r.terms ?? r.description ?? ""),
           totalValue: dollars,
           imageUrl: img,
           merchant: mRaw
@@ -290,7 +311,9 @@ export default function ConsumerDealsPage() {
                 addressText: getMerchantAddress(mRaw),
               }
             : null,
-          usedCount: Number.isFinite(r?.redeemed_count) ? Number(r.redeemed_count) : 0,
+          usedCount: Number.isFinite(r?.redeemed_count)
+            ? Number(r.redeemed_count)
+            : 0,
           totalLimit:
             r?.total_limit === null || r?.total_limit === undefined
               ? null
@@ -306,7 +329,7 @@ export default function ConsumerDealsPage() {
 
     return () => {
       mounted = false;
-      document.documentElement.style.overflow = '';
+      document.documentElement.style.overflow = "";
     };
   }, []);
 
@@ -331,7 +354,7 @@ export default function ConsumerDealsPage() {
   // Reset area unlock when switching area
   useEffect(() => {
     setAreaUnlocked(false);
-    setAccessCode('');
+    setAccessCode("");
     setUnlockError(null);
   }, [selectedArea]);
 
@@ -345,30 +368,30 @@ export default function ConsumerDealsPage() {
   async function handleUnlockArea(e?: React.FormEvent) {
     if (e) e.preventDefault();
     if (!selectedArea) {
-      setUnlockError('Please select a town/area first.');
+      setUnlockError("Please select a town/area first.");
       return;
     }
     if (!accessCode || accessCode.trim().length < 4) {
-      setUnlockError('Enter your 4-digit access code.');
+      setUnlockError("Enter your 4-digit access code.");
       return;
     }
 
     setUnlockLoading(true);
     setUnlockError(null);
     try {
-      const { data, error } = await sb.rpc('verify_area_access_code', {
+      const { data, error } = await sb.rpc("verify_area_access_code", {
         p_area_key: selectedArea,
         p_code: accessCode.trim(),
       });
 
       if (error) {
-        console.error('verify_area_access_code failed', error);
-        setUnlockError('Invalid code. Please double-check and try again.');
+        console.error("verify_area_access_code failed", error);
+        setUnlockError("Invalid code. Please double-check and try again.");
         setAreaUnlocked(false);
       } else {
         const ok = data === true || data?.ok === true;
         if (!ok) {
-          setUnlockError('Invalid code. Please double-check and try again.');
+          setUnlockError("Invalid code. Please double-check and try again.");
           setAreaUnlocked(false);
         } else {
           setAreaUnlocked(true);
@@ -376,7 +399,7 @@ export default function ConsumerDealsPage() {
       }
     } catch (e) {
       console.error(e);
-      setUnlockError('Something went wrong. Please try again.');
+      setUnlockError("Something went wrong. Please try again.");
       setAreaUnlocked(false);
     } finally {
       setUnlockLoading(false);
@@ -408,7 +431,7 @@ export default function ConsumerDealsPage() {
               </label>
               <select
                 className="w-full h-11 rounded-xl bg-white/5 px-3 text-sm text-white outline-none ring-1 ring-white/15 focus:ring-2 focus:ring-emerald-400/70"
-                value={selectedArea ?? ''}
+                value={selectedArea ?? ""}
                 onChange={(e) => setSelectedArea(e.target.value || null)}
               >
                 {areaOptions.map((opt) => (
@@ -429,11 +452,7 @@ export default function ConsumerDealsPage() {
                 maxLength={6}
                 value={accessCode}
                 onChange={(e) =>
-                  setAccessCode(
-                    e.target.value
-                      .replace(/[^\d]/g, '')
-                      .slice(0, 6)
-                  )
+                  setAccessCode(e.target.value.replace(/[^\d]/g, "").slice(0, 6))
                 }
                 className="w-full h-11 rounded-xl bg-white/5 px-3 text-base tracking-[0.25em] text-center font-semibold outline-none ring-1 ring-white/15 placeholder:text-white/30 focus:ring-2 focus:ring-emerald-400/70"
                 placeholder="••••"
@@ -447,9 +466,16 @@ export default function ConsumerDealsPage() {
             <button
               type="submit"
               disabled={unlockLoading}
-              className="h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed text-sm font-semibold"
+              className="
+                h-11 rounded-xl
+                bg-emerald-500 hover:bg-emerald-400
+                disabled:opacity-60 disabled:cursor-not-allowed
+                px-4
+                text-sm font-semibold text-white
+                whitespace-nowrap
+              "
             >
-              {unlockLoading ? 'Checking code…' : 'Unlock deals for this town'}
+              {unlockLoading ? "Checking code…" : "Unlock deals for this town"}
             </button>
           </div>
         </form>
@@ -457,7 +483,8 @@ export default function ConsumerDealsPage() {
         {/* Deals grid */}
         {!areaUnlocked ? (
           <p className="text-gray-300/80 text-sm">
-            Enter your access code above to view the available deals in this town.
+            Enter your access code above to view the available deals in this
+            town.
           </p>
         ) : visibleDeals.length === 0 ? (
           <p className="text-gray-300/80 text-sm">
@@ -539,16 +566,16 @@ export default function ConsumerDealsPage() {
               {activeDeal?.merchant?.logoUrl && (
                 <img
                   src={activeDeal.merchant.logoUrl}
-                  alt={activeDeal.merchant.name || 'Merchant'}
+                  alt={activeDeal.merchant.name || "Merchant"}
                   className="h-10 w-10 rounded-md object-cover"
                 />
               )}
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] text-white/60 truncate">
-                  {activeDeal?.merchant?.name ?? 'Merchant'}
+                  {activeDeal?.merchant?.name ?? "Merchant"}
                 </p>
                 <h3 className="text-base font-semibold leading-tight truncate">
-                  {activeDeal?.title ?? 'Deal'}
+                  {activeDeal?.title ?? "Deal"}
                 </h3>
               </div>
               <button
@@ -561,28 +588,36 @@ export default function ConsumerDealsPage() {
             </div>
 
             {/* Body */}
-            {step === 'instructions' ? (
+            {step === "instructions" ? (
               <div className="pt-4 space-y-4">
                 <h4 className="text-lg font-semibold">Redeem this deal in-store</h4>
 
                 <ol className="list-decimal list-inside space-y-2 text-[13.5px] leading-relaxed text-white/85">
                   <li>
-                    Show this screen to the{' '}
-                    <span className="font-semibold text:white">staff at the counter.</span>
+                    Show this screen to the{" "}
+                    <span className="font-semibold text:white">
+                      staff at the counter.
+                    </span>
                   </li>
                   <li>
-                    Ask them to enter their{' '}
-                    <span className="font-semibold text-white">4-digit Today&apos;s Stash PIN</span> on
-                    your phone.
+                    Ask them to enter their{" "}
+                    <span className="font-semibold text-white">
+                      4-digit Today&apos;s Stash PIN
+                    </span>{" "}
+                    on your phone.
                   </li>
                   <li>
-                    Once the PIN is entered, this deal will be{' '}
-                    <span className="font-semibold text-white">marked as redeemed</span> for you.
+                    Once the PIN is entered, this deal will be{" "}
+                    <span className="font-semibold text-white">
+                      marked as redeemed
+                    </span>{" "}
+                    for you.
                   </li>
                 </ol>
 
                 <div className="rounded-lg bg-[#12202B] text-xs text-white/70 p-3 ring-1 ring-white/10">
-                  Only staff should enter the PIN. Redemptions may be final and limited per member.
+                  Only staff should enter the PIN. Redemptions may be final and
+                  limited per member.
                 </div>
 
                 <div className="space-y-3 pt-2">
@@ -594,9 +629,7 @@ export default function ConsumerDealsPage() {
                       value={pinInput}
                       onChange={(e) =>
                         setPinInput(
-                          e.target.value
-                            .replace(/[^\d]/g, '')
-                            .slice(0, 6)
+                          e.target.value.replace(/[^\d]/g, "").slice(0, 6)
                         )
                       }
                       className="
@@ -619,12 +652,15 @@ export default function ConsumerDealsPage() {
                       onClick={handleRedeemWithPin}
                       disabled={submitting}
                       className="
-                        h-12 rounded-xl bg-emerald-500 hover:bg-emerald-400
+                        h-12 rounded-xl
+                        bg-emerald-500 hover:bg-emerald-400
                         disabled:opacity-60 disabled:cursor-not-allowed
-                        font-semibold
+                        px-4
+                        font-semibold text-white
+                        whitespace-nowrap
                       "
                     >
-                      {submitting ? 'Redeeming…' : "Staff entered PIN – confirm"}
+                      {submitting ? "Redeeming…" : "Staff entered PIN – confirm"}
                     </button>
                     <button
                       onClick={closeModal}
@@ -640,11 +676,14 @@ export default function ConsumerDealsPage() {
                 <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10 ring-1 ring-emerald-400/40">
                   <span className="text-2xl">✅</span>
                 </div>
-                <h4 className="text-lg font-semibold">Deal redeemed successfully</h4>
+                <h4 className="text-lg font-semibold">
+                  Deal redeemed successfully
+                </h4>
                 <p className="text-sm text-white/75">
-                  This deal has been marked as redeemed on your account. Enjoy your offer at{' '}
+                  This deal has been marked as redeemed on your account. Enjoy
+                  your offer at{" "}
                   <span className="font-semibold">
-                    {activeDeal?.merchant?.name ?? 'the business'}
+                    {activeDeal?.merchant?.name ?? "the business"}
                   </span>
                   .
                 </p>
@@ -673,8 +712,7 @@ function CouponTicket({ deal, onShow }: { deal: Coupon; onShow: () => void }) {
   // Live numbers
   const rawTotalLimit =
     (deal as any).totalLimit ?? (deal as any).total_limit ?? null;
-  const rawUsedCount =
-    (deal as any).usedCount ?? (deal as any).redeemed_count ?? 0;
+  const rawUsedCount = (deal as any).usedCount ?? (deal as any).redeemed_count ?? 0;
 
   const used = Math.max(0, Number(rawUsedCount) || 0);
   const total =
@@ -722,7 +760,7 @@ function CouponTicket({ deal, onShow }: { deal: Coupon; onShow: () => void }) {
           <div className="flex items-center gap-1">
             <h3
               className={`block w-full min-w-0 text-[17px] font-extrabold leading-tight text-white transition-all duration-300 ${
-                expanded ? 'whitespace-normal' : 'truncate'
+                expanded ? "whitespace-normal" : "truncate"
               }`}
             >
               {title}
@@ -736,7 +774,9 @@ function CouponTicket({ deal, onShow }: { deal: Coupon; onShow: () => void }) {
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  className={`w-3 h-3 ${expanded ? 'rotate-180' : 'rotate-0'} transition-transform duration-300`}
+                  className={`w-3 h-3 ${
+                    expanded ? "rotate-180" : "rotate-0"
+                  } transition-transform duration-300`}
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -765,7 +805,7 @@ function CouponTicket({ deal, onShow }: { deal: Coupon; onShow: () => void }) {
                 style={{
                   width: `${usedPct}%`,
                   backgroundImage:
-                    'linear-gradient(to right, #10B981 0%, #84CC16 35%, #F59E0B 60%, #FB923C 80%, #EF4444 100%)',
+                    "linear-gradient(to right, #10B981 0%, #84CC16 35%, #F59E0B 60%, #FB923C 80%, #EF4444 100%)",
                 }}
               />
             </div>
