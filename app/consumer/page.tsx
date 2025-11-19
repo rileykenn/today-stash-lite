@@ -1,10 +1,16 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  useRef,
+} from "react";
 import { sb } from "@/lib/supabaseBrowser";
 import { useRouter } from "next/navigation";
 import Gold3DBanner from "@/components/Gold3DBanner";
+import jsQR from "jsqr";
 
 /* =======================
    Types
@@ -131,6 +137,7 @@ export default function ConsumerDealsPage() {
 
   // Flyer code (4-digit code printed under the QR)
   const [flyerCode, setFlyerCode] = useState("");
+  const [lastScanned, setLastScanned] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -364,6 +371,7 @@ export default function ConsumerDealsPage() {
     setActiveDeal(deal);
     setStep("instructions");
     setFlyerCode("");
+    setLastScanned(null);
     setSubmitError(null);
     setSubmitting(false);
     setModalOpen(true);
@@ -374,6 +382,7 @@ export default function ConsumerDealsPage() {
     setModalOpen(false);
     setActiveDeal(null);
     setFlyerCode("");
+    setLastScanned(null);
     setSubmitError(null);
     setSubmitting(false);
     document.documentElement.style.overflow = "";
@@ -412,6 +421,16 @@ export default function ConsumerDealsPage() {
     } finally {
       if (step !== "success") setSubmitting(false);
     }
+  }
+
+  // When QR is scanned we auto-fill the code box.
+  function handleQrDetected(value: string) {
+    if (step !== "instructions") return;
+    const digits = value.replace(/[^\d]/g, "").slice(0, 6);
+    if (!digits) return;
+    setFlyerCode(digits);
+    setLastScanned(digits);
+    setSubmitError(null);
   }
 
   /**
@@ -500,7 +519,7 @@ export default function ConsumerDealsPage() {
                     e.target.value.replace(/[^\d]/g, "").slice(0, 6)
                   )
                 }
-                className="w-full h-11 rounded-xl bg-white/5 px-3 text-base tracking-[0.25em] text-center font-semibold outline-none ring-1 ring-white/15 placeholder:text-white/30 focus:ring-2 focus:ring-emerald-400/70"
+                className="w-full h-11 rounded-xl bg:white/5 bg-white/5 px-3 text-base tracking-[0.25em] text-center font-semibold outline-none ring-1 ring-white/15 placeholder:text-white/30 focus:ring-2 focus:ring-emerald-400/70"
                 placeholder="0000"
               />
             </div>
@@ -537,7 +556,8 @@ export default function ConsumerDealsPage() {
         {/* Deals grid */}
         {!areaUnlocked ? (
           <p className="text-gray-300/80 text-sm">
-            Enter your access code above to view the available deals in this town.
+            Enter your access code above to view the available deals in this
+            town.
           </p>
         ) : visibleDeals.length === 0 ? (
           <p className="text-gray-300/80 text-sm">
@@ -661,34 +681,17 @@ export default function ConsumerDealsPage() {
                   marks this deal as used on your account.
                 </p>
 
-                {/* QR Scanner visual */}
-                <div className="rounded-3xl bg-gradient-to-br from-emerald-500/40 via-emerald-400/15 to-sky-500/30 p-[1px] shadow-[0_0_40px_rgba(16,185,129,0.3)]">
-                  <div className="rounded-3xl bg-[#020611] px-6 py-7 flex flex-col items-center gap-4 relative overflow-hidden">
-                    {/* Corner brackets */}
-                    <div className="absolute inset-4 pointer-events-none">
-                      <div className="absolute left-0 top-0 h-6 w-6 border-l-2 border-t-2 border-emerald-400/80 rounded-tl-xl" />
-                      <div className="absolute right-0 top-0 h-6 w-6 border-r-2 border-t-2 border-emerald-400/80 rounded-tr-xl" />
-                      <div className="absolute left-0 bottom-0 h-6 w-6 border-l-2 border-b-2 border-emerald-400/80 rounded-bl-xl" />
-                      <div className="absolute right-0 bottom-0 h-6 w-6 border-r-2 border-b-2 border-emerald-400/80 rounded-br-xl" />
-                    </div>
+                {/* QR Scanner */}
+                <QRScanner onDetected={handleQrDetected} />
 
-                    {/* Camera icon */}
-                    <div className="relative z-10 flex flex-col items-center gap-2">
-                      <div className="h-14 w-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center ring-1 ring-emerald-300/40">
-                        <span className="text-3xl">📷</span>
-                      </div>
-                      <p className="text-sm text-white/85 font-medium">
-                        Point your camera at the QR code
-                      </p>
-                      <p className="text-xs text-white/60">
-                        Hold steady for a second while we verify the store.
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                {lastScanned && (
+                  <p className="text-[11px] text-emerald-300 text-center pt-1">
+                    QR detected · code filled automatically ({lastScanned})
+                  </p>
+                )}
 
                 {/* Divider */}
-                <div className="flex items-center gap-3 pt-1">
+                <div className="flex items-center gap-3 pt-2">
                   <div className="h-px flex-1 bg-white/10" />
                   <span className="text-[11px] uppercase tracking-[0.18em] text-white/45">
                     or
@@ -907,6 +910,132 @@ function CouponTicket({ deal, onShow }: { deal: Coupon; onShow: () => void }) {
         </div>
       </div>
     </article>
+  );
+}
+
+/* =======================
+   QR Scanner Component
+   ======================= */
+
+function QRScanner({ onDetected }: { onDetected: (value: string) => void }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
+  const [active, setActive] = useState(false);
+
+  useEffect(() => {
+    let animationId: number;
+    let stream: MediaStream | null = null;
+    let stopped = false;
+
+    async function start() {
+      try {
+        const media = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+        });
+        stream = media;
+        if (videoRef.current) {
+          videoRef.current.srcObject = media;
+          await videoRef.current.play();
+          setActive(true);
+          tick();
+        }
+      } catch (e) {
+        console.error(e);
+        setPermissionError("Camera access blocked. Enter the code instead.");
+      }
+    }
+
+    function tick() {
+      if (stopped) return;
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (!video || !canvas) {
+        animationId = requestAnimationFrame(tick);
+        return;
+      }
+
+      const w = video.videoWidth;
+      const h = video.videoHeight;
+      if (!w || !h) {
+        animationId = requestAnimationFrame(tick);
+        return;
+      }
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        animationId = requestAnimationFrame(tick);
+        return;
+      }
+
+      const size = Math.min(w, h);
+      const sx = (w - size) / 2;
+      const sy = (h - size) / 2;
+
+      canvas.width = size;
+      canvas.height = size;
+      ctx.drawImage(video, sx, sy, size, size, 0, 0, size, size);
+
+      const imageData = ctx.getImageData(0, 0, size, size);
+      const qr = jsQR(imageData.data, size, size);
+      if (qr && qr.data) {
+        onDetected(qr.data);
+        // small pause to avoid spamming
+        stopped = true;
+        setTimeout(() => {
+          stopped = false;
+          animationId = requestAnimationFrame(tick);
+        }, 1500);
+      } else {
+        animationId = requestAnimationFrame(tick);
+      }
+    }
+
+    if (typeof navigator !== "undefined" && navigator.mediaDevices) {
+      start();
+    } else {
+      setPermissionError("Camera not available in this browser.");
+    }
+
+    return () => {
+      stopped = true;
+      cancelAnimationFrame(animationId);
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, [onDetected]);
+
+  return (
+    <div className="w-full flex flex-col items-center gap-2">
+      <div className="relative w-64 h-64 max-w-full rounded-3xl overflow-hidden bg-black/60 ring-2 ring-emerald-400/60 shadow-[0_0_30px_rgba(16,185,129,0.3)]">
+        <video
+          ref={videoRef}
+          className="w-full h-full object-cover"
+          muted
+          playsInline
+        />
+        <canvas ref={canvasRef} className="absolute inset-0 opacity-0" />
+
+        {/* Overlay corners */}
+        <div className="absolute inset-3 pointer-events-none">
+          <div className="absolute left-0 top-0 h-6 w-6 border-l-2 border-t-2 border-emerald-400 rounded-tl-xl" />
+          <div className="absolute right-0 top-0 h-6 w-6 border-r-2 border-t-2 border-emerald-400 rounded-tr-xl" />
+          <div className="absolute left-0 bottom-0 h-6 w-6 border-l-2 border-b-2 border-emerald-400 rounded-bl-xl" />
+          <div className="absolute right-0 bottom-0 h-6 w-6 border-r-2 border-b-2 border-emerald-400 rounded-br-xl" />
+        </div>
+      </div>
+
+      {permissionError ? (
+        <p className="text-[11px] text-red-300 text-center">{permissionError}</p>
+      ) : (
+        <p className="text-[11px] text-white/60 text-center">
+          {active
+            ? "Align the QR code inside the square."
+            : "Starting camera…"}
+        </p>
+      )}
+    </div>
   );
 }
 
