@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import QRCode from "react-qr-code";
 import { sb } from "@/lib/supabaseBrowser";
@@ -240,10 +240,10 @@ function HalfPosterLayout({
 }
 
 /* =======================
-   Page
+   Inner Page with hooks
    ======================= */
 
-export default function MerchantQRPosterPage() {
+function MerchantQRPosterInner() {
   const searchParams = useSearchParams();
   const merchantId = searchParams.get("merchantId");
 
@@ -467,5 +467,23 @@ export default function MerchantQRPosterPage() {
         </div>
       </main>
     </>
+  );
+}
+
+/* =======================
+   Suspense-wrapped page
+   ======================= */
+
+export default function MerchantQRPosterPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-[#05070A] text-white flex items-center justify-center">
+          <p className="text-sm text-white/70">Loading QR poster…</p>
+        </main>
+      }
+    >
+      <MerchantQRPosterInner />
+    </Suspense>
   );
 }
