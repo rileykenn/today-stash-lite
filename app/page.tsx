@@ -32,7 +32,7 @@ export default function SussexInletBetaPage() {
 
       <section className="relative mx-auto max-w-5xl px-4 pt-12 pb-16 sm:pt-16 sm:pb-20">
         {/* Hero badge + Sussex button */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
+        <div className="flex flex-col gap-3 mb-8 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-3">
             <div className="inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-[11px] font-medium text-white/80 ring-1 ring-white/10">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
@@ -52,7 +52,7 @@ export default function SussexInletBetaPage() {
             </button>
           </div>
 
-          <p className="text-[11px] sm:text-xs text-white/55 max-w-xs text-right">
+          <p className="text-[11px] sm:text-xs text-white/55 sm:max-w-xs sm:text-right">
             Beta access is{" "}
             <span className="font-semibold text-emerald-300">free</span> for
             Sussex Inlet until we hit our internal cap.
@@ -83,21 +83,24 @@ export default function SussexInletBetaPage() {
         </div>
 
         {/* Hero CTAs */}
-        <div className="mt-8 flex flex-wrap gap-3" id="join">
-          <button
-            type="button"
-            onClick={handleConsumerClick}
-            className="inline-flex items-center justify-center rounded-full bg-emerald-500 hover:bg-emerald-400 px-6 py-3 text-sm font-semibold text-white shadow-[0_0_22px_rgba(16,185,129,0.7)] transition-transform active:scale-[0.97]"
-          >
-            Join as a consumer – FREE
-          </button>
-          <a
-            href="/merchant?area=sussex-inlet"
-            className="inline-flex items-center justify-center rounded-full border border-white/25 bg-white/5 px-6 py-3 text-sm font-semibold text-white hover:bg-white/10 transition"
-          >
-            Register your business – FREE
-          </a>
-          <p className="w-full text-xs text-white/55 sm:ml-1 sm:w-auto">
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center" id="join">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <button
+              type="button"
+              onClick={handleConsumerClick}
+              className="inline-flex items-center justify-center rounded-full bg-emerald-500 hover:bg-emerald-400 px-6 py-3 text-sm font-semibold text-white shadow-[0_0_22px_rgba(16,185,129,0.7)] transition-transform active:scale-[0.97]"
+            >
+              Join as a consumer – FREE
+            </button>
+            <a
+              href="/merchant?area=sussex-inlet"
+              className="inline-flex items-center justify-center rounded-full border border-white/25 bg-white/5 px-6 py-3 text-sm font-semibold text-white hover:bg-white/10 transition"
+            >
+              Register your business – FREE
+            </a>
+          </div>
+
+          <p className="text-xs text-white/55 sm:ml-1">
             Limited beta spots. Once we reach capacity, free access closes.
           </p>
         </div>
@@ -221,11 +224,11 @@ export default function SussexInletBetaPage() {
         </div>
 
         {/* Bottom CTAs repeated */}
-        <div className="mt-12 border-t border-white/10 pt-8 flex flex-wrap items-center gap-3">
+        <div className="mt-12 border-t border-white/10 pt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
           <span className="text-xs text-white/60">
             Ready to be part of the founding Sussex Inlet community?
           </span>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <button
               type="button"
               onClick={handleConsumerClick}
