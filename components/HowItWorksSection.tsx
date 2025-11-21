@@ -35,7 +35,8 @@ export default function HowItWorksSection() {
             How Today’s Stash works
           </h2>
           <p className="mt-2 max-w-2xl text-sm text-white/75">
-            We connect people with real, in-store offers from local businesses.
+            We connect people with real, in-store offers from local businesses,
+            redeemed with a simple scan of the merchant’s counter QR code.
             Simple for customers, powerful for venues.
           </p>
         </div>
@@ -118,21 +119,20 @@ export default function HowItWorksSection() {
               02 • Redeem in-store
             </p>
             <h3 className="text-lg font-semibold">
-              Show your secure QR code at the counter.
+              Scan the business’s QR code at the counter.
             </h3>
             <p className="text-sm leading-relaxed text-white/80">
-              Once you’re ready to use an offer, tap to generate a{" "}
-              <span className="font-semibold">time-limited QR code</span>. Show
-              it to the friendly staff when you pay and they’ll redeem it on the
-              spot – no awkward haggling, no paper vouchers, no guessing.
+              When you’re ready to use an offer, tap{" "}
+              <span className="font-semibold">“Redeem in Store”</span> and scan
+              the merchant’s Today’s Stash QR code on their counter. Your phone
+              confirms the offer and store and logs the redemption instantly –
+              no staff touching your phone, no codes to type.
             </p>
             <ul className="mt-3 space-y-1.5 text-sm text-white/80">
-              <li>
-                • Each QR code is unique, secure and expires after a short
-                window.
-              </li>
-              <li>• Built for the way venues actually operate in-store.</li>
-              <li>• Works from your phone’s browser – no app download needed.</li>
+              <li>• One QR code per business – it works for all of their deals.</li>
+              <li>• Redemption completes automatically on your phone.</li>
+              <li>• Every redemption is tracked for the merchant in real time.</li>
+              <li>• Works from your browser – no app download needed.</li>
             </ul>
           </motion.div>
 
@@ -166,7 +166,7 @@ export default function HowItWorksSection() {
           viewport={{ once: true, amount: 0.4 }}
           transition={{ duration: 0.6, ease: "easeOut", delay: 0.05 }}
           variants={fadeUp}
-          className="rounded-3xl border border-white/10 bg-white/5 px-5 py-6 text-center text-sm leading-relaxed text-white/80 backdrop-blur sm:px-8 sm:py-7"
+          className="rounded-3xl border border-white/10 bg:white/5 bg-white/5 px-5 py-6 text-center text-sm leading-relaxed text-white/80 backdrop-blur sm:px-8 sm:py-7"
         >
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">
             03 • A genuine win-win
@@ -176,9 +176,10 @@ export default function HowItWorksSection() {
           </h3>
           <p className="mt-3 mx-auto max-w-2xl">
             Today’s Stash is designed so everyone wins. You get real savings at
-            the places you want to support, while venues use smart offers to
-            fill quiet times, reward regulars and reach new customers — without
-            slashing their brand or margins.
+            the places you want to support, while venues use smart offers
+            powered by a simple counter QR code to fill quiet times, reward
+            regulars and reach new customers — without slashing their brand or
+            margins.
           </p>
         </motion.article>
       </div>

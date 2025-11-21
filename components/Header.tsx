@@ -1,29 +1,85 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { sb } from "@/lib/supabaseBrowser";
+import AdminLink from "./AdminLink"; // adjust path if needed
 
 const navLinks = [
-  // ⬇️ now points to the main landing page (/)
-  { href: "/", label: "What is Today’s Stash?" },
+  { href: "/", label: "Sussex Inlet" },
+  { href: "/about", label: "What is Today’s Stash?" },
+  { href: "/merchant", label: "For businesses" },
   { href: "/success-stories", label: "Success Stories" },
   { href: "/consumer", label: "View Deals" },
-  // ⬇️ new business CTA
-  { href: "/merchant", label: "For businesses" },
-  { href: "/profile", label: "Profile" },
+  { href: "/merchant-dashboard", label: "Merchant Dashboard" },
 ];
 
 export default function Header() {
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
+  const router = useRouter();
 
+  const [open, setOpen] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [signedIn, setSignedIn] = useState(false);
+
+  // Close mobile nav on route change
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
 
+  // Supabase auth state
+  useEffect(() => {
+    const supabase = sb;
+    let mounted = true;
+
+    async function loadUser() {
+      try {
+        const { data } = await supabase.auth.getUser();
+        if (!mounted) return;
+        setSignedIn(!!data.user);
+      } catch {
+        if (!mounted) return;
+        setSignedIn(false);
+      } finally {
+        if (mounted) setIsAuthLoading(false);
+      }
+    }
+
+    loadUser();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSignedIn(!!session?.user);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
   const isActive = (href: string) =>
     pathname === href || pathname?.startsWith(href + "/");
+
+  const authLabel = isAuthLoading ? "…" : signedIn ? "Sign out" : "Sign in";
+
+  const handleAuthClick = async () => {
+    if (isAuthLoading) return;
+
+    const supabase = sb;
+
+    if (!signedIn) {
+      // Not logged in -> go to signup / login
+      router.push("/signin");
+      return;
+    }
+
+    // Logged in -> sign out
+    await supabase.auth.signOut();
+    router.refresh();
+  };
 
   return (
     <header
@@ -37,14 +93,14 @@ export default function Header() {
       <div className="mx-auto max-w-5xl px-4">
         {/* TOP ROW */}
         <div className="flex h-14 items-center">
-          {/* LEFT: keeps space on mobile so logo stays centered */}
+          {/* LEFT: Admin link (only shows if me.role === 'admin') */}
           <div className="flex-1">
             <span className="hidden sm:inline text-[11px] text-white/60">
-              Admin
+              <AdminLink />
             </span>
           </div>
 
-          {/* CENTER: logo */}
+          {/* LOGO */}
           <div className="flex-1 flex justify-center">
             <Link
               href="/"
@@ -55,24 +111,27 @@ export default function Header() {
             </Link>
           </div>
 
-          {/* RIGHT: sign out (desktop) + hamburger (mobile) */}
+          {/* RIGHT SIDE */}
           <div className="flex-1 flex justify-end items-center gap-2">
-            {/* Sign out desktop */}
+            {/* Sign in / out desktop */}
             <button
-              className="
+              type="button"
+              onClick={handleAuthClick}
+              disabled={isAuthLoading}
+              className={`
                 hidden sm:inline-flex
                 items-center justify-center
                 rounded-full px-3 py-1.5
                 text-[11px] font-medium
                 bg-white/10 hover:bg-white/20
-                text-white
-                transition
-              "
+                text-white transition
+                ${isAuthLoading ? "opacity-60 cursor-default" : ""}
+              `}
             >
-              Sign out
+              {authLabel}
             </button>
 
-            {/* Hamburger mobile */}
+            {/* Hamburger */}
             <button
               type="button"
               onClick={() => setOpen((v) => !v)}
@@ -80,10 +139,8 @@ export default function Header() {
                 inline-flex sm:hidden
                 items-center justify-center
                 rounded-full p-2.5
-                hover:bg-white/10
-                transition
+                hover:bg-white/10 transition
               "
-              aria-label="Toggle navigation"
             >
               <span className="flex flex-col gap-1.5">
                 <span className="w-5 h-[1.5px] rounded-full bg-white" />
@@ -98,7 +155,9 @@ export default function Header() {
         <nav className="hidden sm:flex items-center justify-center gap-3 pb-2">
           {navLinks.map((link) => {
             const active = isActive(link.href);
+            const isSussex = link.href === "/";
             const isBusiness = link.href === "/merchant";
+            const isDashboard = link.href === "/merchant-dashboard";
 
             return (
               <Link
@@ -109,8 +168,12 @@ export default function Header() {
                   ${
                     active
                       ? "bg-white text-black shadow-sm"
+                      : isSussex
+                      ? "border border-white/40 text-white hover:bg-white/10"
                       : isBusiness
                       ? "border border-emerald-500/60 text-emerald-300 hover:bg-emerald-500/10 hover:text-emerald-200"
+                      : isDashboard
+                      ? "text-white/80 bg-white/5 hover:bg-white/10"
                       : "text-white/75 hover:text-white hover:bg-white/10"
                   }
                 `}
@@ -122,7 +185,7 @@ export default function Header() {
         </nav>
       </div>
 
-      {/* MOBILE DROPDOWN */}
+      {/* MOBILE NAV */}
       {open && (
         <div
           className="
@@ -134,7 +197,9 @@ export default function Header() {
           <nav className="mx-auto max-w-5xl px-4 py-3 flex flex-col gap-1">
             {navLinks.map((link) => {
               const active = isActive(link.href);
+              const isSussex = link.href === "/";
               const isBusiness = link.href === "/merchant";
+              const isDashboard = link.href === "/merchant-dashboard";
 
               return (
                 <Link
@@ -145,8 +210,12 @@ export default function Header() {
                     ${
                       active
                         ? "bg-white text-black"
+                        : isSussex
+                        ? "border border-white/40 text-white hover:bg-white/10"
                         : isBusiness
-                        ? "border border-emerald-500/60 text-emerald-200 bg-transparent hover:bg-emerald-500/10"
+                        ? "border border-emerald-500/60 text-emerald-200 hover:bg-emerald-500/10"
+                        : isDashboard
+                        ? "text-white/85 bg-white/5 hover:bg-white/10"
                         : "text-white/85 hover:text-white hover:bg-white/10"
                     }
                   `}
@@ -156,16 +225,19 @@ export default function Header() {
               );
             })}
 
+            {/* Auth button mobile */}
             <button
-              className="
-                mt-2 w-full
-                rounded-lg px-3 py-2 text-[13px]
+              type="button"
+              onClick={handleAuthClick}
+              disabled={isAuthLoading}
+              className={`
+                mt-2 w-full rounded-lg px-3 py-2 text-[13px]
                 bg-white/10 hover:bg-white/20
-                text-white/90 text-left
-                transition
-              "
+                text-white/90 text-left transition
+                ${isAuthLoading ? "opacity-60 cursor-default" : ""}
+              `}
             >
-              Sign out
+              {authLabel}
             </button>
           </nav>
         </div>

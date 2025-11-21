@@ -48,37 +48,14 @@ export default function MerchantPage() {
               discounting your brand to death.
             </p>
 
-            {/* Email consult CTA */}
-            <div className="mt-7 max-w-md rounded-2xl border border-white/12 bg-black/40 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.65)] backdrop-blur">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-300">
-                Book a free consult
-              </p>
-              <p className="mt-2 text-sm text-white/80">
-                Enter your email and we’ll reach out to show you what Today’s
-                Stash could add to your monthly revenue.
-              </p>
-
-              {/* NOTE: hook this up to your API / form tool later */}
-              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-  <input
-    type="email"
-    required
-    placeholder="you@business.com"
-    className="h-10 flex-1 rounded-full border border-white/15 bg-black/40 px-3 text-sm text-white placeholder:text-white/40 outline-none ring-emerald-400/40 focus:ring-2"
-  />
-  <button
-    type="button"
-    className="h-10 rounded-full bg-emerald-500 px-5 text-sm font-semibold text-black shadow-[0_0_18px_rgba(16,185,129,0.6)] transition hover:bg-emerald-400"
-  >
-    Get my free consult
-  </button>
-</div>
-
-
-              <p className="mt-2 text-[11px] text-white/45">
-                No lock-in, no pressure. Just a quick look at how it could work
-                for your business.
-              </p>
+            {/* Primary CTA */}
+            <div className="mt-7">
+              <Link
+                href="/venue-register"
+                className="inline-flex items-center justify-center rounded-full bg-emerald-500 px-6 py-3 text-sm font-semibold text-black shadow-[0_0_20px_rgba(16,185,129,0.6)] transition hover:bg-emerald-400"
+              >
+                Register as a business
+              </Link>
             </div>
 
             {/* Secondary CTAs */}
@@ -390,7 +367,7 @@ export default function MerchantPage() {
             ].map(({ q, a }) => (
               <details
                 key={q}
-                className="group rounded-2xl border border-white/12 bg-white/5 px-4 py-3"
+                className="group rounded-2xl border border-white/12 bg_white/5 px-4 py-3"
               >
                 <summary className="flex cursor-pointer list-none items-center justify-between text-white/90">
                   <span>{q}</span>

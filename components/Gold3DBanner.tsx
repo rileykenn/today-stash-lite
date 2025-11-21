@@ -2,19 +2,16 @@
 import React from 'react';
 
 export default function Gold3DBanner({
-  headline = 'SPEND $99 TO',
-  text = 'SAVE $3.2K',
+  headline = 'SPEND $99',   // ✅ updated
+  text = 'SAVE MORE!',       // ✅ updated
   className = '',
-  // 🔽 Responsive defaults; tweak if you like
   size = 'clamp(44px, 12vw, 120px)',
   track = 'clamp(0.5px, 0.3vw, 1.5px)',
 }: {
   headline?: string;
   text?: string;
   className?: string;
-  /** CSS size value e.g. "clamp(44px,12vw,120px)" */
   size?: string;
-  /** CSS letter-spacing value e.g. "clamp(0.5px,0.3vw,1.5px)" */
   track?: string;
 }) {
   return (
@@ -22,7 +19,6 @@ export default function Gold3DBanner({
       className={`flex flex-col items-center gap-2 ${className}`}
       style={
         {
-          // expose to children spans
           ['--gold-size' as any]: size,
           ['--gold-track' as any]: track,
         } as React.CSSProperties
@@ -45,7 +41,6 @@ export default function Gold3DBanner({
 function Gold3D({ text }: { text: string }) {
   return (
     <div className="relative inline-block breathe">
-      {/* Deep shadow */}
       <span
         className="absolute inset-0 font-bada font-black"
         style={{
@@ -54,13 +49,13 @@ function Gold3D({ text }: { text: string }) {
           lineHeight: 1,
           letterSpacing: 'var(--gold-track)',
           transform: 'translate(clamp(4px,1vw,10px), clamp(5px,1.2vw,14px))',
-          filter: 'drop-shadow(0 clamp(3px,0.8vw,10px) clamp(5px,1vw,16px) rgba(0,0,0,0.45))',
+          filter:
+            'drop-shadow(0 clamp(3px,0.8vw,10px) clamp(5px,1vw,16px) rgba(0,0,0,0.45))',
         }}
       >
         {text}
       </span>
 
-      {/* Warm shadow */}
       <span
         className="absolute inset-0 font-bada font-black"
         style={{
@@ -69,13 +64,13 @@ function Gold3D({ text }: { text: string }) {
           lineHeight: 1,
           letterSpacing: 'var(--gold-track)',
           transform: 'translate(clamp(2px,0.6vw,6px), clamp(3px,0.8vw,8px))',
-          filter: 'drop-shadow(0 clamp(2px,0.6vw,6px) clamp(4px,0.9vw,10px) rgba(197,90,0,0.45))',
+          filter:
+            'drop-shadow(0 clamp(2px,0.6vw,6px) clamp(4px,0.9vw,10px) rgba(197,90,0,0.45))',
         }}
       >
         {text}
       </span>
 
-      {/* Dark outer edge */}
       <span
         className="relative font-bada font-black"
         style={{
@@ -89,7 +84,6 @@ function Gold3D({ text }: { text: string }) {
         {text}
       </span>
 
-      {/* Orange mid edge */}
       <span
         className="absolute inset-0 font-bada font-black"
         style={{
@@ -103,7 +97,6 @@ function Gold3D({ text }: { text: string }) {
         {text}
       </span>
 
-      {/* White inner edge */}
       <span
         className="absolute inset-0 font-bada font-black"
         style={{
@@ -119,7 +112,6 @@ function Gold3D({ text }: { text: string }) {
         {text}
       </span>
 
-      {/* Gold fill */}
       <span
         className="absolute inset-0 font-bada font-black bg-clip-text text-transparent"
         style={{
@@ -135,7 +127,6 @@ function Gold3D({ text }: { text: string }) {
         {text}
       </span>
 
-      {/* Shine */}
       <span
         className="absolute inset-0 font-bada font-black shine-clip"
         style={{

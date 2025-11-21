@@ -1,338 +1,247 @@
-/* eslint-disable @next/next/no-img-element */
-// app/page.tsx
-import type { Metadata } from "next";
-import Image from "next/image";
-import Link from "next/link";
-import LogoBannerDynamic from "@/components/LogoBannerDynamic";
-import HowItWorksSection from "@/components/HowItWorksSection";
+"use client";
 
-/** ---------- Controls ---------- */
-const HERO_LOGO_WIDTH = 220;
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
 
-/** ---------- Assets ---------- */
-const CHEST_LOGO_URL =
-  "https://ufxmucwtywfavsmorkpr.supabase.co/storage/v1/object/public/LOGO/todays%20stash%20logo%20chest%20only.png";
-const URBAN_CARD_URL =
-  "https://ufxmucwtywfavsmorkpr.supabase.co/storage/v1/object/public/LOGO/Urban%20promotion%20card.png";
+export default function SussexInletBetaPage() {
+  const router = useRouter();
+  const [loggedIn, setLoggedIn] = useState(false);
 
-export const metadata: Metadata = {
-  title: "Today’s Stash — Local deals, unlocked.",
-  description:
-    "Save at the places you already love. Today’s Stash connects locals with exclusive in-store deals, from the creators of Urban Promotions®.",
-};
+  useEffect(() => {
+    async function loadSession() {
+      const { data } = await supabase.auth.getSession();
+      setLoggedIn(!!data.session);
+    }
+    loadSession();
+  }, []);
 
-export default function HomePage() {
+  const handleConsumerClick = () => {
+    if (loggedIn) {
+      router.push("/consumer");
+    } else {
+      router.push("/signup?role=consumer&area=sussex-inlet");
+    }
+  };
+
   return (
-    <div className="relative isolate overflow-hidden bg-[#0A0F13] text-white">
-      {/* Background scaffold */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(1200px_700px_at_0%_0%,rgba(34,197,94,0.32),transparent_60%),radial-gradient(1000px_600px_at_100%_100%,rgba(15,23,42,0.9),transparent_55%),linear-gradient(to_bottom,rgba(15,23,42,0.4),rgba(15,23,42,1))]"
-      />
+    <main className="relative min-h-screen bg-[#05090C] text-white overflow-x-hidden">
+      {/* Soft glows */}
+      <div className="pointer-events-none absolute -top-40 -left-24 h-[420px] w-[420px] rounded-full bg-emerald-500/15 blur-3xl" />
+      <div className="pointer-events-none absolute bottom-0 right-[-80px] h-[460px] w-[460px] rounded-full bg-blue-500/10 blur-3xl" />
 
-      <main className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col px-4 pb-16 pt-10 sm:px-6 lg:px-8">
-        {/* HERO */}
-        <section className="grid gap-10 pt-6 pb-10 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] md:items-center">
-          {/* Left: copy */}
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-emerald-300 ring-1 ring-emerald-400/40 backdrop-blur">
+      <section className="relative mx-auto max-w-5xl px-4 pt-12 pb-16 sm:pt-16 sm:pb-20">
+        {/* Hero badge + Sussex button */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-[11px] font-medium text-white/80 ring-1 ring-white/10">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              Local deals • Verified in-store
+              Today&apos;s Stash • Founding Beta
             </div>
 
-            <h1 className="mt-5 text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl">
-              Save more at the places{" "}
-              <span className="text-emerald-400">you already love.</span>
-            </h1>
+            <button
+              type="button"
+              onClick={() =>
+                document
+                  .getElementById("join")
+                  ?.scrollIntoView({ behavior: "smooth" })
+              }
+              className="inline-flex items-center rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-1.5 text-[12px] font-semibold text-emerald-100 shadow-[0_0_12px_rgba(16,185,129,0.35)] hover:bg-emerald-500/20 transition"
+            >
+              Sussex Inlet • Founding town
+            </button>
+          </div>
 
-            <p className="mt-4 max-w-xl text-sm leading-relaxed text-white/80 sm:text-base">
-              Today’s Stash is your local shortcut to real, in-store savings –
-              built by the team behind{" "}
-              <span className="font-semibold text-white">
-                Urban Promotions®
-              </span>
-              , one of Australia’s most successful local coupon programs.
+          <p className="text-[11px] sm:text-xs text-white/55 max-w-xs text-right">
+            Beta access is{" "}
+            <span className="font-semibold text-emerald-300">free</span> for
+            Sussex Inlet until we hit our internal cap.
+          </p>
+        </div>
+
+        {/* Hero copy */}
+        <div className="space-y-4 max-w-3xl">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight">
+            A special invitation to{" "}
+            <span className="text-emerald-400">Sussex Inlet</span>.
+          </h1>
+          <p className="text-sm sm:text-base text-white/70">
+            After 20+ years helping Australian communities save with Urban
+            Promotions, we&apos;re launching something new —{" "}
+            <span className="font-semibold text-white">Today&apos;s Stash</span>.
+            And we want <span className="font-semibold">Sussex Inlet</span> to be
+            our founding town.
+          </p>
+          <p className="text-sm sm:text-base text-white/70">
+            For a strictly limited beta period,{" "}
+            <span className="font-semibold text-emerald-300">
+              consumers and businesses in Sussex Inlet pay $0
+            </span>{" "}
+            to access the platform. No subscription fees, no listing fees, no
+            commissions.
+          </p>
+        </div>
+
+        {/* Hero CTAs */}
+        <div className="mt-8 flex flex-wrap gap-3" id="join">
+          <button
+            type="button"
+            onClick={handleConsumerClick}
+            className="inline-flex items-center justify-center rounded-full bg-emerald-500 hover:bg-emerald-400 px-6 py-3 text-sm font-semibold text-white shadow-[0_0_22px_rgba(16,185,129,0.7)] transition-transform active:scale-[0.97]"
+          >
+            Join as a consumer – FREE
+          </button>
+          <a
+            href="/merchant?area=sussex-inlet"
+            className="inline-flex items-center justify-center rounded-full border border-white/25 bg-white/5 px-6 py-3 text-sm font-semibold text-white hover:bg-white/10 transition"
+          >
+            Register your business – FREE
+          </a>
+          <p className="w-full text-xs text-white/55 sm:ml-1 sm:w-auto">
+            Limited beta spots. Once we reach capacity, free access closes.
+          </p>
+        </div>
+
+        {/* Story / benefits section */}
+        <div className="mt-12 grid gap-8 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] items-start">
+          {/* Story-driven left column */}
+          <div className="space-y-5">
+            <h2 className="text-xl sm:text-2xl font-semibold">
+              Help us shape Today&apos;s Stash before it launches nationally.
+            </h2>
+            <p className="text-sm sm:text-base text-white/70">
+              We&apos;re looking for real people and real local businesses to
+              help us perfect the platform. In return for your feedback and
+              participation, you&apos;ll lock in{" "}
+              <span className="font-semibold text-emerald-300">
+                completely free beta access
+              </span>{" "}
+              on terms that may never be offered again.
             </p>
 
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              <Link
-                href="/consumer"
-                className="inline-flex items-center justify-center rounded-full bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-white shadow-[0_0_24px_rgba(16,185,129,0.45)] transition hover:bg-emerald-400 hover:shadow-[0_0_32px_rgba(16,185,129,0.6)]"
-              >
-                View deals in your area
-              </Link>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {/* Consumers card */}
+              <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-4 sm:p-5 shadow-[0_18px_40px_rgba(0,0,0,0.7)]">
+                <p className="text-xs font-semibold text-emerald-300 mb-1.5 uppercase tracking-[0.16em]">
+                  If you&apos;re a consumer
+                </p>
+                <ul className="space-y-1.5 text-xs sm:text-[13px] text-white/80">
+                  <li>• Permanent free access for the beta community</li>
+                  <li>• Thousands of dollars in local savings</li>
+                  <li>• First look at exclusive offers in Sussex Inlet</li>
+                  <li>• Help shape the app you&apos;ll use every week</li>
+                </ul>
+              </div>
 
-              <Link
-                href="/merchant"
-                className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-semibold text-white/90 transition hover:border-white/30 hover:bg-white/10"
-              >
-                For businesses
-              </Link>
+              {/* Businesses card */}
+              <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-4 sm:p-5">
+                <p className="text-xs font-semibold text-emerald-300 mb-1.5 uppercase tracking-[0.16em]">
+                  If you&apos;re a business
+                </p>
+                <ul className="space-y-1.5 text-xs sm:text-[13px] text-white/80">
+                  <li>• Post unlimited offers with zero platform fees</li>
+                  <li>• Attract new locals during quiet times</li>
+                  <li>• No commission, no ad spend, no risk</li>
+                  <li>• Partner with us as a founding venue</li>
+                </ul>
+              </div>
+            </div>
 
-              <Link
+            <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/5 px-4 py-3 text-xs text-emerald-50">
+              <p className="font-semibold mb-1">
+                Strictly limited Sussex Inlet beta
+              </p>
+              <p className="text-white/80">
+                To keep things high quality, we&apos;re only accepting a capped
+                number of consumers and businesses. When we&apos;re full,{" "}
+                <span className="font-semibold">
+                  the free Sussex Inlet offer closes.
+                </span>
+              </p>
+            </div>
+          </div>
+
+          {/* Right column: simple step cards / social proof */}
+          <aside className="space-y-4">
+            <div className="rounded-2xl bg-[#0B1215] ring-1 ring-white/10 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.6)]">
+              <p className="text-xs uppercase tracking-[0.18em] text-emerald-300/80 mb-3">
+                How it works
+              </p>
+              <ol className="space-y-3 text-sm text-white/80">
+                <li>
+                  <span className="font-semibold text-emerald-300">1.</span>{" "}
+                  Choose whether you&apos;re a consumer or a business and
+                  register for free.
+                </li>
+                <li>
+                  <span className="font-semibold text-emerald-300">2.</span>{" "}
+                  We&apos;ll invite you into the beta with early Sussex Inlet
+                  offers and simple instructions.
+                </li>
+                <li>
+                  <span className="font-semibold text-emerald-300">3.</span>{" "}
+                  Use Today&apos;s Stash in your day-to-day life — and tell us
+                  what you love and what we can improve.
+                </li>
+              </ol>
+            </div>
+
+            <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-4">
+              <p className="text-xs font-semibold text-emerald-300 mb-1.5">
+                Why Sussex Inlet?
+              </p>
+              <p className="text-xs sm:text-[13px] text-white/75">
+                We&apos;ve helped local towns across Australia save for decades.
+                Sussex Inlet is the perfect community to showcase how modern
+                digital coupons can drive real foot traffic to local venues —
+                from cafés and takeaways to hair, beauty, recreation and more.
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-[#020712] ring-1 ring-white/10 p-4 flex flex-col gap-2">
+              <p className="text-[11px] text-white/60">
+                <span className="font-semibold text-emerald-300">
+                  Future areas:
+                </span>{" "}
+                Outside Sussex Inlet, the first 100 consumers to join the
+                waiting list for their town will receive{" "}
+                <span className="font-semibold text-white">
+                  6 months free membership
+                </span>{" "}
+                at launch.
+              </p>
+              <a
                 href="/waitlist"
-                className="text-xs font-medium text-white/65 underline-offset-4 hover:text-white hover:underline"
+                className="inline-flex items-center justify-center self-start rounded-full bg-white/10 px-4 py-1.5 text-[11px] font-semibold text-white hover:bg-white/15 transition"
               >
                 Join the waiting list for your town
-              </Link>
+              </a>
             </div>
+          </aside>
+        </div>
 
-            <dl className="mt-7 grid max-w-md grid-cols-3 gap-4 text-[11px] text-white/65 sm:text-xs">
-              <div>
-                <dt className="font-semibold text-white">20+ years</dt>
-                <dd>Helping Aussies save locally.</dd>
-              </div>
-              <div>
-                <dt className="font-semibold text-white">10,000+</dt>
-                <dd>Businesses supported with promotions.</dd>
-              </div>
-              <div>
-                <dt className="font-semibold text-white">Millions</dt>
-                <dd>In coupon value distributed nationwide.</dd>
-              </div>
-            </dl>
-          </div>
-
-          {/* Right: visual */}
-          <div className="relative flex justify-center md:justify-end">
-            <div className="relative w-full max-w-xs rounded-3xl bg-gradient-to-b from-emerald-500/15 via-slate-900 to-slate-900 p-[1px] shadow-[0_0_40px_rgba(16,185,129,0.25)]">
-              <div className="rounded-3xl bg-[#050810] px-6 pb-6 pt-7">
-                <div className="flex justify-center">
-                  <img
-                    src={CHEST_LOGO_URL}
-                    alt="Today’s Stash chest logo"
-                    style={{ width: HERO_LOGO_WIDTH, height: "auto" }}
-                    className="pointer-events-none select-none drop-shadow-[0_0_26px_rgba(16,185,129,0.35)]"
-                  />
-                </div>
-
-                <p className="mt-5 text-center text-xs text-white/70">
-                  Tap into exclusive offers at cafés, restaurants, gyms and more
-                  around your town. All verified, all local, all win-win.
-                </p>
-
-                <div className="mt-5 grid gap-2 text-[11px] text-white/70">
-                  <div className="rounded-2xl bg-white/5 px-3 py-2">
-                    <div className="flex justify-between">
-                      <span>Tonight only • Local bistro</span>
-                      <span className="font-semibold text-emerald-300">
-                        40% off
-                      </span>
-                    </div>
-                    <p className="mt-1 text-[10px] text-white/50">
-                      Limited tables · Show your QR at payment
-                    </p>
-                  </div>
-                  <div className="rounded-2xl bg-white/5 px-3 py-2">
-                    <div className="flex justify-between">
-                      <span>Breakfast café · Weekdays</span>
-                      <span className="font-semibold text-emerald-300">
-                        2-for-1
-                      </span>
-                    </div>
-                    <p className="mt-1 text-[10px] text-white/50">
-                      Perfect for locals and regulars
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-emerald-500/15 blur-3xl"
-            />
-          </div>
-        </section>
-
-        {/* Partner / Logo marquee */}
-        <section className="mt-2 border-y border-white/10 py-4">
-          <LogoBannerDynamic
-            bucket="Logo banner"
-            logoHeight={26}
-            gap={28}
-            speed={40}
-            leftToRight
-            grayscale
-            refreshInterval={120000}
-            className="opacity-80"
-          />
-        </section>
-
-        {/* HOW IT WORKS (with phones + scroll animations + success stories CTA) */}
-        <HowItWorksSection />
-
-        {/* STORY / LEGACY (INTRO + OUR LEGACY) */}
-        <section className="mt-14 grid gap-8 md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] md:items-start">
-          {/* Intro story */}
-          <div className="rounded-3xl bg-[#0D1620]/95 p-6 ring-1 ring-white/10 backdrop-blur">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">
-              From the creators of Urban Promotions®
-            </p>
-            <h2 className="mt-3 text-xl font-semibold">
-              A trusted history of local savings.
-            </h2>
-            <p className="mt-3 text-sm leading-relaxed text-white/80">
-              From 1996 to 2017, our team built and ran{" "}
-              <span className="font-semibold">Urban Promotions®</span>, one of
-              Australia’s most successful local coupon companies. With hundreds
-              of thousands of happy customers and thousands of participating
-              businesses nationwide, we helped local communities save money and
-              helped small businesses grow.
-            </p>
-            <p className="mt-4 text-sm leading-relaxed text-white/85">
-              Now, we’re back — with a new name, a new platform, and even bigger
-              savings.{" "}
-              <span className="font-semibold">Welcome to Today’s Stash.</span>
-            </p>
-
-            <div className="mt-5 grid gap-3 text-xs text-white/70 sm:grid-cols-3">
-              <div className="rounded-2xl bg:white/5 bg-white/5 p-3">
-                <p className="font-semibold text-white">
-                  100% coupon based, no tricks.
-                </p>
-                <p className="mt-1 text-[11px] text-white/65">
-                  Real offers people loved to use – now reimagined for mobile.
-                </p>
-              </div>
-              <div className="rounded-2xl bg-white/5 p-3">
-                <p className="font-semibold text-white">
-                  Built for local businesses.
-                </p>
-                <p className="mt-1 text-[11px] text-white/65">
-                  From family-run shops to national brands, we understand what
-                  works.
-                </p>
-              </div>
-              <div className="rounded-2xl bg-white/5 p-3">
-                <p className="font-semibold text:white text-white">
-                  Designed for this decade.
-                </p>
-                <p className="mt-1 text-[11px] text-white/65">
-                  Time-limited QR codes, live offers and real-time control.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Legacy block with image + quotes */}
-          <div className="rounded-3xl bg-[#13202B]/95 p-6 ring-1 ring-white/10 backdrop-blur">
-            <h3 className="text-lg font-semibold">Our legacy</h3>
-
-            <div className="mt-4">
-              <Image
-                src={URBAN_CARD_URL}
-                alt="Urban Promotions booklet cover"
-                width={200}
-                height={280}
-                unoptimized
-                className="float-left mr-4 mb-3 h-auto w-[110px] rounded-lg ring-1 ring-white/15"
-              />
-              <p className="text-sm leading-relaxed text-white/80">
-                Urban Promotions® (1996–2017) connected local businesses with
-                hundreds of thousands of customers through trusted coupon
-                programs — from family-run shops to national brands.
-              </p>
-              <p className="mt-3 text-sm leading-relaxed text-white/80">
-                Through coupon booklets and marketing support, we helped over{" "}
-                <span className="font-semibold">10,000</span> businesses reach
-                new audiences. Consumers loved Urban Promotions because the
-                offers were real and risk-free — free coupons, no strings
-                attached.
-              </p>
-              <p className="mt-3 text-sm leading-relaxed text-white/75">
-                We distributed hundreds of millions of dollars in free coupon
-                offers, generating hundreds of millions in new revenue for
-                Australian businesses — a true win-win.
-              </p>
-              <div className="clear-both" />
-            </div>
-
-            <div className="mt-4 space-y-3 text-xs text-white/80">
-              <blockquote className="rounded-2xl bg-white/5 p-3 ring-1 ring-white/12">
-                “By the end of the first month, I had already made my money back
-                by using the vouchers. From that point on, the savings were
-                enormous!”{" "}
-                <span className="text-white/60">— Rita, Mortlake VIC</span>
-              </blockquote>
-              <blockquote className="rounded-2xl bg-white/5 p-3 ring-1 ring-white/12">
-                “The best thing about Urban Promotions vouchers is that they are
-                interchangeable. There are so many great choices of local
-                businesses that even if I don’t have a use for one voucher, I
-                can give it to someone who does.”{" "}
-                <span className="text-white/60">— Lyle, Narrandera NSW</span>
-              </blockquote>
-            </div>
-          </div>
-        </section>
-
-        {/* NEW ERA + PROMISE (rest of About content) */}
-        <section className="mt-14 grid gap-6 md:grid-cols-2">
-          <article className="rounded-3xl bg-[#13202B]/95 p-6 ring-1 ring-white/10 backdrop-blur">
-            <h2 className="text-lg font-semibold">A new era of savings</h2>
-            <p className="mt-3 text-sm leading-relaxed text-white/80">
-              We’re evolving that trusted legacy for a new generation. Today’s
-              Stash uses modern technology to deliver the same proven value —
-              but instantly, digitally, and locally.
-            </p>
-            <ul className="mt-4 space-y-2 text-sm text-white/85">
-              <li>• Discover exclusive local offers right on your phone</li>
-              <li>• Share and redeem deals with ease</li>
-              <li>• Support your favorite local businesses ❤️</li>
-            </ul>
-            <p className="mt-4 text-sm leading-relaxed text-white/75">
-              Our mission hasn’t changed — just the way we deliver it. We’re
-              still about connecting people with local businesses, helping
-              communities thrive, and making savings simple.
-            </p>
-          </article>
-
-          <article className="rounded-3xl bg-[#13202B]/95 p-6 ring-1 ring-white/10 backdrop-blur">
-            <h2 className="text-lg font-semibold">Our promise</h2>
-            <p className="mt-3 text-sm leading-relaxed text-white/80">
-              To connect local people with local businesses — through great
-              deals, honest value, and a platform that truly benefits both
-              sides.
-            </p>
-            <p className="mt-4 text-sm leading-relaxed text-white/80">
-              Join us as we build the next chapter of local savings in
-              Australia. Because great deals — and great businesses — should
-              always be right around the corner.
-            </p>
-          </article>
-        </section>
-
-        {/* WHO IT'S FOR (For Consumers / For Businesses) */}
-        <section className="mt-14 grid gap-6 md:grid-cols-2">
-          <div className="rounded-3xl bg-[#0D1620]/95 p-6 ring-1 ring-white/10 backdrop-blur">
-            <h3 className="text-lg font-semibold">For consumers</h3>
-            <p className="mt-2 text-sm leading-relaxed text-white/80">
-              Join the waiting list for your town to be among the first to
-              access exclusive offers.
-            </p>
-            <Link
-              href="/waitlist"
-              className="mt-4 inline-flex items-center justify-center rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_16px_rgba(16,185,129,0.45)] transition hover:bg-emerald-400"
+        {/* Bottom CTAs repeated */}
+        <div className="mt-12 border-t border-white/10 pt-8 flex flex-wrap items-center gap-3">
+          <span className="text-xs text-white/60">
+            Ready to be part of the founding Sussex Inlet community?
+          </span>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={handleConsumerClick}
+              className="inline-flex items-center justify-center rounded-full bg-emerald-500 hover:bg-emerald-400 px-5 py-2.5 text-[13px] font-semibold text-white shadow-[0_0_16px_rgba(16,185,129,0.6)] transition-transform active:scale-[0.97]"
             >
-              Join the waiting list
-            </Link>
-          </div>
-
-          <div className="rounded-3xl bg-[#0D1620]/95 p-6 ring-1 ring-white/10 backdrop-blur">
-            <h3 className="text-lg font-semibold">For businesses</h3>
-            <p className="mt-2 text-sm leading-relaxed text-white/80">
-              Register your interest to feature your business in Today’s Stash
-              and start attracting new customers.
-            </p>
-            <Link
-              href="/merchant"
-              className="mt-4 inline-flex items-center justify-center rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_16px_rgba(16,185,129,0.45)] transition hover:bg-emerald-400"
+              Join as consumer – FREE
+            </button>
+            <a
+              href="/merchant?area=sussex-inlet"
+              className="inline-flex items-center justify-center rounded-full border border-white/25 bg-white/5 px-5 py-2.5 text-[13px] font-semibold text-white hover:bg-white/10 transition"
             >
-              Register your interest
-            </Link>
+              Register your business – FREE
+            </a>
           </div>
-        </section>
-      </main>
-    </div>
+        </div>
+      </section>
+    </main>
   );
 }

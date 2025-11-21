@@ -33,6 +33,8 @@ type Coupon = {
 
   areaKey: string; // internal key for area/town, e.g. "greater-jervis-bay-area"
   areaLabel: string; // human label
+
+  daysLeft?: number | null;
 };
 
 type Town = {
@@ -108,6 +110,27 @@ function fmtMoney(v: number) {
   return `$${core}`;
 }
 
+// Convert a Date to the Sydney calendar date at UTC midnight
+function getSydneyDateUTC(d: Date): Date {
+  const fmt = new Intl.DateTimeFormat("en-AU", {
+    timeZone: "Australia/Sydney",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  const parts = fmt.formatToParts(d);
+  const year = Number(parts.find((p) => p.type === "year")?.value);
+  const month = Number(parts.find((p) => p.type === "month")?.value);
+  const day = Number(parts.find((p) => p.type === "day")?.value);
+
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function getSydneyToday(): Date {
+  return getSydneyDateUTC(new Date());
+}
+
 /* =======================
    Page
    ======================= */
@@ -135,7 +158,7 @@ export default function ConsumerDealsPage() {
   const [step, setStep] = useState<Step>("instructions");
   const [activeDeal, setActiveDeal] = useState<Coupon | null>(null);
 
-  // Flyer code (4-digit code printed under the QR)
+  // Flyer code (6-digit code printed under the QR)
   const [flyerCode, setFlyerCode] = useState("");
   const [lastScanned, setLastScanned] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -209,6 +232,7 @@ export default function ConsumerDealsPage() {
           created_at,
           area_key,
           area_name,
+          exp_date,
           merchant:merchants(*)
         `
         )
@@ -225,7 +249,9 @@ export default function ConsumerDealsPage() {
         return;
       }
 
-      const mapped: Coupon[] = (data ?? []).map((r: any) => {
+      const todaySydney = getSydneyToday();
+
+      const mappedRaw = (data ?? []).map((r: any) => {
         const img = resolvePublicUrl(
           r?.image_url ?? null,
           process.env.NEXT_PUBLIC_OFFER_BUCKET || "offer-media"
@@ -252,6 +278,18 @@ export default function ConsumerDealsPage() {
           r?.area_name ?? r?.area_label ?? r?.area ?? "Local deals"
         );
 
+        let daysLeft: number | null = null;
+        if (r?.exp_date) {
+          const expSydney = getSydneyDateUTC(new Date(r.exp_date));
+          const diffMs = expSydney.getTime() - todaySydney.getTime();
+          daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+          // If the offer is already expired, don't include it at all
+          if (daysLeft < 0) {
+            return null;
+          }
+        }
+
         return {
           id: String(r.id),
           title: String(r.title ?? ""),
@@ -274,8 +312,13 @@ export default function ConsumerDealsPage() {
               : Number(r.total_limit),
           areaKey,
           areaLabel,
-        };
+          daysLeft,
+        } as Coupon;
       });
+
+      const mapped: Coupon[] = mappedRaw.filter(
+        (c): c is Coupon => c !== null
+      );
 
       setDeals(mapped);
       setLoading(false);
@@ -388,11 +431,14 @@ export default function ConsumerDealsPage() {
     document.documentElement.style.overflow = "";
   };
 
-  // For now this still uses the 4-digit code as the backend token.
-  async function handleConfirmRedemption() {
+  // Accepts optional override code so QR scan can auto-confirm.
+  async function handleConfirmRedemption(codeOverride?: string) {
     if (!activeDeal) return;
-    if (!flyerCode || flyerCode.trim().length < 4) {
-      setSubmitError("Enter the 4-digit code from the flyer to confirm.");
+
+    const pin = (codeOverride ?? flyerCode).trim();
+
+    if (!pin || pin.length < 6) {
+      setSubmitError("Enter the 6-digit code from the flyer to confirm.");
       return;
     }
 
@@ -401,7 +447,7 @@ export default function ConsumerDealsPage() {
     try {
       const { error } = await sb.rpc("redeem_offer_with_pin", {
         p_offer_id: activeDeal.id,
-        p_pin: flyerCode.trim(),
+        p_pin: pin,
       });
 
       if (error) {
@@ -423,7 +469,7 @@ export default function ConsumerDealsPage() {
     }
   }
 
-  // When QR is scanned we auto-fill the code box.
+  // When QR is scanned we now auto-confirm redemption.
   function handleQrDetected(value: string) {
     if (step !== "instructions") return;
     const digits = value.replace(/[^\d]/g, "").slice(0, 6);
@@ -431,6 +477,9 @@ export default function ConsumerDealsPage() {
     setFlyerCode(digits);
     setLastScanned(digits);
     setSubmitError(null);
+
+    // Auto-confirm the redemption using the scanned code
+    void handleConfirmRedemption(digits);
   }
 
   /**
@@ -510,7 +559,7 @@ export default function ConsumerDealsPage() {
                 Enter your 4-digit access code
               </label>
               <input
-                type="text" // visible now
+                type="text"
                 inputMode="numeric"
                 maxLength={6}
                 value={accessCode}
@@ -704,14 +753,14 @@ export default function ConsumerDealsPage() {
                   <p className="text-xs text-white/75">
                     Having trouble scanning?{" "}
                     <span className="font-semibold">
-                      Enter the 4-digit code printed under the QR instead.
+                      Enter the 6-digit code printed under the QR instead.
                     </span>
                   </p>
 
                   <div className="flex gap-3 items-end">
                     <div className="flex-1">
                       <label className="block text-xs font-medium text-white/70 mb-1.5">
-                        4-digit flyer code
+                        6-digit flyer code
                       </label>
                       <input
                         inputMode="numeric"
@@ -729,7 +778,7 @@ export default function ConsumerDealsPage() {
                           placeholder:text-white/30
                           focus:ring-2 focus:ring-emerald-400/70
                         "
-                        placeholder="0000"
+                        placeholder="000000"
                       />
                     </div>
                   </div>
@@ -740,7 +789,7 @@ export default function ConsumerDealsPage() {
 
                   <div className="flex flex-col sm:flex-row gap-2 pt-2">
                     <button
-                      onClick={handleConfirmRedemption}
+                      onClick={() => handleConfirmRedemption()}
                       disabled={submitting}
                       className="
                         h-12 rounded-xl
@@ -771,17 +820,32 @@ export default function ConsumerDealsPage() {
                 <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10 ring-1 ring-emerald-400/40">
                   <span className="text-2xl">✅</span>
                 </div>
-                <h4 className="text-lg font-semibold">
-                  Deal redeemed successfully
-                </h4>
-                <p className="text-sm text-white/75">
-                  This deal has been marked as redeemed on your account. Enjoy
-                  your offer at{" "}
-                  <span className="font-semibold">
-                    {activeDeal?.merchant?.name ?? "the business"}
-                  </span>
-                  .
+
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-300">
+                  Show this screen to the staff
                 </p>
+
+                {/* Validated offer block for staff to read */}
+                <div className="mx-auto mt-2 max-w-sm rounded-xl border border-emerald-400/60 bg-emerald-500/5 px-4 py-3 text-left">
+                  <p className="text-[11px] font-semibold text-emerald-300 mb-1">
+                    Offer validated
+                  </p>
+                  <p className="text-sm font-semibold text-white">
+                    {activeDeal?.title ?? "Deal"}
+                  </p>
+                  <p className="text-xs text-white/70 mt-0.5">
+                    at{" "}
+                    <span className="font-medium">
+                      {activeDeal?.merchant?.name ?? "the business"}
+                    </span>
+                  </p>
+                </div>
+
+                <p className="text-sm text-white/75 px-1">
+                  This deal has been marked as redeemed on your account. Staff
+                  can use this screen to confirm which offer you&apos;re using.
+                </p>
+
                 <button
                   onClick={closeModal}
                   className="mt-3 h-11 w-full rounded-xl bg-white/10 hover:bg-white/15 text-sm font-medium"
@@ -818,6 +882,19 @@ function CouponTicket({ deal, onShow }: { deal: Coupon; onShow: () => void }) {
       : Math.max(1, Number(rawTotalLimit) || 1);
   const left = Math.max(0, total - used);
   const usedPct = Math.min(100, (used / total) * 100);
+
+  const daysLeft = (deal as any).daysLeft as number | null | undefined;
+
+  let daysLabel: string | null = null;
+  if (typeof daysLeft === "number") {
+    if (daysLeft > 0) {
+      daysLabel = `${daysLeft} days left`;
+    } else if (daysLeft === 0) {
+      daysLabel = "Expires today";
+    } else {
+      daysLabel = "Expired";
+    }
+  }
 
   return (
     <article className="relative overflow-hidden rounded-2xl bg-[#13202B] ring-1 ring-white/10 shadow-md">
@@ -891,10 +968,11 @@ function CouponTicket({ deal, onShow }: { deal: Coupon; onShow: () => void }) {
             </p>
           )}
 
-          {/* Usage + progress bar */}
+          {/* Usage + progress bar + days left */}
           <div className="mt-1 mr-[140px]">
             <p className="text-[12px] text-white/60">
               Used: {used} • Left: {left}
+              {daysLabel && <> • {daysLabel}</>}
             </p>
             <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
               <div
@@ -999,7 +1077,7 @@ function QRScanner({ onDetected }: { onDetected: (value: string) => void }) {
 
     return () => {
       stopped = true;
-      cancelAnimationFrame(animationId);
+      if (animationId) cancelAnimationFrame(animationId);
       if (stream) {
         stream.getTracks().forEach((t) => t.stop());
       }
