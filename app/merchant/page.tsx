@@ -3,6 +3,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import LogoBannerDynamic from "@/components/LogoBannerDynamic";
+import CouponVisualizer from "@/components/CouponVisualizer";
 
 export const metadata: Metadata = {
   title: "For Businesses — Today’s Stash",
@@ -92,8 +93,8 @@ export default function MerchantPage() {
                 traffic.
               </li>
               <li>
-                <span className="font-semibold text-white">Proven model</span> – from
-                the creators of Urban Promotions®, which helped over{" "}
+                <span className="font-semibold text-white">Proven model</span> –
+                from the creators of Urban Promotions®, which helped over{" "}
                 <span className="font-semibold text-white">10,000+</span>{" "}
                 Australian businesses fill seats and grow revenue.
               </li>
@@ -164,7 +165,10 @@ export default function MerchantPage() {
                   capacity you actually have.
                 </p>
                 <ul className="mt-3 space-y-1.5 text-sm text-white/80">
-                  <li>• Highlight off-peak times without undercutting busy periods.</li>
+                  <li>
+                    • Highlight off-peak times without undercutting busy
+                    periods.
+                  </li>
                   <li>• Run offers only on the days that make sense for you.</li>
                   <li>• Pause or adjust anytime as your business changes.</li>
                 </ul>
@@ -187,7 +191,9 @@ export default function MerchantPage() {
                   members”.
                 </p>
                 <ul className="mt-3 space-y-1.5 text-sm text-white/80">
-                  <li>• Offers are time-limited and redeemed via secure QR codes.</li>
+                  <li>
+                    • Offers are time-limited and redeemed via secure QR codes.
+                  </li>
                   <li>• You can cap the total redemptions to protect capacity.</li>
                   <li>• All offers are verified and presented clearly to customers.</li>
                 </ul>
@@ -210,9 +216,18 @@ export default function MerchantPage() {
                   serve them like any other customer.
                 </p>
                 <ul className="mt-3 space-y-1.5 text-sm text-white/80">
-                  <li>• No physical coupons, no extra hardware, no complex POS changes.</li>
-                  <li>• You see which offers drive the best revenue and repeat visits.</li>
-                  <li>• Turn first-time customers into regulars with follow-up offers.</li>
+                  <li>
+                    • No physical coupons, no extra hardware, no complex POS
+                    changes.
+                  </li>
+                  <li>
+                    • You see which offers drive the best revenue and repeat
+                    visits.
+                  </li>
+                  <li>
+                    • Turn first-time customers into regulars with follow-up
+                    offers.
+                  </li>
                 </ul>
               </div>
             </div>
@@ -331,6 +346,55 @@ export default function MerchantPage() {
           </div>
         </section>
 
+        {/* WHAT YOUR CUSTOMERS SEE – now full-width stacked */}
+        <section className="mt-12 rounded-3xl border border-white/12 bg-white/5 p-5 sm:p-7 space-y-6">
+          <header>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300">
+              What your customers see
+            </p>
+            <h2 className="mt-2 text-xl font-semibold sm:text-2xl">
+              Your offer, on their phone, at your counter.
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm text-white/80">
+              Zero friction. Zero complexity. Just a clean, trustworthy
+              experience that brings people through your door and makes
+              redemption effortless.
+            </p>
+          </header>
+
+          {/* Three explanation tiles */}
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="rounded-2xl bg-[#020912]/60 p-4 ring-1 ring-white/10">
+              <p className="text-sm font-semibold text-white">
+                They see your offer.
+              </p>
+              <p className="mt-1.5 text-xs sm:text-sm text-white/75">
+                Customers scroll nearby deals and tap your offer when they’re
+                ready.
+              </p>
+            </div>
+            <div className="rounded-2xl bg-[#020912]/60 p-4 ring-1 ring-white/10">
+              <p className="text-sm font-semibold text-white">They walk in.</p>
+              <p className="mt-1.5 text-xs sm:text-sm text-white/75">
+                They redeem with a secure, time-limited QR — no printing, no
+                codes to manage.
+              </p>
+            </div>
+            <div className="rounded-2xl bg-[#020912]/60 p-4 ring-1 ring-white/10">
+              <p className="text-sm font-semibold text-white">
+                You confirm &amp; serve.
+              </p>
+              <p className="mt-1.5 text-xs sm:text-sm text-white/75">
+                Your staff visually confirm the code. That’s it. The visit is
+                tracked.
+              </p>
+            </div>
+          </div>
+
+          {/* Example deals – full width, sits UNDER the tiles on all breakpoints */}
+          <CouponVisualizer />
+        </section>
+
         {/* FAQ / QUESTIONS */}
         <section className="mt-12 space-y-6">
           <header>
@@ -381,32 +445,23 @@ export default function MerchantPage() {
           </div>
         </section>
 
-        {/* FINAL CTA */}
+        {/* FINAL CTA – goes straight to /venue-register */}
         <section className="mt-12 rounded-3xl border border-emerald-500/40 bg-emerald-500/10 px-5 py-6 text-center sm:px-8 sm:py-8">
           <h2 className="text-lg font-semibold sm:text-xl">
             Ready to see what Today’s Stash could do for your business?
           </h2>
           <p className="mt-2 text-sm text-emerald-50/90">
-            Share your email and we’ll walk you through potential offers,
-            expected results, and how to get started — no pressure.
+            Start with a free, no-pressure setup call. We’ll look at your quiet
+            times, your goals, and design the first offers together.
           </p>
-          <div className="mx-auto mt-4 flex max-w-md flex-col gap-2 sm:flex-row">
-            <input
-              type="email"
-              required
-              placeholder="you@business.com"
-              className="h-10 flex-1 rounded-full border border-emerald-400/40 bg-black/50 px-3 text-sm text-white placeholder:text-emerald-100/40 outline-none ring-emerald-400/40 focus:ring-2"
-            />
-            <button
-              type="button"
-              className="h-10 rounded-full bg-emerald-500 px-5 text-sm font-semibold text-black shadow-[0_0_18px_rgba(16,185,129,0.7)] transition hover:bg-emerald-400"
+          <div className="mx-auto mt-5 flex max-w-md justify-center">
+            <Link
+              href="/venue-register"
+              className="h-11 inline-flex items-center justify-center rounded-full bg-emerald-500 px-6 text-sm font-semibold text-black shadow-[0_0_18px_rgba(16,185,129,0.7)] transition hover:bg-emerald-400 w-full sm:w-auto"
             >
-              Book my free consult
-            </button>
+              Register your business for free
+            </Link>
           </div>
-          <p className="mt-2 text-[11px] text-emerald-50/80">
-            We’ll only use your email to contact you about Today’s Stash.
-          </p>
         </section>
       </main>
     </div>

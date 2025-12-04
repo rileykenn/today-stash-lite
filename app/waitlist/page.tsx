@@ -2,10 +2,18 @@
 
 import { useState } from "react";
 import { sb } from "@/lib/supabaseBrowser";
+import TownAutocomplete from "@/components/TownAutocomplete";
+
+type SelectedTown = {
+  town: string;
+  postcode: string | null;
+  fullText: string;
+};
 
 export default function WaitlistPage() {
   const [email, setEmail] = useState("");
-  const [town, setTown] = useState("");
+  const [selectedTown, setSelectedTown] = useState<SelectedTown | null>(null);
+  const [townInputKey, setTownInputKey] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -15,17 +23,35 @@ export default function WaitlistPage() {
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    if (!email.trim() || !town.trim()) {
-      setErrorMessage("Please enter your email and town.");
+    const trimmedEmail = email.trim();
+    const townName = selectedTown?.town?.trim() || "";
+    const postcode = selectedTown?.postcode?.trim() || "";
+
+    if (!trimmedEmail) {
+      setErrorMessage("Please enter your email.");
       return;
     }
+
+    // ✅ Only require that a town was selected
+    if (!townName) {
+      setErrorMessage(
+        "Please start typing and select your town from the suggestions so we can capture it correctly."
+      );
+      return;
+    }
+
+    // ✅ What we store in town_name (single text field)
+    // Prefer fullText from Google, fall back to town + optional postcode
+    const townToStore =
+      selectedTown?.fullText?.trim() ||
+      (postcode ? `${townName}, ${postcode}` : townName);
 
     setSubmitting(true);
 
     const { error } = await sb.from("waitlist").insert({
-      email: email.trim(),
-      // expects a `town_name` column in the waitlist table
-      town_name: town.trim(),
+      email: trimmedEmail,
+      town_name: townToStore, // ✅ only this column now
+      // postcode: removed – column no longer used
     });
 
     if (error) {
@@ -36,17 +62,23 @@ export default function WaitlistPage() {
     }
 
     setSubmitting(false);
-    setSuccessMessage("You're on the waitlist! We'll notify you when we launch.");
+    setSuccessMessage(
+      "You're on the waitlist! We'll notify you when we launch."
+    );
     setEmail("");
-    setTown("");
+    setSelectedTown(null);
+    setTownInputKey((k) => k + 1); // reset the input
   };
 
   return (
     <div className="min-h-screen bg-[#05090D] text-white flex items-center justify-center px-4">
       <div className="w-full max-w-md bg-[#0B1117] border border-white/10 rounded-2xl p-6 shadow-xl">
-        <h1 className="text-2xl font-semibold mb-1 text-center">Join the Waitlist</h1>
+        <h1 className="text-2xl font-semibold mb-1 text-center">
+          Join the Waitlist
+        </h1>
         <p className="text-sm text-white/60 mb-6 text-center">
-          Enter your email and the town you want Today&apos;s Stash in. We&apos;ll let you know when we launch there.
+          Enter your email and the town you want Today&apos;s Stash in. We&apos;ll
+          let you know when we launch there.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -62,17 +94,18 @@ export default function WaitlistPage() {
             />
           </div>
 
-          {/* Town (free text) */}
+          {/* Town – Google Places autocomplete */}
           <div>
-            <label className="block text-xs text-white/70 mb-1">
-              Town / Area you want us in
-            </label>
-            <input
-              value={town}
-              onChange={(e) => setTown(e.target.value)}
-              placeholder="e.g. Sussex Inlet, Jervis Bay, Sydney CBD…"
-              className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 outline-none text-sm"
+            <TownAutocomplete
+              key={townInputKey}
+              label="Town / Area you want us in"
+              onSelect={(value) => setSelectedTown(value)}
             />
+            <p className="mt-1 text-[11px] text-white/45">
+              Start typing and <span className="text-emerald-400">tap a town</span>{" "}
+              from the list. You can&apos;t submit unless we capture the exact
+              town + postcode.
+            </p>
           </div>
 
           {/* Error */}

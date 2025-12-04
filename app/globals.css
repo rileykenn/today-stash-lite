@@ -168,3 +168,52 @@ body {
     transform: scale(1.05);
   }
 }
+
+/* ==== Google Places Autocomplete – Dark Theme ==== */
+
+.pac-container {
+  background-color: #05080c !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(20, 241, 149, 0.35) !important;
+  color: #e8fff3 !important;
+  font-family: system-ui, -apple-system, "SF Pro Text", sans-serif !important;
+  box-shadow: none !important;   /* ← removed the glow */
+  z-index: 99999 !important;
+}
+
+
+.pac-item {
+  padding: 10px 14px !important;
+  cursor: pointer;
+  border-top: 1px solid rgba(255, 255, 255, 0.03) !important;
+  background-color: transparent !important;
+}
+
+.pac-item:first-child {
+  border-top: none !important;
+}
+
+.pac-item:hover {
+  background-color: rgba(20, 241, 149, 0.12) !important;
+}
+
+.pac-item-query {
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+.pac-matched {
+  color: #14f195 !important; /* highlight matching part */
+}
+
+/* "powered by Google" bar – keep visible but on dark bg */
+.pac-container:after {
+  /* Google injects its own attribution element; this keeps area consistent */
+  background-color: #05080c !important;
+}
+
+/* Optionally shrink fonts a bit */
+.pac-item,
+.pac-item-query {
+  font-size: 13px !important;
+}
