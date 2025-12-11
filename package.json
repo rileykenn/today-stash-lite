@@ -17,9 +17,9 @@
     "html2canvas": "^1.4.1",
     "html5-qrcode": "^2.3.8",
     "jsqr": "^1.4.0",
-    "next": "^15.5.3",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
+    "next": "^15.5.7",
+    "react": "^19.1.2",
+    "react-dom": "^19.1.2",
     "react-qr-code": "^2.0.18"
   },
   "devDependencies": {
@@ -30,7 +30,7 @@
     "@types/react-dom": "^19.1.9",
     "@types/twilio": "^3.19.2",
     "eslint": "^9",
-    "eslint-config-next": "15.5.3",
+    "eslint-config-next": "^15.5.7",
     "tailwindcss": "^4",
     "twilio": "^5.9.0",
     "typescript": "^5.9.3"
