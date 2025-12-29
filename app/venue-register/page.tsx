@@ -2,7 +2,6 @@
 
 import { FormEvent, useState } from "react";
 import { sb } from "@/lib/supabaseBrowser";
-import TownAutocomplete from "@/components/TownAutocomplete";
 import AddressAutocomplete, {
   type SelectedAddress,
 } from "@/components/AddressAutocomplete";
@@ -193,20 +192,7 @@ export default function VenueRegisterPage() {
             </p>
           </div>
 
-          {/* Town */}
-          <div>
-            <TownAutocomplete
-              key={townInputKey}
-              label="Town"
-              onSelect={(value) => setSelectedTown(value)}
-              onTextChange={(text: string) => setTownRaw(text)}
-            />
-            <p className="mt-1 text-[11px] text-white/45">
-              Start typing and{" "}
-              <span className="text-emerald-400">tap a town</span> from the list
-              so we can capture the exact town and postcode.
-            </p>
-          </div>
+          
 
           {/* Contact name */}
           <div>
