@@ -22,6 +22,7 @@ export default function VenueRegisterPage() {
 
   // town autocomplete (same pattern as Waitlist page)
   const [selectedTown, setSelectedTown] = useState<SelectedTown | null>(null);
+  const [townRaw, setTownRaw] = useState("");
   const [townInputKey, setTownInputKey] = useState(0);
 
   const [submitting, setSubmitting] = useState(false);
@@ -57,21 +58,17 @@ export default function VenueRegisterPage() {
         return;
       }
 
-      // require town selection from autocomplete
+      // town selection is OPTIONAL (allow submit even if they don't tap a suggestion)
       const townName = selectedTown?.town?.trim() || "";
       const postcode = selectedTown?.postcode?.trim() || "";
 
-      if (!townName) {
-        setErrorMessage(
-          "Please start typing and select your town from the suggestions so we can capture it correctly."
-        );
-        return;
-      }
-
       // What we store in applications.town_name
+      // Prefer selectedTown fullText, otherwise store what they typed
       const townToStore =
         selectedTown?.fullText?.trim() ||
-        (postcode ? `${townName}, ${postcode}` : townName);
+        (postcode ? `${townName}, ${postcode}` : townName) ||
+        townRaw.trim() ||
+        "";
 
       const payload = {
         business_name: trimmedBusiness,
@@ -110,6 +107,7 @@ export default function VenueRegisterPage() {
         setEmail("");
         setTelephone("");
         setSelectedTown(null);
+        setTownRaw("");
         setTownInputKey((k) => k + 1); // reset TownAutocomplete
       }
     } finally {
@@ -172,6 +170,7 @@ export default function VenueRegisterPage() {
               key={townInputKey}
               label="Town"
               onSelect={(value) => setSelectedTown(value)}
+              onTextChange={(text: string) => setTownRaw(text)}
             />
             <p className="mt-1 text-[11px] text-white/45">
               Start typing and{" "}

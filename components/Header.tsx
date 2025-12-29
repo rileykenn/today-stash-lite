@@ -19,6 +19,7 @@ const navLinks = [
 const invitationLinks = [
   { href: "/invitations/sussex-inlet", label: "Sussex Inlet" },
   { href: "/invitations/melbourne", label: "Melbourne" },
+  { href: "/invitations/westfield-doncaster", label: "Westfield Doncaster" },
 ];
 
 export default function Header() {
@@ -207,7 +208,11 @@ export default function Header() {
               `}
             >
               Areas we&apos;re promoting
-              <span className={`text-[10px] transition-transform ${areasOpen ? "rotate-180" : ""}`}>
+              <span
+                className={`text-[10px] transition-transform ${
+                  areasOpen ? "rotate-180" : ""
+                }`}
+              >
                 ▼
               </span>
             </button>

@@ -13,6 +13,7 @@ type SelectedTown = {
 export default function WaitlistPage() {
   const [email, setEmail] = useState("");
   const [selectedTown, setSelectedTown] = useState<SelectedTown | null>(null);
+  const [townRaw, setTownRaw] = useState("");
   const [townInputKey, setTownInputKey] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -32,19 +33,18 @@ export default function WaitlistPage() {
       return;
     }
 
-    // ✅ Only require that a town was selected
-    if (!townName) {
-      setErrorMessage(
-        "Please start typing and select your town from the suggestions so we can capture it correctly."
-      );
+    // ✅ Town is optional to SELECT — but we still store what they typed
+    if (!townName && !townRaw.trim()) {
+      setErrorMessage("Please enter your town.");
       return;
     }
 
     // ✅ What we store in town_name (single text field)
-    // Prefer fullText from Google, fall back to town + optional postcode
+    // Prefer fullText from Google, fall back to typed value
     const townToStore =
       selectedTown?.fullText?.trim() ||
-      (postcode ? `${townName}, ${postcode}` : townName);
+      (postcode ? `${townName}, ${postcode}` : townName) ||
+      townRaw.trim();
 
     setSubmitting(true);
 
@@ -67,6 +67,7 @@ export default function WaitlistPage() {
     );
     setEmail("");
     setSelectedTown(null);
+    setTownRaw("");
     setTownInputKey((k) => k + 1); // reset the input
   };
 
@@ -100,6 +101,7 @@ export default function WaitlistPage() {
               key={townInputKey}
               label="Town / Area you want us in"
               onSelect={(value) => setSelectedTown(value)}
+              onTextChange={(text: string) => setTownRaw(text)}
             />
             <p className="mt-1 text-[11px] text-white/45">
               Start typing and <span className="text-emerald-400">tap a town</span>{" "}

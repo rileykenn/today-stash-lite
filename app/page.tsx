@@ -313,11 +313,12 @@ export default function AboutPage() {
 
               <div className="shrink-0 text-right md:text-left lg:text-right">
                 <Link
-                  href="mailto:support@todaysstash.com"
-                  className="inline-flex items-center justify-center rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_18px_rgba(16,185,129,0.45)] transition hover:bg-emerald-400"
-                >
-                  Contact support
-                </Link>
+  href="/contactsupport"
+  className="inline-flex items-center justify-center rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_18px_rgba(16,185,129,0.45)] transition hover:bg-emerald-400"
+>
+  Contact support
+</Link>
+
                 <p className="mt-2 text-[11px] text-white/65">
                   Found a bug, got feedback or want to discuss a partnership?
                   Send it through.

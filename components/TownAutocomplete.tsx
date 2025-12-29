@@ -14,6 +14,7 @@ interface TownAutocompleteProps {
   required?: boolean;
   initialValue?: string;
   onSelect: (value: SelectedTown | null) => void;
+  onTextChange?: (text: string) => void;
 }
 
 // Let TypeScript know google exists at runtime
@@ -24,6 +25,7 @@ export default function TownAutocomplete({
   required = true,
   initialValue = "",
   onSelect,
+  onTextChange,
 }: TownAutocompleteProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [value, setValue] = useState(initialValue);
@@ -93,6 +95,8 @@ export default function TownAutocomplete({
       const formatted = formattedParts.filter(Boolean).join(", ");
 
       setValue(formatted);
+
+      onTextChange?.(formatted);
 
       onSelect({
         town: townName,
@@ -169,7 +173,7 @@ export default function TownAutocomplete({
       cancelled = true;
       if (pollId) clearInterval(pollId);
     };
-  }, [onSelect]);
+  }, [onSelect, onTextChange]);
 
   return (
     <div className="w-full">
@@ -187,6 +191,7 @@ export default function TownAutocomplete({
         onChange={(e) => {
           const v = e.target.value;
           setValue(v);
+          onTextChange?.(v);
           // As soon as they type, previous Google selection is invalid
           onSelect(null);
         }}

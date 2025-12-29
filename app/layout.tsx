@@ -59,8 +59,22 @@ function Footer() {
           </nav>
         </div>
 
-        <div className="mt-6 text-[11px] text-white/45">
-          © {new Date().getFullYear()} Today’s Stash. All rights reserved.
+        <div className="mt-6 space-y-1 text-[11px] text-white/45">
+          <div>
+            © {new Date().getFullYear()} Today’s Stash. All rights reserved.
+          </div>
+          <div>
+            Founded by Adrian Cappola · Built in partnership with Riley Kennedy (
+            <a
+              href="https://rileytechstudio.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-white transition"
+            >
+              Riley Tech Studio
+            </a>
+            )
+          </div>
         </div>
       </div>
     </footer>
