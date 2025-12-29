@@ -3,6 +3,9 @@
 import { FormEvent, useState } from "react";
 import { sb } from "@/lib/supabaseBrowser";
 import TownAutocomplete from "@/components/TownAutocomplete";
+import AddressAutocomplete, {
+  type SelectedAddress,
+} from "@/components/AddressAutocomplete";
 
 type SelectedTown = {
   town: string;
@@ -20,7 +23,13 @@ export default function VenueRegisterPage() {
   const [email, setEmail] = useState("");
   const [telephone, setTelephone] = useState("");
 
-  // town autocomplete (same pattern as Waitlist page)
+  // address autocomplete
+  const [selectedAddress, setSelectedAddress] =
+    useState<SelectedAddress | null>(null);
+  const [addressRaw, setAddressRaw] = useState("");
+  const [addressInputKey, setAddressInputKey] = useState(0);
+
+  // town autocomplete
   const [selectedTown, setSelectedTown] = useState<SelectedTown | null>(null);
   const [townRaw, setTownRaw] = useState("");
   const [townInputKey, setTownInputKey] = useState(0);
@@ -38,7 +47,13 @@ export default function VenueRegisterPage() {
     try {
       const trimmedBusiness = businessName.trim();
       const trimmedCategory = category.trim();
-      const trimmedAddress = address.trim();
+
+      const trimmedAddress =
+        selectedAddress?.fullText?.trim() ||
+        address.trim() ||
+        addressRaw.trim() ||
+        "";
+
       const trimmedContact = contactName.trim();
       const trimmedPosition = position.trim();
       const trimmedEmail = email.trim();
@@ -58,12 +73,10 @@ export default function VenueRegisterPage() {
         return;
       }
 
-      // town selection is OPTIONAL (allow submit even if they don't tap a suggestion)
+      // town selection is OPTIONAL
       const townName = selectedTown?.town?.trim() || "";
       const postcode = selectedTown?.postcode?.trim() || "";
 
-      // What we store in applications.town_name
-      // Prefer selectedTown fullText, otherwise store what they typed
       const townToStore =
         selectedTown?.fullText?.trim() ||
         (postcode ? `${townName}, ${postcode}` : townName) ||
@@ -78,7 +91,7 @@ export default function VenueRegisterPage() {
         position: trimmedPosition,
         email: trimmedEmail,
         phone: trimmedPhone,
-        town_name: townToStore, // <-- new text field, same style as waitlist
+        town_name: townToStore,
         is_read: false,
       };
 
@@ -98,6 +111,7 @@ export default function VenueRegisterPage() {
         setSuccessMessage(
           "Thanks! Your application has been submitted. We will review it and get back to you."
         );
+
         // clear form
         setBusinessName("");
         setCategory("");
@@ -106,9 +120,14 @@ export default function VenueRegisterPage() {
         setPosition("");
         setEmail("");
         setTelephone("");
+
+        setSelectedAddress(null);
+        setAddressRaw("");
+        setAddressInputKey((k) => k + 1);
+
         setSelectedTown(null);
         setTownRaw("");
-        setTownInputKey((k) => k + 1); // reset TownAutocomplete
+        setTownInputKey((k) => k + 1);
       }
     } finally {
       setSubmitting(false);
@@ -120,8 +139,8 @@ export default function VenueRegisterPage() {
       <div className="max-w-3xl mx-auto">
         <h1 className="text-3xl font-semibold mb-2">Register your venue</h1>
         <p className="text-sm text-white/70 mb-8">
-          Fill out this form to apply for Today&apos;s Stash. We&apos;ll review your
-          application and contact you.
+          Fill out this form to apply for Today&apos;s Stash. We&apos;ll review
+          your application and contact you.
         </p>
 
         <form
@@ -152,19 +171,29 @@ export default function VenueRegisterPage() {
             />
           </div>
 
-          {/* Address */}
+          {/* Address – Google Places full address autocomplete */}
           <div>
-            <label className="block text-sm mb-1">Address</label>
-            <input
-              required
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              className="w-full rounded-lg bg-white/5 border border-white/15 px-3 py-2 text-sm outline-none"
-              placeholder="e.g., 123 Beach Rd, Sussex Inlet"
+            <AddressAutocomplete
+              key={addressInputKey}
+              label="Address"
+              onSelect={(value) => {
+                setSelectedAddress(value);
+                setAddress(value?.fullText || "");
+              }}
+              onTextChange={(text) => {
+                setAddressRaw(text);
+                setAddress(text);
+              }}
+              placeholder="e.g., 123 Beach Rd, Sussex Inlet NSW 2540"
             />
+            <p className="mt-1 text-[11px] text-white/45">
+              Start typing and{" "}
+              <span className="text-emerald-400">tap an address</span> from the
+              list so we capture it exactly.
+            </p>
           </div>
 
-          {/* Town – Google Places autocomplete (same as waitlist) */}
+          {/* Town */}
           <div>
             <TownAutocomplete
               key={townInputKey}
@@ -174,8 +203,8 @@ export default function VenueRegisterPage() {
             />
             <p className="mt-1 text-[11px] text-white/45">
               Start typing and{" "}
-              <span className="text-emerald-400">tap a town</span> from the
-              list so we can capture the exact town and postcode.
+              <span className="text-emerald-400">tap a town</span> from the list
+              so we can capture the exact town and postcode.
             </p>
           </div>
 
