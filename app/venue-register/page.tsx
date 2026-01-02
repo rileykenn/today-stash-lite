@@ -12,6 +12,57 @@ type SelectedTown = {
   fullText: string;
 };
 
+function normalizePhoneToE164AU(input: string): string | null {
+  const raw = (input || "").trim();
+  if (!raw) return null;
+
+  // remove spaces, dashes, brackets
+  let p = raw.replace(/[^\d+]/g, "");
+
+  // already E.164-ish
+  if (p.startsWith("+")) {
+    // keep only + and digits
+    p = "+" + p.slice(1).replace(/\D/g, "");
+    // basic E.164 check (+ and 8-15 digits)
+    if (/^\+\d{8,15}$/.test(p)) return p;
+    return null;
+  }
+
+  // remove any non-digits now
+  p = p.replace(/\D/g, "");
+
+  // handle 00 international prefix -> +
+  if (p.startsWith("00")) {
+    const e = "+" + p.slice(2);
+    if (/^\+\d{8,15}$/.test(e)) return e;
+    return null;
+  }
+
+  // AU rules:
+  // - mobile: 04xxxxxxxx -> +614xxxxxxxx
+  // - landline: 0[2|3|7|8]xxxxxxxx -> +61[2|3|7|8]xxxxxxxx
+  // - sometimes people type 4xxxxxxxx (missing leading 0) -> assume mobile +614...
+  if (p.startsWith("04") && p.length === 10) {
+    return "+61" + p.slice(1); // drop leading 0
+  }
+
+  if (/^0[2378]\d{8}$/.test(p)) {
+    return "+61" + p.slice(1); // drop leading 0
+  }
+
+  if (p.startsWith("4") && p.length === 9) {
+    return "+61" + p; // assume missing 0 for mobile
+  }
+
+  // last resort: if they typed 61xxxxxxxxx without + (rare)
+  if (p.startsWith("61") && p.length >= 9) {
+    const e = "+" + p;
+    if (/^\+\d{8,15}$/.test(e)) return e;
+  }
+
+  return null;
+}
+
 export default function VenueRegisterPage() {
   // form state
   const [businessName, setBusinessName] = useState("");
@@ -72,6 +123,15 @@ export default function VenueRegisterPage() {
         return;
       }
 
+      // ✅ normalize phone to E.164 (AU)
+      const phoneE164 = normalizePhoneToE164AU(trimmedPhone);
+      if (!phoneE164) {
+        setErrorMessage(
+          "Please enter a valid Australian phone number (e.g. 0412 345 678)."
+        );
+        return;
+      }
+
       // town selection is OPTIONAL
       const townName = selectedTown?.town?.trim() || "";
       const postcode = selectedTown?.postcode?.trim() || "";
@@ -89,7 +149,7 @@ export default function VenueRegisterPage() {
         contact_name: trimmedContact,
         position: trimmedPosition,
         email: trimmedEmail,
-        phone: trimmedPhone,
+        phone: phoneE164, // ✅ store normalized E.164
         town_name: townToStore,
         is_read: false,
       };
@@ -191,8 +251,6 @@ export default function VenueRegisterPage() {
               list so we capture it exactly.
             </p>
           </div>
-
-          
 
           {/* Contact name */}
           <div>

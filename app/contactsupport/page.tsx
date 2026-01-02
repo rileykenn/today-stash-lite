@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { sb } from '@/lib/supabaseBrowser';
 
 type RequestType = 'support' | 'feedback' | 'bug' | 'other';
 
@@ -30,20 +29,24 @@ export default function SupportPage() {
     }
 
     try {
-      const { error } = await sb.from('support_requests').insert({
-        name: name.trim(),
-        email: email.trim(),
-        phone: phone.trim() || null,
-        type,
-        topic: topic.trim() || null,
-        message: message.trim(),
+      const res = await fetch('/api/support/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone.trim() || null,
+          type,
+          topic: topic.trim() || null,
+          message: message.trim(),
+        }),
       });
 
-      if (error) {
-        console.error('Support request error:', error);
-        setErrorMessage(
-          'Something went wrong sending your message. Please try again.'
-        );
+      const json = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        console.error('Support request error:', json);
+        setErrorMessage('Something went wrong sending your message. Please try again.');
       } else {
         setSuccessMessage(
           type === 'feedback'
@@ -60,9 +63,7 @@ export default function SupportPage() {
       }
     } catch (err) {
       console.error('Unexpected support request error:', err);
-      setErrorMessage(
-        'Unexpected error talking to the server. Please try again in a moment.'
-      );
+      setErrorMessage('Unexpected error talking to the server. Please try again in a moment.');
     } finally {
       setSubmitting(false);
     }
@@ -73,8 +74,8 @@ export default function SupportPage() {
       <div className="max-w-3xl mx-auto">
         <h1 className="text-3xl font-semibold mb-2">Contact & Support</h1>
         <p className="text-sm text-white/60 mb-6">
-          Having an issue, need help with your account, or want to share
-          feedback? Use this form to reach the Today&apos;s Stash team.
+          Having an issue, need help with your account, or want to share feedback? Use this form to
+          reach the Today&apos;s Stash team.
         </p>
 
         <div className="rounded-2xl bg-[#0B1117] border border-white/10 p-6 shadow-xl">
@@ -82,9 +83,7 @@ export default function SupportPage() {
             {/* Name + Email */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-white/70 mb-1">
-                  Name
-                </label>
+                <label className="block text-xs font-medium text-white/70 mb-1">Name</label>
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -93,9 +92,7 @@ export default function SupportPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-white/70 mb-1">
-                  Email
-                </label>
+                <label className="block text-xs font-medium text-white/70 mb-1">Email</label>
                 <input
                   type="email"
                   value={email}
@@ -169,9 +166,7 @@ export default function SupportPage() {
 
             {/* Message */}
             <div>
-              <label className="block text-xs font-medium text-white/70 mb-1">
-                Message
-              </label>
+              <label className="block text-xs font-medium text-white/70 mb-1">Message</label>
               <textarea
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
