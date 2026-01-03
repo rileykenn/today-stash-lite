@@ -63,18 +63,6 @@ function Footer() {
           <div>
             © {new Date().getFullYear()} Today’s Stash. All rights reserved.
           </div>
-          <div>
-            Founded by Adrian Cappola · Built in partnership with Riley Kennedy (
-            <a
-              href="https://rileytechstudio.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline underline-offset-2 hover:text-white transition"
-            >
-              Riley Tech Studio
-            </a>
-            )
-          </div>
         </div>
       </div>
     </footer>

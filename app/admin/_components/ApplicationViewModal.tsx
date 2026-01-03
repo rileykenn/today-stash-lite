@@ -55,7 +55,7 @@ function fmtDateAU(iso: string | null) {
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3">
+    <div className="rounded-2xl border border-slate-200 bg-white p-3">
       <div className="text-xs font-semibold text-slate-500">{label}</div>
       <div className="mt-1 text-sm text-slate-900 break-words">{value}</div>
     </div>
@@ -105,24 +105,24 @@ function ConfirmModal({
       : 'bg-slate-900 hover:opacity-95 text-white';
 
   return (
-    <div className="fixed inset-0 z-[60] bg-black/40 p-3 flex items-center justify-center">
-      <div className="w-full max-w-md rounded-2xl bg-white border border-slate-200 shadow-xl overflow-hidden">
+    <div className="fixed inset-0 z-[60] bg-black/50 p-3 sm:p-6 flex items-center justify-center">
+      <div className="w-full max-w-md rounded-2xl bg-white border border-slate-200 shadow-xl overflow-hidden max-h-[90dvh] flex flex-col">
         <div className="px-4 py-3 border-b border-slate-200">
           <div className="font-semibold">{title}</div>
           <div className="mt-1 text-sm text-slate-600 whitespace-pre-line">{description}</div>
         </div>
 
-        <div className="px-4 py-3 flex justify-end gap-2">
+        <div className="px-4 py-3 flex flex-col sm:flex-row sm:justify-end gap-2">
           <button
             onClick={onCancel}
-            className="px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm font-medium"
+            className="w-full sm:w-auto px-3 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm font-medium"
             disabled={loading}
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
-            className={`px-3 py-2 rounded-xl text-sm font-semibold ${confirmClass} disabled:opacity-50`}
+            className={`w-full sm:w-auto px-3 py-2.5 rounded-xl text-sm font-semibold ${confirmClass} disabled:opacity-50`}
             disabled={loading}
           >
             {loading ? 'Working…' : confirmLabel}
@@ -176,6 +176,25 @@ export default function ApplicationViewModal({
   const denyCopy =
     `Are you sure you want to deny this application?\n\n` +
     `No merchant account will be created.`;
+
+  // ✅ IMPORTANT: lock background scroll while modal is open
+  useEffect(() => {
+    if (!open) return;
+
+    const prevOverflow = document.body.style.overflow;
+    const prevPaddingRight = document.body.style.paddingRight;
+
+    // prevent layout shift from scrollbar disappearance (desktop)
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    if (scrollbarWidth > 0) document.body.style.paddingRight = `${scrollbarWidth}px`;
+
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.body.style.paddingRight = prevPaddingRight;
+    };
+  }, [open]);
 
   const loadRow = async () => {
     if (!applicationId) return;
@@ -352,156 +371,176 @@ export default function ApplicationViewModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-50 bg-black/30 p-3 flex items-center justify-center">
-        <div className="w-full max-w-2xl rounded-2xl bg-white border border-slate-200 shadow-xl overflow-hidden">
-          <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="font-semibold truncate">{businessLabel}</div>
-                <StatusPill status={status} />
+      {/* Overlay: blocks pointer + scroll on background */}
+      <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-3 sm:p-6">
+        {/* Modal: true popup, internal scroll only */}
+        <div
+          className="
+            w-full max-w-2xl
+            bg-white border border-slate-200 shadow-xl
+            rounded-2xl overflow-hidden
+            max-h-[90dvh]
+            flex flex-col
+            overscroll-contain
+          "
+          role="dialog"
+          aria-modal="true"
+        >
+          {/* Header (fixed inside modal) */}
+          <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="font-semibold truncate">{businessLabel}</div>
+                  <StatusPill status={status} />
+                </div>
+                <div className="text-xs text-slate-500">Submitted: {fmtDateAU(row?.created_at ?? null)}</div>
               </div>
-              <div className="text-xs text-slate-500">Submitted: {fmtDateAU(row?.created_at ?? null)}</div>
-            </div>
 
-            <div className="flex gap-2">
-              <button
-                onClick={loadRow}
-                className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm"
-              >
-                Refresh
-              </button>
-              <button
-                onClick={onClose}
-                className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm"
-              >
-                Close
-              </button>
+              <div className="flex w-full gap-2 sm:w-auto">
+                <button
+                  onClick={loadRow}
+                  className="w-1/2 sm:w-auto px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm"
+                >
+                  Refresh
+                </button>
+                <button
+                  onClick={onClose}
+                  className="w-1/2 sm:w-auto px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* ACTION BAR + STATUS SETTER */}
-          <div className="px-4 py-3 border-b border-slate-200 bg-slate-50">
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div className="text-sm text-slate-700">Review the details below, then approve or deny.</div>
+          {/* Scroll area (ONLY this scrolls) */}
+          <div className="flex-1 overflow-y-auto overscroll-contain">
+            {/* Action bar */}
+            <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+              <div className="space-y-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-sm text-slate-700">Review the details below, then approve or deny.</div>
 
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setConfirm('deny')}
-                    className="px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-sm font-semibold text-red-700"
-                    disabled={!row}
-                  >
-                    Deny
-                  </button>
-
-                  <button
-                    onClick={() => setConfirm('approve')}
-                    className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold disabled:opacity-50"
-                    disabled={!canApprove}
-                    title={!canApprove ? 'Select town and category first' : 'Approve'}
-                  >
-                    Approve
-                  </button>
-                </div>
-              </div>
-
-              {/* Town + Category required selectors */}
-              <div className="rounded-xl border border-slate-200 bg-white p-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <div className="text-xs font-semibold text-slate-500">Town (required)</div>
-                    <select
-                      className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 bg-white text-sm"
-                      value={townId}
-                      onChange={(e) => setTownId(e.target.value)}
-                      disabled={!row || loadingTowns}
-                    >
-                      <option value="">{loadingTowns ? 'Loading towns…' : 'Select town'}</option>
-                      {towns.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name || 'Unnamed town'}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="mt-1 text-[11px] text-slate-500">Must be an existing town on the server.</div>
-                  </div>
-
-                  <div>
-                    <div className="text-xs font-semibold text-slate-500">Category (required)</div>
-                    <select
-                      className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 bg-white text-sm"
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value as MerchantCategory)}
+                  <div className="flex w-full gap-2 sm:w-auto">
+                    <button
+                      onClick={() => setConfirm('deny')}
+                      className="w-1/2 sm:w-auto px-3 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-sm font-semibold text-red-700"
                       disabled={!row}
                     >
-                      <option value="">Select category</option>
-                      {MERCHANT_CATEGORIES.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="mt-1 text-[11px] text-slate-500">Matches your merchants.category enum.</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Set Status section */}
-              <div className="rounded-xl border border-slate-200 bg-white p-3">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <div>
-                    <div className="text-xs font-semibold text-slate-500">Set status</div>
-                    <div className="text-sm text-slate-700">Use this to mark as pending, approved, etc.</div>
-                  </div>
-
-                  <div className="flex gap-2 sm:items-center">
-                    <select
-                      className="w-full sm:w-56 rounded-xl border border-slate-200 px-3 py-2 bg-white text-sm"
-                      value={statusDraft}
-                      onChange={(e) => setStatusDraft(e.target.value as AppStatus)}
-                      disabled={!row}
-                    >
-                      {statusOptions.map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
+                      Deny
+                    </button>
 
                     <button
-                      onClick={() => setStatus(statusDraft)}
-                      className="px-3 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold disabled:opacity-50"
-                      disabled={!row || savingStatus || statusDraft === status}
-                      title={statusDraft === status ? 'No changes to save' : 'Save status'}
+                      onClick={() => setConfirm('approve')}
+                      className="w-1/2 sm:w-auto px-3 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold disabled:opacity-50"
+                      disabled={!canApprove}
+                      title={!canApprove ? 'Select town and category first' : 'Approve'}
                     >
-                      {savingStatus ? 'Saving…' : 'Save'}
+                      Approve
                     </button>
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
 
-          <div className="p-4 max-h-[70vh] overflow-auto">
-            {loading && <div className="text-sm text-slate-600">Loading…</div>}
+                {/* Town + Category required selectors */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-xs font-semibold text-slate-500">Town (required)</div>
+                      <select
+                        className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 bg-white text-sm"
+                        value={townId}
+                        onChange={(e) => setTownId(e.target.value)}
+                        disabled={!row || loadingTowns}
+                      >
+                        <option value="">{loadingTowns ? 'Loading towns…' : 'Select town'}</option>
+                        {towns.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name || 'Unnamed town'}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="mt-1 text-[11px] text-slate-500">Must be an existing town on the server.</div>
+                    </div>
 
-            {!loading && !row && <div className="text-sm text-slate-600">Could not load application.</div>}
-
-            {!loading && row && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Field label="Business name" value={row.business_name ?? '—'} />
-                <Field label="Category (from form)" value={row.category ?? '—'} />
-                <div className="sm:col-span-2">
-                  <Field label="Address" value={row.address ?? '—'} />
+                    <div>
+                      <div className="text-xs font-semibold text-slate-500">Category (required)</div>
+                      <select
+                        className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 bg-white text-sm"
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value as MerchantCategory)}
+                        disabled={!row}
+                      >
+                        <option value="">Select category</option>
+                        {MERCHANT_CATEGORIES.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="mt-1 text-[11px] text-slate-500">Matches your merchants.category enum.</div>
+                    </div>
+                  </div>
                 </div>
 
-                <Field label="Contact name" value={row.contact_name ?? '—'} />
-                <Field label="Position" value={row.position ?? '—'} />
+                {/* Set Status section */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                      <div className="text-xs font-semibold text-slate-500">Set status</div>
+                      <div className="text-sm text-slate-700">Use this to mark as pending, approved, etc.</div>
+                    </div>
 
-                <Field label="Email" value={row.email ?? '—'} />
-                <Field label="Phone" value={row.phone ?? '—'} />
+                    <div className="flex w-full gap-2 sm:w-auto sm:items-center">
+                      <select
+                        className="w-full sm:w-56 rounded-xl border border-slate-200 px-3 py-2.5 bg-white text-sm"
+                        value={statusDraft}
+                        onChange={(e) => setStatusDraft(e.target.value as AppStatus)}
+                        disabled={!row}
+                      >
+                        {statusOptions.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+
+                      <button
+                        onClick={() => setStatus(statusDraft)}
+                        className="shrink-0 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-semibold disabled:opacity-50"
+                        disabled={!row || savingStatus || statusDraft === status}
+                        title={statusDraft === status ? 'No changes to save' : 'Save status'}
+                      >
+                        {savingStatus ? 'Saving…' : 'Save'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
-            )}
+            </div>
+
+            {/* Details */}
+            <div className="p-4">
+              {loading && <div className="text-sm text-slate-600">Loading…</div>}
+
+              {!loading && !row && <div className="text-sm text-slate-600">Could not load application.</div>}
+
+              {!loading && row && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Field label="Business name" value={row.business_name ?? '—'} />
+                  <Field label="Category (from form)" value={row.category ?? '—'} />
+                  <div className="sm:col-span-2">
+                    <Field label="Address" value={row.address ?? '—'} />
+                  </div>
+
+                  <Field label="Contact name" value={row.contact_name ?? '—'} />
+                  <Field label="Position" value={row.position ?? '—'} />
+
+                  <Field label="Email" value={row.email ?? '—'} />
+                  <Field label="Phone" value={row.phone ?? '—'} />
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

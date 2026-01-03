@@ -104,7 +104,7 @@ export default function Header() {
         <div className="flex h-14 items-center">
           {/* LEFT: Admin link */}
           <div className="flex-1">
-            <span className="hidden sm:inline text-[11px] text-white/60">
+            <span className="inline text-[11px] text-white/60">
               <AdminLink />
             </span>
           </div>

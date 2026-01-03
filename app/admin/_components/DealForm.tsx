@@ -216,117 +216,130 @@ export default function DealForm({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {errorMsg && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {errorMsg}
         </div>
       )}
 
-      {/* Merchant + Active */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="sm:col-span-2">
-          <label className="text-sm font-medium">Merchant</label>
-          <select
-            value={merchantId}
-            onChange={(e) => setMerchantId(e.target.value)}
-            className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 bg-white"
-          >
-            <option value="">Select merchant…</option>
-            {merchants.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
-        </div>
+      {/* SECTION: Basics */}
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-slate-900">Basics</h2>
+            <p className="mt-0.5 text-xs text-slate-600">Merchant, title, and active status.</p>
+          </div>
 
-        <div>
-          <label className="text-sm font-medium">Active</label>
-          <div className="mt-2 flex items-center gap-2">
+          {/* Active (kept same state/handlers) */}
+          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
             <input
               type="checkbox"
               checked={isActive}
               onChange={(e) => setIsActive(e.target.checked)}
               className="h-4 w-4"
             />
-            <span className="text-sm text-slate-600">{isActive ? 'On' : 'Off'}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Title */}
-      <div>
-        <label className="text-sm font-medium">Title</label>
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 bg-white"
-          placeholder="e.g., Free muffin with any two large coffees"
-        />
-      </div>
-
-      {/* Validity */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label className="text-sm font-medium">Valid from</label>
-          <div className="mt-1 grid grid-cols-2 gap-2">
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 bg-white"
-            />
-            <input
-              type="time"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 bg-white"
-            />
+            <span className="text-xs font-medium text-slate-700">{isActive ? 'On' : 'Off'}</span>
           </div>
         </div>
 
-        <div>
-          <label className="text-sm font-medium">Valid to (expires)</label>
-          <div className="mt-1 grid grid-cols-2 gap-2">
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 bg-white"
-            />
-            <input
-              type="time"
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 bg-white"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Deal image */}
-      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-        <div className="flex items-start justify-between gap-3">
+        <div className="grid grid-cols-1 gap-4">
           <div>
-            <div className="text-sm font-semibold">Deal image</div>
-            <div className="text-xs text-slate-600">Upload an image or remove the current one.</div>
+            <label className="text-sm font-medium text-slate-900">Merchant</label>
+            <select
+              value={merchantId}
+              onChange={(e) => setMerchantId(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 bg-white text-[15px]"
+            >
+              <option value="">Select merchant…</option>
+              {merchants.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
           </div>
 
-          <div className="flex gap-2">
+          <div>
+            <label className="text-sm font-medium text-slate-900">Title</label>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 bg-white text-[15px]"
+              placeholder="e.g., Free muffin with any two large coffees"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* SECTION: Validity */}
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+        <div className="mb-3">
+          <h2 className="text-sm font-semibold text-slate-900">Validity</h2>
+          <p className="mt-0.5 text-xs text-slate-600">When the deal starts and when it expires.</p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <label className="text-sm font-medium text-slate-900">Valid from</label>
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 bg-white text-[15px]"
+              />
+              <input
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 bg-white text-[15px]"
+              />
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <label className="text-sm font-medium text-slate-900">Valid to (expires)</label>
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 bg-white text-[15px]"
+              />
+              <input
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 bg-white text-[15px]"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* SECTION: Image */}
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-slate-900">Deal image</h2>
+            <p className="mt-0.5 text-xs text-slate-600">Upload an image or remove the current one.</p>
+          </div>
+
+          <div className="flex w-full gap-2 sm:w-auto">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={imageBusy}
-              className="px-3 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:opacity-95 disabled:opacity-60"
+              className="w-1/2 sm:w-auto px-4 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:opacity-95 disabled:opacity-60"
             >
-              Upload
+              {imageBusy ? 'Working…' : 'Upload'}
             </button>
             <button
               type="button"
               onClick={removeImage}
               disabled={imageBusy || !imagePath}
-              className="px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm font-semibold disabled:opacity-60"
+              className="w-1/2 sm:w-auto px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm font-semibold disabled:opacity-60"
             >
               Remove
             </button>
@@ -347,72 +360,86 @@ export default function DealForm({
         />
 
         {imagePreviewUrl ? (
-          <div className="mt-3 flex items-center gap-3">
-            <div className="w-16 h-16 overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div className="mt-4 flex items-center gap-3">
+            <div className="w-20 h-20 overflow-hidden rounded-2xl border border-slate-200 bg-white shrink-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={imagePreviewUrl} alt="" className="w-full h-full object-cover" />
             </div>
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-slate-900">Image uploaded</div>
+              <div className="text-xs text-slate-600">This will appear on the deal card.</div>
+            </div>
           </div>
         ) : (
-          <div className="mt-3 text-sm text-slate-500">No image</div>
+          <div className="mt-4 text-sm text-slate-500">No image</div>
         )}
-      </div>
+      </section>
 
-      {/* Limits */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-        <div>
-          <label className="text-sm font-medium">Total limit</label>
-          <input
-            value={totalLimit}
-            onChange={(e) => setTotalLimit(e.target.value)}
-            className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 bg-white"
-            placeholder="e.g., 120"
-            inputMode="numeric"
-          />
+      {/* SECTION: Limits & Savings */}
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+        <div className="mb-3">
+          <h2 className="text-sm font-semibold text-slate-900">Limits & savings</h2>
+          <p className="mt-0.5 text-xs text-slate-600">Redemption limits and discount amount.</p>
         </div>
 
-        <div>
-          <label className="text-sm font-medium">Daily limit</label>
-          <input
-            value={dailyLimit}
-            onChange={(e) => setDailyLimit(e.target.value)}
-            className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 bg-white"
-            placeholder="e.g., 10"
-            inputMode="numeric"
-          />
-        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <label className="text-sm font-medium text-slate-900">Total limit</label>
+            <input
+              value={totalLimit}
+              onChange={(e) => setTotalLimit(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 bg-white text-[15px]"
+              placeholder="e.g., 120"
+              inputMode="numeric"
+            />
+          </div>
 
-        <div>
-          <label className="text-sm font-medium">Per-user limit</label>
-          <input
-            value={perUserLimit}
-            onChange={(e) => setPerUserLimit(e.target.value)}
-            className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 bg-white"
-            placeholder="e.g., 1"
-            inputMode="numeric"
-          />
-        </div>
+          <div>
+            <label className="text-sm font-medium text-slate-900">Daily limit</label>
+            <input
+              value={dailyLimit}
+              onChange={(e) => setDailyLimit(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 bg-white text-[15px]"
+              placeholder="e.g., 10"
+              inputMode="numeric"
+            />
+          </div>
 
-        <div>
-          <label className="text-sm font-medium">Savings (cents)</label>
-          <input
-            value={savingsCents}
-            onChange={(e) => setSavingsCents(e.target.value)}
-            className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 bg-white"
-            placeholder="e.g., 300"
-            inputMode="numeric"
-          />
-          <div className="mt-1 text-xs text-slate-500">
-            {toIntOrNull(savingsCents) ? `${toIntOrNull(savingsCents)} = $${(Number(savingsCents) / 100).toFixed(2)}` : ' '}
+          <div>
+            <label className="text-sm font-medium text-slate-900">Per-user limit</label>
+            <input
+              value={perUserLimit}
+              onChange={(e) => setPerUserLimit(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 bg-white text-[15px]"
+              placeholder="e.g., 1"
+              inputMode="numeric"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-slate-900">Savings (cents)</label>
+            <input
+              value={savingsCents}
+              onChange={(e) => setSavingsCents(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 bg-white text-[15px]"
+              placeholder="e.g., 300"
+              inputMode="numeric"
+            />
+            <div className="mt-1 text-xs text-slate-500">
+              {toIntOrNull(savingsCents)
+                ? `${toIntOrNull(savingsCents)} = $${(Number(savingsCents) / 100).toFixed(2)}`
+                : ' '}
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
+      {/* Sticky-ish action row on mobile */}
       <div className="flex justify-end pt-1">
         <button
           onClick={onSave}
           disabled={saving}
-          className="px-3 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:opacity-95 disabled:opacity-60"
+          className="w-full sm:w-auto px-4 py-3 rounded-2xl bg-slate-900 text-white text-sm font-semibold hover:opacity-95 disabled:opacity-60"
         >
           {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create deal'}
         </button>
