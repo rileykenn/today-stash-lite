@@ -71,7 +71,7 @@ function Footer() {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="h-full bg-[#050B10]">
+    <html lang="en" className="h-full bg-[#050B10]" suppressHydrationWarning>
       <head>
         <link
           rel="preload"
@@ -83,10 +83,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
 
       <body
-        className={`
-          ${geistSans.variable} ${geistMono.variable}
-          antialiased bg-[#0B1210] text-[#E8FFF3]
-        `}
+        suppressHydrationWarning
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#0B1210] text-[#E8FFF3]`}
       >
         <div className="min-h-screen flex flex-col bg-[#0B1210]">
           <Header />

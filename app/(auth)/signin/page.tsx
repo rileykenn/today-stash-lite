@@ -115,7 +115,7 @@ export default function SignInPage() {
         return;
       }
 
-      setError('Incorrect email or password.');
+      setError(signInErr?.message || 'Incorrect email or password.');
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Could not sign in.';
       setError(msg);
@@ -214,6 +214,11 @@ export default function SignInPage() {
               placeholder="Password"
               className="w-full rounded-xl bg-black/20 border border-white/10 px-3 py-2 text-sm focus:outline-none"
             />
+            <div className="flex justify-end">
+              <Link href="/reset" className="text-xs text-gray-400 hover:text-white transition-colors">
+                Forgot password?
+              </Link>
+            </div>
             <button
               type="submit"
               disabled={!canSubmitForm || loading}

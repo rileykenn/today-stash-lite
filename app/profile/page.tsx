@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { sb } from '@/lib/supabaseBrowser';
+import Loading from '@/components/Loading';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -19,6 +20,10 @@ export default function ProfilePage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [newPasswordError, setNewPasswordError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState('');
+
+  // Towns state
+  const [myTowns, setMyTowns] = useState<any[]>([]);
+  const [refreshTowns, setRefreshTowns] = useState(0);
 
   /** Same role logic you use on /consumer */
   async function getUserRole(): Promise<'pro' | 'free' | 'unknown'> {
@@ -70,11 +75,21 @@ export default function ProfilePage() {
         } else {
           setSavedCents(0);
         }
+
+        // Fetch towns
+        const { data: townData } = await sb
+          .from('town_memberships')
+          .select('town_id, town:towns(id, name, slug, image_url)')
+          .eq('user_id', user.id);
+
+        if (townData) {
+          setMyTowns(townData.map((d: any) => d.town));
+        }
       }
 
       setLoading(false);
     })();
-  }, []);
+  }, [refreshTowns]);
 
   // live validation
   useEffect(() => {
@@ -108,17 +123,34 @@ export default function ProfilePage() {
     }
   };
 
+  const handleUnsubscribe = async (townId: string) => {
+    if (!confirm('Are you sure you want to unsubscribe from this area?')) return;
+
+    // Assuming current user is logged in
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) return;
+
+    try {
+      const { error } = await sb
+        .from('town_memberships')
+        .delete()
+        .match({ user_id: user.id, town_id: townId });
+
+      if (error) throw error;
+
+      setRefreshTowns(prev => prev + 1);
+    } catch (err: any) {
+      alert('Failed to unsubscribe: ' + err.message);
+    }
+  };
+
   const handleSignOut = async () => {
     await sb.auth.signOut();
     window.location.reload();
   };
 
   if (loading) {
-    return (
-      <main className="min-h-screen bg-[#0A0F13] flex items-center justify-center text-white/70">
-        Loading…
-      </main>
-    );
+    return <Loading message="Loading Profile..." />;
   }
 
   const savedDisplay = `$${(savedCents / 100).toFixed(2)}`;
@@ -155,6 +187,38 @@ export default function ProfilePage() {
                 </button>
               </>
             )}
+          </div>
+        )}
+
+
+
+        {/* Subscribed Areas */}
+        {user && (
+          <div className="bg-[#13202B] rounded-2xl p-4 ring-1 ring-white/10 shadow-md">
+            <h3 className="font-semibold text-lg mb-3">My Areas</h3>
+            {myTowns.length === 0 ? (
+              <p className="text-sm text-white/50">You are not subscribed to any areas.</p>
+            ) : (
+              <div className="space-y-3">
+                {myTowns.map((town) => (
+                  <div key={town.id} className="flex items-center justify-between bg-[#0A0F13] p-3 rounded-xl border border-white/5">
+                    <span className="font-medium">{town.name}</span>
+                    <button
+                      onClick={() => handleUnsubscribe(town.id)}
+                      className="text-xs bg-red-500/10 text-red-500 hover:bg-red-500/20 px-3 py-1.5 rounded-lg transition"
+                    >
+                      Unsubscribe
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={() => router.push('/areas')}
+              className="mt-4 w-full h-10 rounded-xl border border-white/10 hover:bg-white/5 text-sm font-medium"
+            >
+              Find More Areas
+            </button>
           </div>
         )}
 

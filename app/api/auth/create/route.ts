@@ -52,6 +52,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: msg }, { status: isDup ? 409 : 500 });
     }
 
+    // Generate Verification Link
+    if (email) {
+      const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+        type: 'signup',
+        email: email,
+        password: password
+      });
+
+      if (!linkError && linkData?.properties?.action_link) {
+        const { sendVerificationEmail } = await import('@/lib/email/sendVerificationEmail');
+        // We run this without awaiting to not block the response? Or await for safety?
+        // User said "make sure to do that", so await is safer.
+        await sendVerificationEmail(email, linkData.properties.action_link);
+        console.log('✅ verification email sent to', email);
+      } else {
+        console.error('Failed to generate link:', linkError);
+      }
+    }
+
     console.log('✅ created user', { id: data.user?.id });
     return NextResponse.json({ ok: true, user_id: data.user?.id ?? null });
   } catch (e) {

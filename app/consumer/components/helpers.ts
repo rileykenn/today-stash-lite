@@ -1,4 +1,3 @@
-// app/consumer/components/helpers.ts
 
 /* =======================
    URL helpers
@@ -47,7 +46,7 @@ export function getMerchantName(m: unknown): string {
 
 export function getMerchantLogo(m: unknown): string | null {
   const mm = m as Record<string, unknown>;
-  return (
+  return resolvePublicUrl(
     (mm?.logo_url as string | null | undefined) ??
     (mm?.photo_url as string | null | undefined) ??
     (mm?.image_url as string | null | undefined) ??
@@ -58,9 +57,20 @@ export function getMerchantLogo(m: unknown): string | null {
   );
 }
 
+export function getMerchantBanner(m: unknown): string | null {
+  const mm = m as Record<string, unknown>;
+  return resolvePublicUrl(
+    (mm?.banner_url as string | null | undefined) ??
+    (mm?.cover_url as string | null | undefined) ??
+    (mm?.banner as string | null | undefined) ??
+    null
+  );
+}
+
 export function getMerchantAddress(m: unknown): string | null {
   const mm = m as Record<string, unknown>;
-  return (mm?.address_text ??
+  return (mm?.street_address ??
+    mm?.address_text ??
     mm?.address ??
     mm?.location ??
     null) as string | null;

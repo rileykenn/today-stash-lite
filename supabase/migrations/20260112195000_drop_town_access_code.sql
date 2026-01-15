@@ -1,0 +1,1 @@
+ALTER TABLE towns DROP COLUMN IF EXISTS access_code;

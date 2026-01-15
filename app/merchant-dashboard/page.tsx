@@ -4,6 +4,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { sb } from "@/lib/supabaseBrowser";
+import Loading from "@/components/Loading";
 
 /* =======================
    Types
@@ -45,14 +46,15 @@ type State =
   | { status: "not-logged-in" }
   | { status: "not-merchant" }
   | {
-      status: "ready";
-      merchant: Merchant;
-      totalRedemptions: number;
-      uniqueCustomers: number;
-      estimatedRevenueCents: number;
-      redemptions: EnrichedRedemption[];
-      error: string | null;
-    };
+    status: "ready";
+    merchant: Merchant;
+    totalRedemptions: number;
+    uniqueCustomers: number;
+    estimatedRevenueCents: number;
+    redemptions: EnrichedRedemption[];
+    merchantOffers: any[];
+    error: string | null;
+  };
 
 /* =======================
    Helpers
@@ -116,6 +118,7 @@ export default function MerchantDashboardPage() {
             uniqueCustomers: 0,
             estimatedRevenueCents: 0,
             redemptions: [],
+            merchantOffers: [],
             error: "Failed to load profile/merchant data.",
           });
         console.error("profiles query error:", profileErr);
@@ -144,11 +147,19 @@ export default function MerchantDashboardPage() {
             uniqueCustomers: 0,
             estimatedRevenueCents: 0,
             redemptions: [],
+            merchantOffers: [],
             error: "Failed to load merchant data.",
           });
         console.error("merchants query error:", merchantErr);
         return;
       }
+
+      // Fetch offers
+      const { data: offersData } = await sb
+        .from('offers')
+        .select('*')
+        .eq('merchant_id', merchantId)
+        .order('created_at', { ascending: false });
 
       const merchant: Merchant = {
         id: merchantRow.id,
@@ -175,6 +186,7 @@ export default function MerchantDashboardPage() {
             uniqueCustomers: 0,
             estimatedRevenueCents: 0,
             redemptions: [],
+            merchantOffers: [],
             error: "Failed to load redemptions.",
           });
         console.error("redemptions query error:", redErr);
@@ -192,6 +204,7 @@ export default function MerchantDashboardPage() {
             uniqueCustomers: 0,
             estimatedRevenueCents: 0,
             redemptions: [],
+            merchantOffers: [],
             error: null,
           });
         return;
@@ -284,6 +297,7 @@ export default function MerchantDashboardPage() {
           uniqueCustomers,
           estimatedRevenueCents,
           redemptions: enriched,
+          merchantOffers: offersData ?? [],
           error: null,
         });
     }
@@ -300,13 +314,7 @@ export default function MerchantDashboardPage() {
      ======================= */
 
   if (state.status === "loading") {
-    return (
-      <main className="min-h-screen bg-[#05070A] text-white">
-        <section className="max-w-6xl mx-auto px-4 py-10">
-          <p className="text-sm text-white/70">Loading merchant dashboard…</p>
-        </section>
-      </main>
-    );
+    return <Loading message="Loading Merchant Dashboard..." />;
   }
 
   if (state.status === "not-logged-in") {
@@ -330,34 +338,34 @@ export default function MerchantDashboardPage() {
   }
 
   if (state.status === "not-merchant") {
-  return (
-    <main className="min-h-screen bg-[#05070A] text-white">
-      <section className="max-w-lg mx-auto px-4 py-20">
-        <div className="rounded-2xl bg-[#101822] border border-amber-500/40 p-6 space-y-4">
-          <h1 className="text-xl font-semibold">You&apos;re not a merchant</h1>
-          <p className="text-sm text-white/75">
-            This dashboard is only for businesses that partner with Today&apos;s
-            Stash.
-          </p>
-          <p className="text-sm text-white/70">
-            Want to become a merchant? Register your business below and we&apos;ll
-            walk you through how Today&apos;s Stash can bring you more customers
-            and repeat visits.
-          </p>
+    return (
+      <main className="min-h-screen bg-[#05070A] text-white">
+        <section className="max-w-lg mx-auto px-4 py-20">
+          <div className="rounded-2xl bg-[#101822] border border-amber-500/40 p-6 space-y-4">
+            <h1 className="text-xl font-semibold">You&apos;re not a merchant</h1>
+            <p className="text-sm text-white/75">
+              This dashboard is only for businesses that partner with Today&apos;s
+              Stash.
+            </p>
+            <p className="text-sm text-white/70">
+              Want to become a merchant? Register your business below and we&apos;ll
+              walk you through how Today&apos;s Stash can bring you more customers
+              and repeat visits.
+            </p>
 
-          {/* Updated button */}
-          <button
-            type="button"
-            onClick={() => router.push("/venue-register")}
-            className="mt-2 inline-flex items-center justify-center rounded-xl bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-400"
-          >
-            Register as a business
-          </button>
-        </div>
-      </section>
-    </main>
-  );
-}
+            {/* Updated button */}
+            <button
+              type="button"
+              onClick={() => router.push("/venue-register")}
+              className="mt-2 inline-flex items-center justify-center rounded-xl bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-400"
+            >
+              Register as a business
+            </button>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
 
   const {
@@ -399,15 +407,34 @@ export default function MerchantDashboardPage() {
               </p>
               <button
                 type="button"
-                onClick={() =>
-                  window.open(
-                    `/merchant-qr-poster?merchantId=${merchant.id}`,
-                    "_blank"
-                  )
-                }
-                className="inline-flex items-center justify-center rounded-full bg-emerald-500 px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-[0_0_20px_rgba(16,185,129,0.45)] hover:bg-emerald-400 whitespace-nowrap w-full"
+                onClick={() => router.push(`/merchant-qr-poster?merchantId=${merchant.id}`)}
+                className="mt-2 mb-2 w-full rounded-lg bg-white/10 py-2 text-xs font-medium text-white hover:bg-white/15 transition"
               >
                 Generate QR poster (A4)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => router.push("/merchant-dashboard/ai-deal")}
+                className="mt-2 mb-2 w-full rounded-lg bg-emerald-500/10 py-2 text-xs font-medium text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 transition flex items-center justify-center gap-1"
+              >
+                <span>✨</span> New Deal (AI)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => router.push("/merchant-dashboard/create-deal")}
+                className="mt-3 inline-flex items-center justify-center rounded-full bg-blue-600 px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-[0_0_20px_rgba(37,99,235,0.45)] hover:bg-blue-500 whitespace-nowrap w-full"
+              >
+                + Create New Deal
+              </button>
+
+              <button
+                type="button"
+                onClick={() => router.push("/merchant-dashboard/settings")}
+                className="mt-2 w-full rounded-lg bg-white/5 py-2 text-xs font-medium text-white hover:bg-white/10 transition flex items-center justify-center gap-1 border border-white/5"
+              >
+                ⚙️ Venue Settings
               </button>
             </div>
           </div>
@@ -437,6 +464,53 @@ export default function MerchantDashboardPage() {
             helper="Based on the value of redeemed offers. Does not include upsell spend on the day."
           />
         </div>
+
+        {/* My Active Deals */}
+        <section className="rounded-2xl border border-white/10 bg-[#0B1118] overflow-hidden mb-8">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-white/10">
+            <div>
+              <h2 className="text-sm font-semibold">My Active Deals</h2>
+              <p className="text-[11px] text-white/45 mt-0.5">
+                Manage your current offers visible to customers.
+              </p>
+            </div>
+            <div className="text-[11px] text-white/50">
+              {state.merchantOffers.length} deals
+            </div>
+          </div>
+
+          {state.merchantOffers.length === 0 ? (
+            <div className="px-5 py-6 text-sm text-white/65">
+              No deals found. Create one to get started!
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4">
+              {state.merchantOffers.map((offer: any) => (
+                <div key={offer.id} className="bg-white/5 rounded-xl p-4 border border-white/5 flex flex-col justify-between">
+                  <div>
+                    <h3 className="font-semibold text-white text-sm mb-1">{offer.title}</h3>
+                    <p className="text-xs text-white/60 line-clamp-2 mb-2">{offer.description}</p>
+                    <div className="flex gap-2 text-[10px] text-white/40 uppercase tracking-wider mb-3">
+                      {offer.savings_cents > 0 && (
+                        <span className="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">
+                          Save {formatMoneyAUD(offer.savings_cents)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex justify-end pt-2 border-t border-white/5">
+                    <button
+                      onClick={() => router.push(`/merchant-dashboard/create-deal?id=${offer.id}`)}
+                      className="text-xs text-white/50 hover:text-white transition"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
 
         {/* Recent redemptions */}
         <section className="rounded-2xl border border-white/10 bg-[#0B1118] overflow-hidden">
@@ -504,7 +578,7 @@ export default function MerchantDashboardPage() {
           )}
         </section>
       </section>
-    </main>
+    </main >
   );
 }
 

@@ -1,142 +1,267 @@
-// app/consumer/components/CouponTicket.tsx
-"use client";
-
-/* eslint-disable @next/next/no-img-element */
-
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import type { Coupon } from "./types";
 import { fmtMoney } from "./helpers";
+import { HeartIcon, ClockIcon } from "@heroicons/react/24/outline";
+import { FireIcon } from "@heroicons/react/24/solid";
 
-export default function CouponTicket({
-  deal,
-  onShow,
-}: {
-  deal: Coupon;
-  onShow: () => void;
-}) {
-  const { title, totalValue, imageUrl, merchant } = deal as any;
-  const [expanded, setExpanded] = useState(false);
+interface CouponTicketProps {
+  coupon: Coupon;
+  onRedeem: (coupon: Coupon) => void;
+  areaUnlocked: boolean;
+}
 
-  // Live numbers
-  const rawTotalLimit =
-    (deal as any).totalLimit ?? (deal as any).total_limit ?? null;
-  const rawUsedCount =
-    (deal as any).usedCount ?? (deal as any).redeemed_count ?? 0;
+export default function CouponTicket({ coupon, onRedeem }: CouponTicketProps) {
+  const router = useRouter();
 
-  const used = Math.max(0, Number(rawUsedCount) || 0);
-  const total =
-    rawTotalLimit === null || rawTotalLimit === undefined
-      ? Math.max(used, 1)
-      : Math.max(1, Number(rawTotalLimit) || 1);
-  const left = Math.max(0, total - used);
-  const usedPct = Math.min(100, (used / total) * 100);
+  // Image state for error handling
+  const [bannerSrc, setBannerSrc] = useState(coupon.imageUrl || coupon.merchant?.bannerUrl || "/placeholder-deal.svg");
 
-  const daysLeft = (deal as any).daysLeft as number | null | undefined;
+  // Time state for countdowns
+  const [now, setNow] = useState<Date | null>(null);
 
-  let daysLabel: string | null = null;
-  if (typeof daysLeft === "number") {
-    if (daysLeft > 0) daysLabel = `${daysLeft} days left`;
-    else if (daysLeft === 0) daysLabel = "Expires today";
-    else daysLabel = "Expired";
+  useEffect(() => {
+    setBannerSrc(coupon.imageUrl || coupon.merchant?.bannerUrl || "/placeholder-deal.svg");
+  }, [coupon.imageUrl, coupon.merchant?.bannerUrl]);
+
+  useEffect(() => {
+    setNow(new Date());
+    const timer = setInterval(() => setNow(new Date()), 60000); // Update every minute
+    return () => clearInterval(timer);
+  }, []);
+
+  if (!coupon || !coupon.merchant) return null; // Safety guard
+
+  // Parse time windows
+  let isUpcoming = false;
+  let isActiveTime = false;
+  let isDailyExpired = false;
+  let countdownLabel = "";
+  let availabilityLabel = "";
+
+  if (now && coupon.todayStart && coupon.todayEnd) {
+    const start = new Date(coupon.todayStart);
+    const end = new Date(coupon.todayEnd);
+
+    if (now < start) {
+      isUpcoming = true;
+      // Calc time until active
+      const diff = start.getTime() - now.getTime();
+      const h = Math.floor(diff / (1000 * 60 * 60));
+      const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      countdownLabel = `Active in ${h}h ${m}m`;
+
+      // Availability text
+      const fmtTime = (d: Date) => {
+        const h = d.getHours();
+        const m = d.getMinutes();
+        const ampm = h >= 12 ? 'pm' : 'am';
+        const h12 = h % 12 || 12;
+        return `${h12}:${m.toString().padStart(2, '0')}${ampm}`;
+      };
+      availabilityLabel = `${(coupon as any).totalLimit ? (coupon as any).totalLimit - ((coupon as any).usedCount || 0) : "Unlimited"} available at ${fmtTime(start)}`;
+    } else if (now >= start && now < end) {
+      isActiveTime = true;
+      // Calc time left
+      const diff = end.getTime() - now.getTime();
+      const h = Math.floor(diff / (1000 * 60 * 60));
+      const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      countdownLabel = `Expires in ${h}h ${m}m`;
+
+      availabilityLabel = `${(coupon as any).totalLimit ? (coupon as any).totalLimit - ((coupon as any).usedCount || 0) : "Many"} left`;
+    } else {
+      isDailyExpired = true;
+    }
   }
 
+  // Override isClosed if it's just upcoming (so it doesn't look gray)
+  // If isMerchantClosed is true (business strictly closed), we might want to respect that?
+  // But user said: "show up... as business opened but... classed as up and coming".
+  // So we assume if isUpcoming is true, we treat it visually as open (not grayscale).
+
+  // However, we still have the general "isClosed" prop from parent which might be true if business is effectively closed.
+  // We'll trust our local calculation for the visual style if we have schedule data.
+  const isGray = (coupon.daysLeft != null && coupon.daysLeft < 0) || isDailyExpired || (coupon.merchant?.isClosed && !isUpcoming && !isActiveTime);
+
+  const rawTotalLimit = (coupon as any).totalLimit ?? (coupon as any).total_limit ?? null;
+  const rawUsedCount = (coupon as any).usedCount ?? (coupon as any).redeemed_count ?? 0;
+
+  const total = rawTotalLimit ? Number(rawTotalLimit) : 0;
+  const used = Number(rawUsedCount);
+  const remaining = total - used;
+
+  // Logic from screen: "Sold out", "Only X left"
+  const isSoldOut = total > 0 && remaining <= 0;
+  const isLowStock = total > 0 && remaining <= 5 && !isSoldOut;
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    router.push(`/consumer/deal/${coupon.id}`);
+  };
+
   return (
-    <article className="relative overflow-hidden rounded-2xl bg-[#13202B] ring-1 ring-white/10 shadow-md">
-      {/* Ribbon */}
-      {Number.isFinite(totalValue) && totalValue > 0 && (
-        <div className="absolute left-0 top-0 z-20 pointer-events-none select-none">
-          <div className="absolute -left-7 top-4 w-[120px] -rotate-45 rounded-sm bg-gradient-to-b from-[#e79727] to-[#e5cc4f] py-0.5 text-center text-[10px] font-extrabold text-white shadow-[0_2px_6px_rgba(0,0,0,0.5)]">
-            SAVE {fmtMoney(totalValue)}
-          </div>
-        </div>
-      )}
+    <div
+      onClick={handleClick}
+      className="group relative flex flex-col w-full rounded-t-xl overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer select-none"
+    >
+      {/* --- Image Section --- */}
+      <div className="relative w-full h-48 overflow-hidden bg-gray-100">
+        {/* Main Image */}
+        <img
+          src={bannerSrc}
+          alt={coupon.title}
+          onError={() => {
+            if (bannerSrc !== (coupon.merchant?.bannerUrl || "/placeholder-deal.svg") && coupon.merchant?.bannerUrl) {
+              setBannerSrc(coupon.merchant.bannerUrl);
+            } else {
+              setBannerSrc("/placeholder-deal.svg");
+            }
+          }}
+          className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${isGray || isSoldOut ? "grayscale filter opacity-90" : ""}`}
+        />
 
-      {/* CTA */}
-      <button
-        onClick={onShow}
-        className="absolute bottom-3 right-3 rounded-full px-3 py-1 text-[12px] font-semibold text-white bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)] active:scale-95 whitespace-nowrap"
-      >
-        Redeem in store
-      </button>
-
-      {/* Grid */}
-      <div className="grid grid-cols-[80px_minmax(0,1fr)] gap-3 p-3 min-w-0">
-        {/* Image */}
-        <div className="w-20 h-20 overflow-hidden rounded-xl bg-white/5">
-          {imageUrl ? (
-            <img src={imageUrl} alt="" className="h-full w-full object-cover" />
+        {/* Overlay: Status Badge (Top Left) */}
+        <div className="absolute top-3 left-3 z-10 font-medium">
+          {isSoldOut ? (
+            <span className="px-3 py-1 bg-white/90 backdrop-blur text-gray-800 text-xs font-bold rounded-full shadow-sm">
+              Sold out
+            </span>
+          ) : coupon.daysLeft != null && coupon.daysLeft < 0 ? (
+            <span className="px-3 py-1 bg-gray-100 text-gray-500 border border-gray-200 text-xs font-bold rounded-full shadow-sm">
+              Expired
+            </span>
+          ) : isUpcoming ? (
+            <span className="px-3 py-1 bg-blue-500/90 backdrop-blur text-white text-xs font-bold rounded-full shadow-sm">
+              {countdownLabel}
+            </span>
+          ) : isActiveTime ? (
+            <span className="px-3 py-1 bg-orange-500/90 backdrop-blur text-white text-xs font-bold rounded-full shadow-sm">
+              {countdownLabel}
+            </span>
+          ) : coupon.merchant?.isClosed ? (
+            <span className="px-3 py-1 bg-white/90 backdrop-blur text-gray-800 text-xs font-bold rounded-full shadow-sm">
+              Closed
+            </span>
+          ) : isLowStock ? (
+            <span className="px-3 py-1 bg-rose-500 text-white text-xs font-bold rounded-full shadow-sm">
+              Only {remaining} left
+            </span>
+          ) : coupon.daysLeft != null && coupon.daysLeft <= 3 ? (
+            <span className="px-3 py-1 bg-amber-100 text-amber-900 border border-amber-200 text-xs font-bold rounded-full shadow-sm">
+              {coupon.daysLeft === 0 ? "Expires Today" : `${coupon.daysLeft} days left`}
+            </span>
           ) : (
-            <div className="grid h-full w-full place-items-center text-xs text-white/60">
-              No image
-            </div>
+            <span className="hidden" />
           )}
         </div>
+      </div>
 
-        {/* Text */}
-        <div className="min-w-0">
-          {/* Expandable Title */}
-          <div className="flex items-center gap-1">
-            <h3
-              className={`block w-full min-w-0 text-[17px] font-extrabold leading-tight text-white transition-all duration-300 ${
-                expanded ? "whitespace-normal" : "truncate"
-              }`}
-            >
-              {title}
+      {/* --- Content Section --- */}
+      <div className="relative flex flex-col pt-4 pb-1 px-4 text-left bg-[#1a1a1a] overflow-hidden">
+        {/* Background Texture Element */}
+        <div
+          className="absolute inset-0 z-0 bg-center bg-no-repeat pointer-events-none"
+          style={{
+            backgroundImage: "url('/textures/cardtexture.jpeg')",
+            opacity: "var(--coupon-texture-opacity)",
+            backgroundSize: "var(--coupon-texture-size)"
+          }}
+        />
+
+        {/* Content Wrapper */}
+        <div className="relative z-10 flex flex-col">
+          {/* Row 1: Title & Heart */}
+          <div className="flex justify-between items-start mb-0.5 pt-2">
+            <h3 className="text-coupon-title font-bold text-xl truncate pr-2 leading-snug">
+              {coupon.title}
             </h3>
-
-            {title?.length > 30 && (
-              <button
-                type="button"
-                onClick={() => setExpanded((v) => !v)}
-                className="flex-shrink-0 text-white/70 hover:text-white transition-transform duration-300"
-                aria-label={expanded ? "Collapse title" : "Expand title"}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className={`w-3 h-3 ${
-                    expanded ? "rotate-180" : "rotate-0"
-                  } transition-transform duration-300`}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </button>
-            )}
+            <button className="text-white hover:text-brand-neon transition-colors">
+              <HeartIcon className="w-5 h-5" />
+            </button>
           </div>
 
-          {merchant?.name && (
-            <p className="block w-full min-w-0 truncate text-[13px] text-white/70">
-              {merchant.name}
-            </p>
-          )}
+          {/* Row 2: Merchant Name */}
+          <p className="text-white text-sm font-normal truncate mb-3">
+            {coupon.merchant.name}
+          </p>
 
-          {/* Usage + progress bar + days left */}
-          <div className="mt-1 mr-[140px]">
-            <p className="text-[12px] text-white/60">
-              Used: {used} • Left: {left}
-              {daysLabel && <> • {daysLabel}</>}
-            </p>
+          <div className="flex justify-between items-end">
+            <div className="flex flex-col gap-1 pb-1 flex-1 pr-2">
+              {/* Stock Info (Fire) */}
+              {(isUpcoming || isActiveTime) && availabilityLabel && (
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-coupon-stock">
+                  <FireIcon className="w-3.5 h-3.5" />
+                  <span>{availabilityLabel}</span>
+                </div>
+              )}
 
-            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{
-                  width: `${usedPct}%`,
-                  backgroundImage:
-                    "linear-gradient(to right, #10B981 0%, #84CC16 35%, #F59E0B 60%, #FB923C 80%, #EF4444 100%)",
-                }}
-              />
+              {/* Timer Info (Clock) */}
+              {(isUpcoming || isActiveTime) && countdownLabel && (
+                <div className="flex items-center gap-1.5 text-xs font-medium text-coupon-expiry">
+                  <ClockIcon className="w-3.5 h-3.5" />
+                  <span>{countdownLabel}</span>
+                </div>
+              )}
+
+              {/* Business Status */}
+              <div className="text-xs text-white leading-tight">
+                <span>
+                  {coupon.merchant?.isClosed
+                    ? (coupon.merchant?.nextOpen ? `Business ${coupon.merchant.nextOpen.toLowerCase()}` : "Business closed")
+                    : (coupon.merchant?.closesAt ? `Business is open till ${coupon.merchant.closesAt} today` : "Business open")
+                  }
+                </span>
+              </div>
+            </div>
+
+            {/* Price */}
+            <div className="flex items-baseline gap-2 shrink-0 pb-0.5">
+              {coupon.originalPrice && (
+                <span className="text-gray-500 line-through text-lg font-medium decoration-gray-500/50">
+                  {fmtMoney(coupon.originalPrice)}
+                </span>
+              )}
+              <span className="text-coupon-price font-black text-5xl tracking-tight leading-none">
+                {fmtMoney(coupon.price ?? 0)}
+              </span>
             </div>
           </div>
         </div>
       </div>
-    </article>
+
+      {/* --- Dashed Footer: Click to Redeem (Serrated Edge) --- */}
+      <div
+        className="relative w-full pb-4 pt-2 bg-[#1a1a1a]"
+        style={{
+          maskImage: "radial-gradient(circle at bottom, transparent 6px, black 6.5px), linear-gradient(black, black)",
+          maskSize: "20px 20px, 100% calc(100% - 10px)",
+          maskPosition: "bottom, top",
+          maskRepeat: "repeat-x, no-repeat",
+          maskComposite: "intersect", // Standard
+          WebkitMaskImage: "radial-gradient(circle at bottom, transparent 6px, black 6.5px), linear-gradient(black, black)",
+          WebkitMaskSize: "20px 20px, 100% calc(100% - 10px)",
+          WebkitMaskPosition: "bottom, top",
+          WebkitMaskRepeat: "repeat-x, no-repeat",
+          WebkitMaskComposite: "source-over, source-over", // Webkit logic is often reversed or specific
+        }}
+      >
+        {/* Background Texture Element for Footer */}
+        <div
+          className="absolute inset-0 z-0 bg-center bg-no-repeat pointer-events-none"
+          style={{
+            backgroundImage: "url('/textures/cardtexture.jpeg')",
+            opacity: "var(--coupon-texture-opacity)",
+            backgroundSize: "var(--coupon-texture-size)"
+          }}
+        />
+
+        <div className="relative z-10">
+          <div className="absolute top-0 inset-x-4 border-t border-dashed border-coupon-dashed" />
+          <div className="text-center mt-1.5 mb-0.5">
+            <span className="font-mono text-xs text-coupon-redeem tracking-widest uppercase opacity-90">click to redeem</span>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

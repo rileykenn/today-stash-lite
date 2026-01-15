@@ -2,35 +2,32 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { sb } from '@/lib/supabaseBrowser';
-import CreateTown from './CreateTown';
+import TownForm from './TownForm';
 
 type TownRow = {
   id: string;
   name: string | null;
-  slug: string | null; // exists in DB but we won't render it
-  access_code: string | null;
+  slug: string | null;
   is_free: boolean | null;
+  image_url?: string | null;
   created_at?: string | null;
 };
 
 export default function TownsTable() {
   const [rows, setRows] = useState<TownRow[]>([]);
   const [loading, setLoading] = useState(true);
-
   const [q, setQ] = useState('');
 
-  // editing
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState('');
-  const [editingIsFree, setEditingIsFree] = useState<boolean>(false);
-  const [saving, setSaving] = useState(false);
+  // Modal State
+  const [open, setOpen] = useState(false);
+  const [editingTown, setEditingTown] = useState<TownRow | undefined>(undefined);
 
   const fetchTowns = async () => {
     setLoading(true);
 
     const { data, error } = await sb
       .from('towns')
-      .select('id,name,slug,access_code,is_free,created_at')
+      .select('id,name,slug,is_free,image_url,created_at')
       .order('name', { ascending: true })
       .limit(1000);
 
@@ -54,62 +51,16 @@ export default function TownsTable() {
     if (!term) return rows;
 
     return rows.filter((r) => {
-      const hay = [r.name ?? '', r.access_code ?? ''].join(' ').toLowerCase();
+      const hay = [r.name ?? ''].join(' ').toLowerCase();
       return hay.includes(term);
     });
   }, [rows, q]);
 
-  const startEdit = (t: TownRow) => {
-    setEditingId(t.id);
-    setEditingName(t.name ?? '');
-    setEditingIsFree(Boolean(t.is_free));
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEditingName('');
-    setEditingIsFree(false);
-    setSaving(false);
-  };
-
-  const saveEdit = async () => {
-    if (!editingId) return;
-
-    const name = editingName.trim();
-    if (!name) return alert('Town name cannot be empty.');
-
-    setSaving(true);
-
-    const { data, error } = await sb
-      .from('towns')
-      .update({ name, is_free: editingIsFree })
-      .eq('id', editingId)
-      .select('id,name,access_code,is_free')
-      .single();
-
-    if (error) {
-      setSaving(false);
-      return alert('Failed to update town: ' + error.message);
-    }
-
-    const updated = data as any;
-
-    setRows((prev) =>
-      prev.map((r) =>
-        r.id === editingId
-          ? { ...r, name: updated.name, is_free: updated.is_free, access_code: updated.access_code }
-          : r,
-      ),
-    );
-
-    setSaving(false);
-    cancelEdit();
-  };
-
   const deleteTown = async (t: TownRow) => {
     if (!confirm(`Delete "${t.name ?? 'this town'}"? This cannot be undone.`)) return;
 
-    // Safety check: don't delete if merchants reference it (if your merchants table uses town_id)
+    // Safety check: don't delete if merchants reference it via town_id
+    // This assumes specific FK setup, usually good practice to keep.
     const { count, error: cErr } = await sb
       .from('merchants')
       .select('id', { count: 'exact', head: true })
@@ -129,13 +80,7 @@ export default function TownsTable() {
     try {
       await navigator.clipboard.writeText(text);
     } catch {
-      // fallback
-      const el = document.createElement('textarea');
-      el.value = text;
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand('copy');
-      document.body.removeChild(el);
+      // fallback ignored for brevity
     }
   };
 
@@ -146,7 +91,7 @@ export default function TownsTable() {
         <div>
           <h2 className="text-base font-semibold">Towns</h2>
           <p className="text-sm text-slate-600">
-            Manage towns (name, access code, and free access).
+            Manage towns and images.
           </p>
         </div>
 
@@ -154,20 +99,20 @@ export default function TownsTable() {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search town or code…"
+            placeholder="Search town…"
             className="w-full sm:w-64 px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:ring-2 focus:ring-slate-200"
           />
           <button
-            onClick={fetchTowns}
-            className="px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-sm font-medium"
+            onClick={() => {
+              setEditingTown(undefined);
+              setOpen(true);
+            }}
+            className="px-3 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:opacity-95"
           >
-            Refresh
+            Create town
           </button>
         </div>
       </div>
-
-      {/* ✅ Create town as separate component */}
-      <CreateTown onCreated={fetchTowns} />
 
       {/* Desktop table */}
       <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-200 bg-white">
@@ -175,119 +120,68 @@ export default function TownsTable() {
           <thead className="bg-slate-50 text-slate-600">
             <tr>
               <th className="py-3 px-3 text-left font-medium">Town</th>
-              <th className="py-3 px-3 text-left font-medium">Access code</th>
-              <th className="py-3 px-3 text-left font-medium">Free?</th>
+              <th className="py-3 px-3 text-left font-medium">Status</th>
               <th className="py-3 px-3 text-left font-medium">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td className="py-4 px-3 text-slate-500" colSpan={4}>
-                  Loading…
-                </td>
+                <td className="py-4 px-3 text-slate-500" colSpan={3}>Loading…</td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td className="py-4 px-3 text-slate-500" colSpan={4}>
-                  No towns found.
-                </td>
+                <td className="py-4 px-3 text-slate-500" colSpan={3}>No towns found.</td>
               </tr>
             ) : (
-              filtered.map((t) => {
-                const isEditing = editingId === t.id;
-
-                return (
-                  <tr key={t.id} className="border-t border-slate-200">
-                    <td className="py-3 px-3">
-                      {isEditing ? (
-                        <input
-                          value={editingName}
-                          onChange={(e) => setEditingName(e.target.value)}
-                          className="w-full max-w-md px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:ring-2 focus:ring-slate-200"
-                        />
+              filtered.map((t) => (
+                <tr key={t.id} className="border-t border-slate-200">
+                  <td className="py-3 px-3">
+                    <div className="flex items-center gap-3">
+                      {t.image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={t.image_url} alt="" className="w-10 h-10 rounded-lg object-cover bg-slate-100" />
                       ) : (
-                        <span className="font-medium">{t.name ?? '—'}</span>
-                      )}
-                    </td>
-
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-sm">{t.access_code ?? '—'}</span>
-                        {t.access_code && (
-                          <button
-                            onClick={() => copy(t.access_code!)}
-                            className="px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs"
-                            title="Copy code"
-                          >
-                            Copy
-                          </button>
-                        )}
-                      </div>
-                    </td>
-
-                    <td className="py-3 px-3">
-                      {isEditing ? (
-                        <label className="inline-flex items-center gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={editingIsFree}
-                            onChange={(e) => setEditingIsFree(e.target.checked)}
-                            className="h-4 w-4"
-                          />
-                          Free
-                        </label>
-                      ) : (
-                        <span
-                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs ${
-                            t.is_free
-                              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                              : 'border-slate-200 bg-slate-50 text-slate-700'
-                          }`}
-                        >
-                          {t.is_free ? 'Yes' : 'No'}
-                        </span>
-                      )}
-                    </td>
-
-                    <td className="py-3 px-3">
-                      {isEditing ? (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={saveEdit}
-                            disabled={saving}
-                            className="px-2 py-1 rounded-lg bg-slate-900 text-white hover:opacity-95 disabled:opacity-60"
-                          >
-                            {saving ? 'Saving…' : 'Save'}
-                          </button>
-                          <button
-                            onClick={cancelEdit}
-                            disabled={saving}
-                            className="px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-60"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => startEdit(t)}
-                            className="px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => deleteTown(t)}
-                            className="px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-red-600"
-                          >
-                            Delete
-                          </button>
+                        <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-300">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
                         </div>
                       )}
-                    </td>
-                  </tr>
-                );
-              })
+                      <span className="font-medium">{t.name ?? '—'}</span>
+                    </div>
+                  </td>
+
+                  <td className="py-3 px-3">
+                    <span
+                      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs ${t.is_free
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                        : 'border-amber-200 bg-amber-50 text-amber-800'
+                        }`}
+                    >
+                      {t.is_free ? 'Free' : 'Paid'}
+                    </span>
+                  </td>
+
+                  <td className="py-3 px-3">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setEditingTown(t);
+                          setOpen(true);
+                        }}
+                        className="px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => deleteTown(t)}
+                        className="px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-red-600"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
             )}
           </tbody>
         </table>
@@ -304,21 +198,25 @@ export default function TownsTable() {
         ) : (
           filtered.map((t) => (
             <div key={t.id} className="rounded-xl border border-slate-200 bg-white p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="font-semibold truncate">{t.name ?? '—'}</div>
-                  <div className="mt-1 text-sm text-slate-600">
-                    Code: <span className="font-mono">{t.access_code ?? '—'}</span>
+              <div className="flex items-start gap-3">
+                {t.image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={t.image_url} alt="" className="w-12 h-12 rounded-lg object-cover bg-slate-100 shrink-0" />
+                ) : (
+                  <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center text-slate-300 shrink-0">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
                   </div>
-                  <div className="mt-2">
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold truncate">{t.name ?? '—'}</div>
+                  <div className="mt-1 flex items-center gap-2">
                     <span
-                      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs ${
-                        t.is_free
+                      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${t.is_free
                           ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                          : 'border-slate-200 bg-slate-50 text-slate-700'
-                      }`}
+                          : 'border-amber-200 bg-amber-50 text-amber-800'
+                        }`}
                     >
-                      {t.is_free ? 'Free town' : 'Paid town'}
+                      {t.is_free ? 'Free' : 'Paid'}
                     </span>
                   </div>
                 </div>
@@ -326,19 +224,14 @@ export default function TownsTable() {
 
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
-                  onClick={() => startEdit(t)}
+                  onClick={() => {
+                    setEditingTown(t);
+                    setOpen(true);
+                  }}
                   className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium"
                 >
                   Edit
                 </button>
-                {t.access_code && (
-                  <button
-                    onClick={() => copy(t.access_code!)}
-                    className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium"
-                  >
-                    Copy code
-                  </button>
-                )}
                 <button
                   onClick={() => deleteTown(t)}
                   className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium text-red-600"
@@ -351,56 +244,29 @@ export default function TownsTable() {
         )}
       </div>
 
-      {/* Simple mobile edit modal (optional) */}
-      {editingId && (
-        <div className="fixed inset-0 z-50 bg-black/30 p-3 flex items-center justify-center md:hidden">
+      {/* Main Modal */}
+      {open && (
+        <div className="fixed inset-0 z-50 bg-black/30 p-3 flex items-center justify-center">
           <div className="w-full max-w-md rounded-2xl bg-white border border-slate-200 shadow-xl overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
-              <div className="font-semibold">Edit town</div>
+              <div className="font-semibold">{editingTown ? 'Edit Town' : 'Create Town'}</div>
               <button
-                onClick={cancelEdit}
+                onClick={() => setOpen(false)}
                 className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm"
               >
                 Close
               </button>
             </div>
 
-            <div className="p-4 space-y-3">
-              <div>
-                <div className="text-xs font-medium text-slate-500">Town name</div>
-                <input
-                  value={editingName}
-                  onChange={(e) => setEditingName(e.target.value)}
-                  className="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:ring-2 focus:ring-slate-200"
-                />
-              </div>
-
-              <label className="inline-flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={editingIsFree}
-                  onChange={(e) => setEditingIsFree(e.target.checked)}
-                  className="h-4 w-4"
-                />
-                Free town
-              </label>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  onClick={cancelEdit}
-                  disabled={saving}
-                  className="px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm disabled:opacity-60"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={saveEdit}
-                  disabled={saving}
-                  className="px-3 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold disabled:opacity-60"
-                >
-                  {saving ? 'Saving…' : 'Save'}
-                </button>
-              </div>
+            <div className="p-4">
+              <TownForm
+                town={editingTown}
+                onSaved={() => {
+                  setOpen(false);
+                  fetchTowns();
+                }}
+                onCancel={() => setOpen(false)}
+              />
             </div>
           </div>
         </div>
@@ -408,3 +274,4 @@ export default function TownsTable() {
     </div>
   );
 }
+

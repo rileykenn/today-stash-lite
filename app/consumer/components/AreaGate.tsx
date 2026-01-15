@@ -53,7 +53,7 @@ export default function AreaGate({
 
         <div className="flex-1">
           <label className="block text-xs font-medium text-white/70 mb-1.5">
-            Enter your 4-digit access code
+
           </label>
 
           <input

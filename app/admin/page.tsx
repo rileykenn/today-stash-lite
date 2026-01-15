@@ -10,6 +10,7 @@ import DealsTable from './_components/DealsTable';
 import ApplicationsTable from './_components/ApplicationsTable';
 import SupportTable from './_components/SupportTable';
 import TownsTable from './_components/TownsTable';
+import Loading from '@/components/Loading';
 
 type Role = 'admin' | 'merchant' | 'consumer';
 
@@ -52,7 +53,7 @@ export default function AdminHome() {
   }, []);
 
   if (loading) {
-    return <div className="min-h-screen bg-[#F6F7FB] p-4 text-slate-700">Loading…</div>;
+    return <Loading message="Loading Admin Panel..." />;
   }
 
   if (meRole !== 'admin') {

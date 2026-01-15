@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { sb } from "@/lib/supabaseBrowser";
 import AdminLink from "./AdminLink"; // adjust path if needed
+import { UserCircleIcon } from "@heroicons/react/24/solid";
 
 // Main top-level links (no invitations here)
 const navLinks = [
@@ -17,9 +18,11 @@ const navLinks = [
 
 // Invitation / promo areas
 const invitationLinks = [
-  { href: "/invitations/sussex-inlet", label: "Sussex Inlet" },
-  { href: "/invitations/melbourne", label: "Melbourne" },
-  { href: "/invitations/westfield-doncaster", label: "Westfield Doncaster" },
+  { href: "/areas", label: "Browse All Areas" },
+  // Keeping these for legacy support if needed, or we can remove them.
+  // The user asked to make "areas we are promoting" link to the new page.
+  // We can just keep one main link in the dropdown for now, or fetch them dynamically (which would make this a server component or require client fetching).
+  // For simplicity and speed, let's link to the main hub.
 ];
 
 export default function Header() {
@@ -27,14 +30,13 @@ export default function Header() {
   const router = useRouter();
 
   const [open, setOpen] = useState(false); // mobile nav open
-  const [areasOpen, setAreasOpen] = useState(false); // desktop dropdown
+  // const [areasOpen, setAreasOpen] = useState(false); // desktop dropdown - REMOVED dropdown logic for now to simplify
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [signedIn, setSignedIn] = useState(false);
 
   // Close mobile nav & dropdown on route change
   useEffect(() => {
     setOpen(false);
-    setAreasOpen(false);
   }, [pathname]);
 
   // Supabase auth state
@@ -78,16 +80,7 @@ export default function Header() {
 
   const handleAuthClick = async () => {
     if (isAuthLoading) return;
-
-    const supabase = sb;
-
-    if (!signedIn) {
-      router.push("/signin");
-      return;
-    }
-
-    await supabase.auth.signOut();
-    router.refresh();
+    router.push("/signin");
   };
 
   return (
@@ -113,32 +106,46 @@ export default function Header() {
           <div className="flex-1 flex justify-center">
             <Link
               href="/"
-              className="text-[20px] font-semibold tracking-wide leading-none"
+              className="flex items-center"
             >
-              <span className="text-white">todays</span>
-              <span className="text-emerald-400">stash</span>
+              <img
+                src="/logo6.png"
+                alt="Today's Stash"
+                className="h-10 sm:h-9 md:h-10 w-auto object-contain mx-auto"
+              />
             </Link>
           </div>
 
           {/* RIGHT SIDE */}
           <div className="flex-1 flex justify-end items-center gap-2">
             {/* Sign in / out desktop */}
-            <button
-              type="button"
-              onClick={handleAuthClick}
-              disabled={isAuthLoading}
-              className={`
-                hidden sm:inline-flex
-                items-center justify-center
-                rounded-full px-3 py-1.5
-                text-[11px] font-medium
-                bg-white/10 hover:bg-white/20
-                text-white transition
-                ${isAuthLoading ? "opacity-60 cursor-default" : ""}
-              `}
-            >
-              {authLabel}
-            </button>
+            {/* Sign in / Profile desktop */}
+            {signedIn ? (
+              <Link
+                href="/profile"
+                className="hidden sm:inline-flex items-center justify-center text-white/80 hover:text-emerald-400 transition"
+                title="View Profile"
+              >
+                <UserCircleIcon className="w-8 h-8" />
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={handleAuthClick}
+                disabled={isAuthLoading}
+                className={`
+                  hidden sm:inline-flex
+                  items-center justify-center
+                  rounded-full px-3 py-1.5
+                  text-[11px] font-medium
+                  bg-white/10 hover:bg-white/20
+                  text-white transition
+                  ${isAuthLoading ? "opacity-60 cursor-default" : ""}
+                `}
+              >
+                {authLabel}
+              </button>
+            )}
 
             {/* Hamburger */}
             <button
@@ -174,16 +181,15 @@ export default function Header() {
                 href={link.href}
                 className={`
                   rounded-full px-4 py-1.5 text-[13px] font-medium transition
-                  ${
-                    active
-                      ? "bg-white text-black shadow-sm"
-                      : isHome
+                  ${active
+                    ? "bg-white text-black shadow-sm"
+                    : isHome
                       ? "border border-white/40 text-white hover:bg-white/10"
                       : isBusiness
-                      ? "border border-emerald-500/60 text-emerald-300 hover:bg-emerald-500/10 hover:text-emerald-200"
-                      : isDashboard
-                      ? "text-white/80 bg-white/5 hover:bg-white/10"
-                      : "text-white/75 hover:text-white hover:bg-white/10"
+                        ? "border border-emerald-500/60 text-emerald-300 hover:bg-emerald-500/10 hover:text-emerald-200"
+                        : isDashboard
+                          ? "text-white/80 bg-white/5 hover:bg-white/10"
+                          : "text-white/75 hover:text-white hover:bg-white/10"
                   }
                 `}
               >
@@ -193,61 +199,20 @@ export default function Header() {
           })}
 
           {/* Invitations dropdown (desktop) */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setAreasOpen((v) => !v)}
-              className={`
-                rounded-full px-4 py-1.5 text-[13px] font-medium transition
-                inline-flex items-center gap-1.5
-                ${
-                  isInvitationActive
-                    ? "bg-white text-black shadow-sm"
-                    : "text-white/75 hover:text-white hover:bg-white/10"
-                }
-              `}
-            >
-              Areas we&apos;re promoting
-              <span
-                className={`text-[10px] transition-transform ${
-                  areasOpen ? "rotate-180" : ""
-                }`}
-              >
-                ▼
-              </span>
-            </button>
-
-            {areasOpen && (
-              <div
-                className="
-                  absolute right-0 mt-2 w-52
-                  rounded-2xl border border-white/10
-                  bg-[#05090F] shadow-[0_18px_40px_rgba(0,0,0,0.75)]
-                  overflow-hidden
-                "
-              >
-                {invitationLinks.map((link) => {
-                  const active = isActive(link.href);
-                  return (
-                    <Link
-                      key={link.href}
-                      href={link.href}
-                      className={`
-                        block px-4 py-2.5 text-[13px] transition
-                        ${
-                          active
-                            ? "bg-white text-black"
-                            : "text-white/85 hover:bg-white/10"
-                        }
-                      `}
-                    >
-                      {link.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          {/* Invitations/Areas Link (Desktop) */}
+          <Link
+            href="/areas"
+            className={`
+              rounded-full px-4 py-1.5 text-[13px] font-medium transition
+              inline-flex items-center gap-1.5
+              ${isInvitationActive
+                ? "bg-white text-black shadow-sm"
+                : "text-white/75 hover:text-white hover:bg-white/10"
+              }
+            `}
+          >
+            Areas we&apos;re promoting
+          </Link>
         </nav>
       </div>
 
@@ -273,16 +238,15 @@ export default function Header() {
                   href={link.href}
                   className={`
                     w-full rounded-lg px-3 py-2 text-[13px] transition
-                    ${
-                      active
-                        ? "bg-white text-black"
-                        : isHome
+                    ${active
+                      ? "bg-white text-black"
+                      : isHome
                         ? "border border-white/40 text-white hover:bg-white/10"
                         : isBusiness
-                        ? "border border-emerald-500/60 text-emerald-200 hover:bg-emerald-500/10"
-                        : isDashboard
-                        ? "text-white/85 bg-white/5 hover:bg-white/10"
-                        : "text-white/85 hover:text-white hover:bg-white/10"
+                          ? "border border-emerald-500/60 text-emerald-200 hover:bg-emerald-500/10"
+                          : isDashboard
+                            ? "text-white/85 bg-white/5 hover:bg-white/10"
+                            : "text-white/85 hover:text-white hover:bg-white/10"
                     }
                   `}
                 >
@@ -292,45 +256,47 @@ export default function Header() {
             })}
 
             {/* Mobile invitations list */}
+            {/* Mobile Areas Link */}
             <div className="mt-3">
-              <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/50">
-                Areas we&apos;re promoting
-              </p>
-              {invitationLinks.map((link) => {
-                const active = isActive(link.href);
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className={`
-                      w-full rounded-lg px-3 py-2 text-[13px] transition
-                      ${
-                        active
-                          ? "bg-white text-black"
-                          : "text-white/85 hover:text-white hover:bg-white/10"
-                      }
+              <Link
+                href="/areas"
+                className={`
+                      block w-full rounded-lg px-3 py-2 text-[13px] transition
+                      ${isInvitationActive
+                    ? "bg-white text-black"
+                    : "text-white/85 hover:text-white hover:bg-white/10"
+                  }
                     `}
-                  >
-                    {link.label}
-                  </Link>
-                );
-              })}
+              >
+                Areas we&apos;re promoting
+              </Link>
             </div>
 
             {/* Auth button mobile */}
-            <button
-              type="button"
-              onClick={handleAuthClick}
-              disabled={isAuthLoading}
-              className={`
-                mt-3 w-full rounded-lg px-3 py-2 text-[13px]
-                bg-white/10 hover:bg-white/20
-                text-white/90 text-left transition
-                ${isAuthLoading ? "opacity-60 cursor-default" : ""}
-              `}
-            >
-              {authLabel}
-            </button>
+            {/* Auth button mobile */}
+            {signedIn ? (
+              <Link
+                href="/profile"
+                className="mt-3 flex items-center gap-2 w-full rounded-lg px-3 py-2 text-[13px] bg-white/10 text-white/90 hover:bg-white/20 transition"
+              >
+                <UserCircleIcon className="w-5 h-5 text-emerald-400" />
+                My Profile
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={handleAuthClick}
+                disabled={isAuthLoading}
+                className={`
+                  mt-3 w-full rounded-lg px-3 py-2 text-[13px]
+                  bg-white/10 hover:bg-white/20
+                  text-white/90 text-left transition
+                  ${isAuthLoading ? "opacity-60 cursor-default" : ""}
+                `}
+              >
+                {authLabel}
+              </button>
+            )}
           </nav>
         </div>
       )}

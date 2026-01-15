@@ -31,10 +31,10 @@ export default function DealsGrid({
   }
 
   return (
-    <ul className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+    <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
       {visibleDeals.map((d) => (
         <li key={d.id}>
-          <CouponTicket deal={d} onShow={() => onRedeem(d)} />
+          <CouponTicket coupon={d} onRedeem={onRedeem} areaUnlocked={areaUnlocked} />
         </li>
       ))}
     </ul>
