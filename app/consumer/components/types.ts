@@ -8,10 +8,13 @@ export type Coupon = {
   totalValue: number; // dollars
   imageUrl: string | null;
   merchant: {
+    id: string;
     name: string;
     logoUrl: string | null;
     bannerUrl: string | null;
     addressText: string | null;
+    townId: string;
+    category?: string | null; // Added
     isClosed?: boolean;
     nextOpen?: string;
     closesAt?: string | null;

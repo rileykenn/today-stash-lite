@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { sb } from "@/lib/supabaseBrowser";
 import Link from "next/link";
@@ -26,7 +26,7 @@ type ScheduleItem = {
 
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 
-export default function CreateDealPage() {
+function CreateDealContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const editId = searchParams.get("id");
@@ -35,18 +35,19 @@ export default function CreateDealPage() {
     const [operatingHours, setOperatingHours] = useState<WeeklyHours | null>(null);
     const [merchantId, setMerchantId] = useState<string | null>(null);
     const [bannerUrl, setBannerUrl] = useState<string | null>(null);
+    const [wasExpired, setWasExpired] = useState(false);
 
     // Form State
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
-    const [terms, setTerms] = useState("");
+    // const [terms, setTerms] = useState(""); // Removed
     const [dealPrice, setDealPrice] = useState<string>("");
     const [originalPrice, setOriginalPrice] = useState<string>("");
-    const [totalLimit, setTotalLimit] = useState<string>("");
+    const [totalLimit, setTotalLimit] = useState<string>("10");
 
     // Image State
     const [imageFile, setImageFile] = useState<File | null>(null);
-    const [useBanner, setUseBanner] = useState(false);
+    const [useBanner, setUseBanner] = useState(true);
 
     const [error, setError] = useState<string | null>(null);
 
@@ -116,7 +117,7 @@ export default function CreateDealPage() {
             } else {
                 setTitle(deal.title);
                 setDescription(deal.description || "");
-                setTerms(deal.terms || "");
+                // setTerms(deal.terms || "");
                 setDealPrice(((deal.price_cents || 0) / 100).toFixed(2));
                 setOriginalPrice(((deal.original_price_cents || 0) / 100).toFixed(2));
                 if (deal.total_limit) setTotalLimit(String(deal.total_limit));
@@ -126,6 +127,15 @@ export default function CreateDealPage() {
                     // Logic to detect if it's the banner or custom
                     // Simplification: just show it as 'custom' override unless we match banner URL perfectly, 
                     // but for now, we just let them upload new or switch to banner.
+                }
+
+                // Check Expiry State
+                if (deal.valid_until) {
+                    const expiry = new Date(deal.valid_until);
+                    const now = new Date();
+                    if (expiry < now) {
+                        setWasExpired(true);
+                    }
                 }
 
                 // Schedule Logic Reverse Engineering
@@ -236,6 +246,45 @@ export default function CreateDealPage() {
         setRecurringSchedule(newSchedule);
     };
 
+    const sendNotification = async (merchantId: string, offerId: string, type: 'new' | 'restock') => {
+        try {
+            const { data: { session } } = await sb.auth.getSession();
+            const token = session?.access_token;
+            if (!token) return;
+
+            // Fire and forget - don't block UI? No, for debugging let's wait and see.
+            const res = await fetch('/api/notifications/notify-subscribers', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    merchant_id: merchantId,
+                    offer_id: offerId,
+                    type
+                })
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json();
+                console.error("Notification API Failed:", errorData);
+                // alert(`DEBUG: Notification failed! ${errorData.error || JSON.stringify(errorData)}`);
+            } else {
+                const data = await res.json();
+                console.log("Notification Success:", data);
+                // if (data.sent_count === 0) {
+                //     alert(`DEBUG: Notification API ran, but sent 0 SMS. Reason: ${data.message || 'Unknown'}`);
+                // } else {
+                //     alert(`DEBUG: Success! Sent ${data.sent_count} SMS notifications.`);
+                // }
+            }
+        } catch (err) {
+            console.error("Error sending notification:", err);
+            // alert(`DEBUG: Notification fetch error: ${err}`);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!merchantId) return;
@@ -323,7 +372,7 @@ export default function CreateDealPage() {
                     .update({
                         title,
                         description,
-                        terms,
+                        // terms, // Removed
                         price_cents: price,
                         original_price_cents: orig,
                         savings_cents: savings,
@@ -332,36 +381,52 @@ export default function CreateDealPage() {
                         valid_until: validUntil,
                         recurring_schedule: schedulePayload,
                         exp_date: validUntil,
-                        ...(imageUrl ? { image_url: imageUrl } : {}), // Only update image if changed/set
-                        // is_active: true, // Don't force active on edit if they paused it elsewhere? Or maybe do. Let's leave as is.
+                        ...(imageUrl ? { image_url: imageUrl } : {}),
                     } as any)
                     .eq("id", editId);
 
                 if (updateError) throw updateError;
+
+                // Check for Restock Notification (Expired -> Active)
+                // We use a simplified check: if we are editing and the new date is in the future.
+                // Ideally we check if it WAS expired, but for now let's assume if you edit an expired deal you want to notify.
+                // To be precise, we need the initial state.
+                const now = new Date();
+                const newEnd = new Date(validUntil);
+                if (wasExpired && newEnd > now) {
+                    await sendNotification(merchantId, editId, 'restock');
+                }
+
             } else {
                 // INSERT
-                const { error: insertError } = await sb
+                const { data: newDeal, error: insertError } = await sb
                     .from("offers")
                     .insert({
                         merchant_id: merchantId,
                         title,
                         description,
-                        terms,
+                        // terms, // Removed
                         price_cents: price,
                         original_price_cents: orig,
-                        savings_cents: savings, // Kept for backward compat / verification
+                        savings_cents: savings,
                         total_limit: totalLimit ? parseInt(totalLimit) : null,
                         valid_from: validFrom,
                         valid_until: validUntil,
                         recurring_schedule: schedulePayload,
-                        exp_date: validUntil, // Fallback for old clients
+                        exp_date: validUntil,
                         image_url: imageUrl,
                         is_active: true,
                         area_key: areaKey,
                         area_name: areaName
-                    });
+                    })
+                    .select('id')
+                    .single();
 
                 if (insertError) throw insertError;
+
+                if (newDeal) {
+                    await sendNotification(merchantId, newDeal.id, 'new');
+                }
             }
 
             router.push("/merchant-dashboard");
@@ -413,8 +478,8 @@ export default function CreateDealPage() {
                                 <input required type="number" step="0.01" value={originalPrice} onChange={e => setOriginalPrice(e.target.value)} placeholder="20.00" className="w-full bg-[#0A0F13] border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500/50 transition-colors" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-400 mb-2">Quantity (Optional)</label>
-                                <input type="number" value={totalLimit} onChange={e => setTotalLimit(e.target.value)} placeholder="Unlimited" className="w-full bg-[#0A0F13] border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500/50 transition-colors" />
+                                <label className="block text-sm font-medium text-gray-400 mb-2">Quantity (you can increase this later)</label>
+                                <input type="number" value={totalLimit} onChange={e => setTotalLimit(e.target.value)} placeholder="10" className="w-full bg-[#0A0F13] border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500/50 transition-colors" />
                             </div>
                         </div>
 
@@ -434,16 +499,18 @@ export default function CreateDealPage() {
                                             ⚠️ You are marked as closed today. <Link href="/merchant-dashboard/settings" className="underline hover:text-white">Edit Hours</Link>
                                         </div>
                                     )}
-                                    <div className="flex items-center gap-4">
-                                        <div className="flex-1">
-                                            <label className="block text-xs text-gray-400 mb-1">Start Time</label>
-                                            <input type="time" value={todayStart} onChange={e => setTodayStart(e.target.value)} className="w-full bg-[#111821] border border-white/10 rounded-lg px-3 py-2 text-sm" />
+                                    {!todayFullDay && (
+                                        <div className="flex items-center gap-4">
+                                            <div className="flex-1">
+                                                <label className="block text-xs text-gray-400 mb-1">Start Time</label>
+                                                <input type="time" value={todayStart} onChange={e => setTodayStart(e.target.value)} className="w-full bg-[#111821] border border-white/10 rounded-lg px-3 py-2 text-sm" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <label className="block text-xs text-gray-400 mb-1">End Time</label>
+                                                <input type="time" value={todayEnd} onChange={e => setTodayEnd(e.target.value)} className="w-full bg-[#111821] border border-white/10 rounded-lg px-3 py-2 text-sm" />
+                                            </div>
                                         </div>
-                                        <div className="flex-1">
-                                            <label className="block text-xs text-gray-400 mb-1">End Time</label>
-                                            <input type="time" value={todayEnd} onChange={e => setTodayEnd(e.target.value)} className="w-full bg-[#111821] border border-white/10 rounded-lg px-3 py-2 text-sm" />
-                                        </div>
-                                    </div>
+                                    )}
                                     <label className="flex items-center gap-2 cursor-pointer">
                                         <input type="checkbox" checked={todayFullDay} onChange={e => handleTodayFullDay(e.target.checked)} className="rounded border-white/20 bg-[#111821] text-emerald-500" />
                                         <span className="text-sm text-gray-300">Run for full business hours today</span>
@@ -473,13 +540,17 @@ export default function CreateDealPage() {
 
                                                 {item.enabled && (
                                                     <div className="flex-1 flex items-center gap-3 flex-wrap">
-                                                        <input type="time" value={item.start} onChange={e => updateRecurringTime(idx, 'start', e.target.value)} className="bg-[#111821] border border-white/10 rounded px-2 py-1 text-sm w-32" />
-                                                        <span className="text-gray-500">-</span>
-                                                        <input type="time" value={item.end} onChange={e => updateRecurringTime(idx, 'end', e.target.value)} className="bg-[#111821] border border-white/10 rounded px-2 py-1 text-sm w-32" />
+                                                        {!item.isFullDay && (
+                                                            <>
+                                                                <input type="time" value={item.start} onChange={e => updateRecurringTime(idx, 'start', e.target.value)} className="bg-[#111821] border border-white/10 rounded px-2 py-1 text-sm w-32" />
+                                                                <span className="text-gray-500">-</span>
+                                                                <input type="time" value={item.end} onChange={e => updateRecurringTime(idx, 'end', e.target.value)} className="bg-[#111821] border border-white/10 rounded px-2 py-1 text-sm w-32" />
+                                                            </>
+                                                        )}
 
                                                         <label className="flex items-center gap-2 ml-auto cursor-pointer">
                                                             <input type="checkbox" checked={item.isFullDay} onChange={e => handleRecurringFullDay(idx, e.target.checked)} className="rounded border-white/20 bg-[#111821] text-emerald-500" />
-                                                            <span className="text-xs text-gray-400">Full Hours</span>
+                                                            <span className="text-xs text-gray-400">Run for full business hours today</span>
                                                         </label>
                                                     </div>
                                                 )}
@@ -503,10 +574,7 @@ export default function CreateDealPage() {
 
                         {/* Image & Terms */}
                         <div className="space-y-4 pt-4 border-t border-white/10">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-400 mb-2">Terms & Conditions</label>
-                                <textarea rows={2} value={terms} onChange={e => setTerms(e.target.value)} placeholder="e.g. One per customer..." className="w-full bg-[#0A0F13] border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500/50 transition-colors" />
-                            </div>
+                            {/* Terms removed */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-400 mb-2">Deal Image</label>
 
@@ -549,5 +617,13 @@ export default function CreateDealPage() {
                 </section>
             </div>
         </main>
+    );
+}
+
+export default function CreateDealPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-[#0A0F13] flex items-center justify-center text-white">Loading...</div>}>
+            <CreateDealContent />
+        </Suspense>
     );
 }

@@ -45,6 +45,7 @@ type State =
   | { status: "loading" }
   | { status: "not-logged-in" }
   | { status: "not-merchant" }
+  | { status: "application-pending"; app: any }
   | {
     status: "ready";
     merchant: Merchant;
@@ -103,10 +104,12 @@ export default function MerchantDashboardPage() {
         return;
       }
 
+      const userId = session.user.id;
+
       const { data: profile, error: profileErr } = await sb
         .from("profiles")
-        .select("user_id, email, merchant_id")
-        .eq("user_id", session.user.id)
+        .select("user_id, email, merchant_id, role")
+        .eq("user_id", userId)
         .maybeSingle();
 
       if (profileErr) {
@@ -125,7 +128,25 @@ export default function MerchantDashboardPage() {
         return;
       }
 
-      if (!profile || !profile.merchant_id) {
+      // If not a merchant, check if they have a PENDING application
+      if (!profile || !profile.merchant_id || profile.role !== "merchant") {
+
+        // Check for application
+        const { data: appData, error: appErr } = await sb
+          .from("applications")
+          .select("*")
+          .eq("user_id", userId)
+          // We might want to get the latest one
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (appData) {
+          // User has an application
+          if (!cancelled) setState({ status: "application-pending", app: appData });
+          return;
+        }
+
         if (!cancelled) setState({ status: "not-merchant" });
         return;
       }
@@ -155,11 +176,15 @@ export default function MerchantDashboardPage() {
       }
 
       // Fetch offers
-      const { data: offersData } = await sb
+      const { data: offersData, error: offersFetchErr } = await sb
         .from('offers')
         .select('*')
         .eq('merchant_id', merchantId)
         .order('created_at', { ascending: false });
+
+      if (offersFetchErr) {
+        console.error("Error fetching offers with count:", offersFetchErr);
+      }
 
       const merchant: Merchant = {
         id: merchantRow.id,
@@ -327,7 +352,7 @@ export default function MerchantDashboardPage() {
           </p>
           <button
             type="button"
-            onClick={() => router.push("/profile")}
+            onClick={() => router.push("/signin?next=/merchant-dashboard")}
             className="mt-4 inline-flex items-center justify-center rounded-xl bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-400"
           >
             Go to sign-in
@@ -335,6 +360,70 @@ export default function MerchantDashboardPage() {
         </section>
       </main>
     );
+  }
+
+  // ✅ NEW: Pending Application View
+  if (state.status === "application-pending") {
+    const { app } = state;
+    const status = app.status || "pending";
+    const isDenied = status === 'denied';
+    const isApproved = status === 'approved'; // Should rarely hit this if role update worked, but possible sync issue
+
+    return (
+      <main className="min-h-screen bg-[#05070A] text-white">
+        <section className="max-w-xl mx-auto px-4 py-20">
+          <div className={`rounded-2xl border ${isDenied ? 'border-red-500/30' : 'border-emerald-500/30'} bg-[#101822] p-8 space-y-6 text-center`}>
+            <div className="flex justify-center text-4xl mb-4">
+              {isDenied ? '❌' : (isApproved ? '✅' : '⏳')}
+            </div>
+
+            <h1 className="text-2xl font-bold">
+              {isDenied ? 'Application Denied' : (isApproved ? 'Application Approved' : 'Application Received')}
+            </h1>
+
+            <p className="text-white/70">
+              {isDenied
+                ? "Sorry, your merchant application was not approved at this time."
+                : "Thanks for registering! We've received your details and our team is reviewing them."}
+            </p>
+
+            <div className="bg-white/5 rounded-xl p-4 text-left space-y-3 text-sm mt-6">
+              <div className="flex justify-between border-b border-white/5 pb-2">
+                <span className="text-white/50">Business Name</span>
+                <span className="font-medium">{app.business_name}</span>
+              </div>
+              <div className="flex justify-between border-b border-white/5 pb-2">
+                <span className="text-white/50">Status</span>
+                <span className={`font-medium px-2 py-0.5 rounded text-xs ${status === 'denied' ? 'bg-red-500/20 text-red-400' :
+                  status === 'approved' ? 'bg-emerald-500/20 text-emerald-400' :
+                    'bg-amber-500/20 text-amber-400'
+                  }`}>
+                  {status.toUpperCase()}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/50">Submitted</span>
+                <span>{formatDateTime(app.created_at)}</span>
+              </div>
+            </div>
+
+            {isDenied && (
+              <button
+                onClick={() => router.push('/venue-register')}
+                className="w-full bg-white/10 hover:bg-white/20 text-white rounded-xl py-3 font-semibold transition"
+              >
+                Submit New Application
+              </button>
+            )}
+
+            {/* 
+                 TODO: Allow editing if pending? 
+                 For now just view status is enough MVP.
+               */}
+          </div>
+        </section>
+      </main>
+    )
   }
 
   if (state.status === "not-merchant") {
@@ -376,6 +465,17 @@ export default function MerchantDashboardPage() {
     redemptions,
     error,
   } = state;
+
+  // Split offers into active and expired
+  const now = new Date();
+  const activeOffers = state.merchantOffers.filter((o: any) => {
+    if (!o.valid_until) return true; // Assume active if no expiry? Or maybe hidden.
+    return new Date(o.valid_until) > now;
+  });
+  const expiredOffers = state.merchantOffers.filter((o: any) => {
+    if (!o.valid_until) return false;
+    return new Date(o.valid_until) <= now;
+  });
 
   return (
     <main className="min-h-screen bg-[#05070A] text-white">
@@ -467,47 +567,139 @@ export default function MerchantDashboardPage() {
 
         {/* My Active Deals */}
         <section className="rounded-2xl border border-white/10 bg-[#0B1118] overflow-hidden mb-8">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-white/10">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 bg-emerald-500/5">
             <div>
-              <h2 className="text-sm font-semibold">My Active Deals</h2>
+              <h2 className="text-sm font-semibold text-emerald-400">Active Deals</h2>
               <p className="text-[11px] text-white/45 mt-0.5">
-                Manage your current offers visible to customers.
+                Currently live and visible to customers.
               </p>
             </div>
-            <div className="text-[11px] text-white/50">
-              {state.merchantOffers.length} deals
+            <div className="text-[11px] text-emerald-400/70 font-medium bg-emerald-500/10 px-2 py-1 rounded-full">
+              {activeOffers.length} active
             </div>
           </div>
 
-          {state.merchantOffers.length === 0 ? (
+          {activeOffers.length === 0 ? (
             <div className="px-5 py-6 text-sm text-white/65">
-              No deals found. Create one to get started!
+              No active deals. Create one to get started!
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4">
-              {state.merchantOffers.map((offer: any) => (
-                <div key={offer.id} className="bg-white/5 rounded-xl p-4 border border-white/5 flex flex-col justify-between">
-                  <div>
-                    <h3 className="font-semibold text-white text-sm mb-1">{offer.title}</h3>
-                    <p className="text-xs text-white/60 line-clamp-2 mb-2">{offer.description}</p>
-                    <div className="flex gap-2 text-[10px] text-white/40 uppercase tracking-wider mb-3">
-                      {offer.savings_cents > 0 && (
-                        <span className="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">
-                          Save {formatMoneyAUD(offer.savings_cents)}
+              {activeOffers.map((offer: any) => {
+                const isRecurring = offer.recurring_schedule && offer.recurring_schedule.length > 0;
+                const expiry = offer.valid_until ? new Date(offer.valid_until) : null;
+
+                // Calculate Remaining
+                const totalLimit = offer.total_limit || 0;
+                const redeemedCount = offer.redemptions?.[0]?.count || 0;
+                const remaining = Math.max(0, totalLimit - redeemedCount);
+
+                // Format Recurring Days
+                let recurringDays = "";
+                if (isRecurring) {
+                  const days = offer.recurring_schedule.map((s: any) => s.day.substring(0, 3));
+                  // Capitalize first letter
+                  const formattedDays = days.map((d: string) => d.charAt(0).toUpperCase() + d.slice(1));
+                  recurringDays = formattedDays.join(", ");
+                }
+
+                return (
+                  <div key={offer.id} className="bg-white/5 rounded-xl p-4 border border-white/5 flex flex-col justify-between group hover:border-white/10 transition-colors">
+                    <div>
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-semibold text-white text-sm">{offer.title}</h3>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded border ${isRecurring ? 'border-blue-500/30 text-blue-300 bg-blue-500/10' : 'border-purple-500/30 text-purple-300 bg-purple-500/10'}`}>
+                          {isRecurring ? 'Recurring' : 'Today Only'}
                         </span>
+                      </div>
+
+                      {isRecurring && (
+                        <p className="text-[10px] text-blue-200/70 mb-2 truncate">
+                          Runs on: {recurringDays}
+                        </p>
                       )}
+
+                      <p className="text-xs text-white/60 line-clamp-2 mb-3 min-h-[2.5em]">{offer.description}</p>
+
+                      <div className="flex items-center gap-3 mb-3 text-sm">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] text-white/40 uppercase">Deal Price</span>
+                          <span className="font-bold text-emerald-400">{formatMoneyAUD(offer.price_cents)}</span>
+                        </div>
+                        <div className="w-px h-6 bg-white/10"></div>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] text-white/40 uppercase">Original</span>
+                          <span className="text-white/60 line-through decoration-white/30">{formatMoneyAUD(offer.original_price_cents)}</span>
+                        </div>
+                      </div>
+
+                      {expiry && (
+                        <div className="text-[10px] text-white/40 flex items-center gap-1.5 bg-white/5 px-2 py-1.5 rounded-lg mb-3">
+                          <span>🕒</span>
+                          <span>Expires: {formatDateTime(offer.valid_until)}</span>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-1.5 text-[10px] text-emerald-400/80 bg-emerald-500/5 px-2 py-1.5 rounded-lg border border-emerald-500/10 mb-1 w-fit">
+                        <span>🔥</span>
+                        <span>{remaining} left of {totalLimit}</span>
+                      </div>
+                    </div>
+                    <div className="flex justify-end pt-3 border-t border-white/5">
+                      <button
+                        onClick={() => router.push(`/merchant-dashboard/create-deal?id=${offer.id}`)}
+                        className="text-xs font-medium text-white/70 hover:text-white transition flex items-center gap-1"
+                      >
+                        <span>✏️</span> Edit
+                      </button>
                     </div>
                   </div>
-                  <div className="flex justify-end pt-2 border-t border-white/5">
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* Expired Deals */}
+        <section className="rounded-2xl border border-white/10 bg-[#0B1118] overflow-hidden mb-8 opacity-80 hover:opacity-100 transition-opacity">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 bg-white/5">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-400">Expired / Past Deals</h2>
+              <p className="text-[11px] text-white/30 mt-0.5">
+                Deals that have ended. Re-use them to save time.
+              </p>
+            </div>
+            <div className="text-[11px] text-white/30">
+              {expiredOffers.length} expired
+            </div>
+          </div>
+
+          {expiredOffers.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4">
+              {expiredOffers.map((offer: any) => (
+                <div key={offer.id} className="bg-black/20 rounded-xl p-4 border border-white/5 flex flex-col justify-between grayscale-[0.3] hover:grayscale-0 transition-all">
+                  <div>
+                    <h3 className="font-semibold text-gray-300 text-sm mb-1">{offer.title}</h3>
+                    <div className="flex gap-3 text-xs text-gray-500 mb-2">
+                      <span>{formatMoneyAUD(offer.price_cents)}</span>
+                      <span className="line-through opacity-50">{formatMoneyAUD(offer.original_price_cents)}</span>
+                    </div>
+                  </div>
+                  <div className="flex justify-end pt-2 border-t border-white/5 mt-2">
                     <button
                       onClick={() => router.push(`/merchant-dashboard/create-deal?id=${offer.id}`)}
-                      className="text-xs text-white/50 hover:text-white transition"
+                      className="text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-lg transition-colors font-medium"
                     >
-                      Edit
+                      Re-use Deal
                     </button>
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+          {expiredOffers.length === 0 && (
+            <div className="px-5 py-6 text-sm text-white/30 italic">
+              No expired deals yet.
             </div>
           )}
         </section>

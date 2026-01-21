@@ -21,8 +21,13 @@ function normalizePhoneAU(input?: string | null): string | null {
 }
 const sameEmail = (a?: string | null, b?: string | null) =>
   (a ?? '').trim().toLowerCase() === (b ?? '').trim().toLowerCase();
-const samePhone = (a?: string | null, b?: string | null) =>
-  normalizePhoneAU(a) === normalizePhoneAU(b);
+const samePhone = (a?: string | null, b?: string | null) => {
+  const normA = normalizePhoneAU(a);
+  const normB = normalizePhoneAU(b);
+  if (!normA || !normB) return false;
+  // Supabase strips the + prefix, so compare without it
+  return normA.replace(/^\+/, '') === normB.replace(/^\+/, '');
+};
 
 // Paginate through users (up to 10 pages * 200 = 2000 users)
 async function findUserByEmail(email: string): Promise<User | null> {

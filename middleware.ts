@@ -4,20 +4,30 @@ import { createServerClient } from '@supabase/ssr';
 const VERIFY_PATH = '/auth/verify-email';
 
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next();
+  let res = NextResponse.next({
+    request: {
+      headers: req.headers,
+    },
+  });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get: (key) => req.cookies.get(key)?.value,
-        // (optional but recommended for refresh flows)
-        set: (key, value, options) => {
-          res.cookies.set({ name: key, value, ...options });
+        getAll() {
+          return req.cookies.getAll();
         },
-        remove: (key, options) => {
-          res.cookies.set({ name: key, value: '', ...options });
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => req.cookies.set(name, value));
+          res = NextResponse.next({
+            request: {
+              headers: req.headers,
+            },
+          });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            res.cookies.set(name, value, options)
+          );
         },
       },
     }

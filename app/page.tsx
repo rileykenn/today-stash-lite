@@ -24,24 +24,24 @@ export const metadata: Metadata = {
 export default function AboutPage() {
   return (
     <div className="relative isolate overflow-hidden bg-[#0A0F13] text-white">
-      {/* Background Texture */}
-      <div className="absolute inset-0 z-0">
-        {/* Texture removed as requested */}
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#0A0F13]/60 to-[#0A0F13]" />
-      </div>
+      {/* Background scaffold */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(1200px_700px_at_0%_0%,rgba(34,197,94,0.32),transparent_60%),radial-gradient(1000px_600px_at_100%_100%,rgba(15,23,42,0.9),transparent_55%),linear-gradient(to_bottom,rgba(15,23,42,0.4),rgba(15,23,42,1))]"
+      />
 
       <main className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col px-4 pb-16 pt-10 sm:px-6 lg:px-8">
         {/* HERO */}
         <section className="grid gap-10 pt-6 pb-10 md:grid-cols-2 md:items-center">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-brand-lime ring-1 ring-brand-lime/40 backdrop-blur">
-              <span className="h-1.5 w-1.5 rounded-full bg-brand-lime" />
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-emerald-300 ring-1 ring-emerald-400/40 backdrop-blur">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
               Local deals • Verified in-store
             </div>
 
             <h1 className="mt-5 text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl">
               Save more at the places{" "}
-              <span className="text-brand-lime">you already love.</span>
+              <span className="text-emerald-400">you already love.</span>
             </h1>
 
             <p className="mt-4 max-w-xl text-sm leading-relaxed text-brand-gray sm:text-base">
@@ -56,7 +56,7 @@ export default function AboutPage() {
             <div className="mt-6 flex flex-wrap items-center gap-3">
               <Link
                 href="/consumer"
-                className="inline-flex items-center justify-center rounded-full bg-brand-green px-6 py-2.5 text-sm font-semibold text-white shadow-[0_0_24px_color-mix(in_srgb,var(--color-brand-lime),transparent_70%)] transition hover:bg-brand-lime hover:text-brand-dark hover:shadow-[0_0_32px_color-mix(in_srgb,var(--color-brand-lime),transparent_50%)]"
+                className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-emerald-500 to-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-[0_0_24px_rgba(16,185,129,0.35)] transition hover:from-emerald-400 hover:to-blue-500 hover:shadow-[0_0_32px_rgba(16,185,129,0.5)]"
               >
                 View deals in your area
               </Link>
@@ -70,13 +70,13 @@ export default function AboutPage() {
 
               <Link
                 href="/waitlist"
-                className="text-xs font-medium text-brand-gray underline-offset-4 hover:text-white hover:underline"
+                className="text-xs font-medium text-white/65 underline-offset-4 hover:text-white hover:underline"
               >
                 Join the waiting list for your town
               </Link>
             </div>
 
-            <dl className="mt-7 grid max-w-md grid-cols-3 gap-4 text-[11px] text-brand-gray sm:text-xs">
+            <dl className="mt-7 grid max-w-md grid-cols-3 gap-4 text-[11px] text-white/65 sm:text-xs">
               <div>
                 <dt className="font-semibold text-white">20+ years</dt>
                 <dd>Helping Aussies save locally.</dd>
@@ -96,12 +96,7 @@ export default function AboutPage() {
             <img
               src="/girlphone.png"
               alt="App experience"
-              className="relative z-10 w-full max-w-[500px] drop-shadow-2xl md:max-w-none md:w-[150%] md:translate-x-20 md:scale-125 origin-bottom"
-            />
-            {/* Glow effect behind the image */}
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[120%] w-[120%] rounded-full bg-brand-lime/20 blur-3xl -z-10"
+              className="relative z-10 w-[85%] max-w-[400px] mx-auto mt-10 drop-shadow-2xl md:mt-0 md:max-w-none md:w-[150%] md:translate-x-40 md:scale-125 origin-bottom"
             />
           </div>
         </section>

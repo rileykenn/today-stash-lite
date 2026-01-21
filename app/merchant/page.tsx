@@ -13,11 +13,11 @@ export const metadata: Metadata = {
 
 export default function MerchantPage() {
   return (
-    <div className="relative isolate overflow-hidden bg-[#05080C] text-white">
+    <div className="relative isolate overflow-hidden bg-[#0A0F13] text-white">
       {/* Background gradients */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(1300px_800px_at_10%_-10%,rgba(16,185,129,0.26),transparent_60%),radial-gradient(1100px_760px_at_110%_110%,rgba(37,99,235,0.24),transparent_60%),linear-gradient(to_bottom,rgba(15,23,42,0.95),rgba(3,7,18,0.98))]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(1200px_700px_at_0%_0%,rgba(34,197,94,0.32),transparent_60%),radial-gradient(1000px_600px_at_100%_100%,rgba(15,23,42,0.9),transparent_55%),linear-gradient(to_bottom,rgba(15,23,42,0.4),rgba(15,23,42,1))]"
       />
 
       <main className="relative z-10 mx-auto max-w-5xl px-4 pb-14 pt-10 sm:px-6 lg:px-8">
@@ -30,17 +30,20 @@ export default function MerchantPage() {
           leftToRight
           grayscale
           refreshInterval={120000}
-          className="py-4 border-b border-white/10 mb-10"
+          className="py-4 border-b border-white/10 mb-10 opacity-80"
         />
 
         {/* HERO: More customers, more often */}
         <section className="grid gap-10 md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)] md:items-center">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300/90">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300">
               For businesses
             </p>
             <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl lg:text-[2.8rem]">
-              More customers, more often.
+              More customers,{" "}
+              <span className="bg-gradient-to-r from-emerald-400 to-blue-500 bg-clip-text text-transparent">
+                more often.
+              </span>
             </h1>
             <p className="mt-4 max-w-xl text-sm sm:text-base text-white/80">
               Today’s Stash helps local businesses turn spare capacity into
@@ -53,7 +56,7 @@ export default function MerchantPage() {
             <div className="mt-7">
               <Link
                 href="/venue-register"
-                className="inline-flex items-center justify-center rounded-full bg-emerald-500 px-6 py-3 text-sm font-semibold text-black shadow-[0_0_20px_rgba(16,185,129,0.6)] transition hover:bg-emerald-400"
+                className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-emerald-500 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-[0_0_24px_rgba(16,185,129,0.35)] transition hover:from-emerald-400 hover:to-blue-500 hover:shadow-[0_0_32px_rgba(16,185,129,0.5)]"
               >
                 Register as a business
               </Link>

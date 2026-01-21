@@ -7,15 +7,15 @@ type Body = {
   applicationId: string;
   townId: string;
   category:
-    | "Cafe & Bakery"
-    | "Financial"
-    | "Fitness"
-    | "Hair & Beauty"
-    | "Mechanical"
-    | "Miscellaneous"
-    | "Pet Care"
-    | "Photography"
-    | "Recreation";
+  | "Cafe & Bakery"
+  | "Financial"
+  | "Fitness"
+  | "Hair & Beauty"
+  | "Mechanical"
+  | "Miscellaneous"
+  | "Pet Care"
+  | "Photography"
+  | "Recreation";
 };
 
 function serverClient() {
@@ -60,7 +60,7 @@ export async function POST(req: Request) {
     // 1) Load application
     const { data: app, error: appErr } = await supabase
       .from("applications")
-      .select("id,business_name,address,email,phone,status,contact_name")
+      .select("id,business_name,address,email,phone,status,contact_name,user_id")
       .eq("id", body.applicationId)
       .single();
 
@@ -82,9 +82,14 @@ export async function POST(req: Request) {
     if (!streetAddress) return NextResponse.json({ error: "Application missing address" }, { status: 400 });
 
     // 2) Create/find auth user
-    let userId: string | null = await findUserIdByEmail(supabase, email);
+    // ✅ PREFER checking app.user_id (new flow), fallback to email lookup (legacy)
+    let userId: string | null = (app as any).user_id || null;
     let createdNewUser = false;
     let tempPassword: string | null = null;
+
+    if (!userId) {
+      userId = await findUserIdByEmail(supabase, email);
+    }
 
     if (!userId) {
       tempPassword = makeTempPassword();

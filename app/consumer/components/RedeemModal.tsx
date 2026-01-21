@@ -187,7 +187,7 @@ export default function RedeemModal({
                         shadow-[0_0_18px_rgba(16,185,129,0.55)]
                       "
                     >
-                      {submitting ? "Confirming…" : "Confirm redemption"}
+                      {submitting ? "Checking..." : "Verify Code (Debug)"}
                     </button>
                   </div>
                 </div>

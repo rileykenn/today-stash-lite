@@ -4,7 +4,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { sb } from "@/lib/supabaseBrowser";
 import { useRouter } from "next/navigation";
-import Gold3DBanner from "@/components/Gold3DBanner";
 import Link from "next/link";
 
 import type { Coupon, Town, Step } from "./components/types";
@@ -22,6 +21,7 @@ import { getMerchantStatus } from "./components/merchantStatus";
 
 import DealsGrid from "./components/DealsGrid";
 import RedeemModal from "./components/RedeemModal";
+import NotificationModal from "./components/NotificationModal";
 import Loading from "@/components/Loading";
 
 // Helper components for Filters
@@ -38,13 +38,35 @@ export default function ConsumerDealsPage() {
 
   // User State
   const [userSession, setUserSession] = useState<any>(null);
+  const [profileFirstName, setProfileFirstName] = useState<string>("");
   const [subscribedTownSlugs, setSubscribedTownSlugs] = useState<string[]>([]);
   const [checkingAuth, setCheckingAuth] = useState(true);
+
+  // Notification Logic
+  const [userNotificationMethod, setUserNotificationMethod] = useState<string | null>(null);
+  const [enabledMerchantIds, setEnabledMerchantIds] = useState<Set<string>>(new Set());
+  const [notificationModalOpen, setNotificationModalOpen] = useState(false);
+  const [notificationTargetDeal, setNotificationTargetDeal] = useState<Coupon | null>(null);
+  const [notificationLoading, setNotificationLoading] = useState(false);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
   const [filterTown, setFilterTown] = useState<string>("all"); // 'all' | 'subscribed' | town_slug
+  const [filterCategory, setFilterCategory] = useState<string>("all");
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
+
+  // Constants
+  const merchantCategories = [
+    'Cafe & Bakery',
+    'Financial',
+    'Fitness',
+    'Hair & Beauty',
+    'Mechanical',
+    'Miscellaneous',
+    'Pet Care',
+    'Photography',
+    'Recreation',
+  ];
 
   // Redemption modal
   const [modalOpen, setModalOpen] = useState(false);
@@ -58,35 +80,69 @@ export default function ConsumerDealsPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   /* -----------------------
-     1. Init Data Loading
+     1. Init Data Loading & Sync
      ----------------------- */
+  const fetchProfile = async () => {
+    const { data: { session } } = await sb.auth.getSession();
+
+    // Always update session state first
+    if (session?.user?.id !== userSession?.user?.id) {
+      setUserSession(session);
+    }
+
+    if (session) {
+      const { data: profile } = await sb
+        .from("profiles")
+        .select("subscribed_towns, first_name")
+        .eq("user_id", session.user.id)
+        .single();
+
+      if (profile) {
+        // Only update if changed to avoid unnecessary re-renders,
+        // but for array/string simple comparison is often enough or just set it.
+        setSubscribedTownSlugs(profile.subscribed_towns || []);
+        if (profile.first_name) {
+          setProfileFirstName(profile.first_name);
+        }
+      }
+
+      // Fetch Notification Status
+      const { data: fullProfile } = await sb
+        .from("profiles")
+        .select("notification_method, notifications_enabled")
+        .eq("user_id", session.user.id)
+        .single();
+
+      if (fullProfile) {
+        if (fullProfile.notifications_enabled && fullProfile.notification_method) {
+          setUserNotificationMethod(fullProfile.notification_method);
+        } else {
+          setUserNotificationMethod(null);
+        }
+      }
+
+      // Fetch Merchant Preferences
+      const { data: existingPrefs } = await sb
+        .from('notification_preferences')
+        .select('merchant_id')
+        .eq('user_id', session.user.id)
+        .eq('enabled', true);
+
+      if (existingPrefs) {
+        const ids = new Set(existingPrefs.map((p: any) => p.merchant_id));
+        setEnabledMerchantIds(ids);
+      }
+    }
+    setCheckingAuth(false);
+  };
+
   useEffect(() => {
     let mounted = true;
 
     async function init() {
-      // A. Check Auth & Subscriptions
-      const { data: { session } } = await sb.auth.getSession();
+      await fetchProfile();
 
-      if (mounted) {
-        setUserSession(session);
-        if (session) {
-          const { data: profile } = await sb
-            .from("profiles")
-            .select("subscribed_towns")
-            .eq("user_id", session.user.id)
-            .single();
-
-          if (profile?.subscribed_towns && Array.isArray(profile.subscribed_towns)) {
-            setSubscribedTownSlugs(profile.subscribed_towns);
-            // Default filter: if user has subscriptions, maybe show "My Towns"? 
-            // User Request: "show all of deals available that they are subscribed to... actually we want users to be able to see all of the deals"
-            // Let's default to "All" but highlight the subscription option.
-          }
-        }
-        setCheckingAuth(false);
-      }
-
-      // B. Fetch Towns
+      // B. Fetch Towns (only once on mount is fine usually, or can move to separate effect if needed)
       const { data: townsData } = await sb
         .from("towns")
         .select("id, name, slug, is_free")
@@ -99,14 +155,16 @@ export default function ConsumerDealsPage() {
         })));
       }
 
+
       // C. Fetch Deals (All active deals)
+      // Updated: fetch category
       const { data: offersData, error: offersError } = await sb
         .from("offers")
         .select(`
           id, merchant_id, title, description, terms, image_url, savings_cents,
           total_limit, redeemed_count, is_active, created_at, area_key, area_name, exp_date,
           price_cents, original_price_cents, valid_from, valid_until, recurring_schedule,
-          merchant:merchants(id, name, logo_url, banner_url, street_address, operating_hours)
+          merchant:merchants(id, name, logo_url, banner_url, street_address, operating_hours, town_id, category)
         `)
         .eq("is_active", true)
         .order("created_at", { ascending: false });
@@ -191,7 +249,7 @@ export default function ConsumerDealsPage() {
                 const endMins = eH * 60 + eM;
 
                 if (endMins < startMins) {
-                  // Overnight logic - treat as open/upcoming unless strictly invalid? 
+                  // Overnight logic - treat as open/upcoming unless strictly invalid?
                   // For now, let's just leave it open as it covers both shifts.
                   isDealClosed = false;
                 } else {
@@ -208,7 +266,6 @@ export default function ConsumerDealsPage() {
               todayEndStr = r.valid_until;
             }
 
-            const isClosed = isMerchantClosed || isDealClosed;
 
             // 3. Compute Collection Window Text
             const dayName = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"][new Date().getDay()];
@@ -250,11 +307,14 @@ export default function ConsumerDealsPage() {
               totalValue: (r.savings_cents ?? 0) / 100,
               imageUrl: resolvePublicUrl(r.image_url, process.env.NEXT_PUBLIC_OFFER_BUCKET || "offer-media"),
               merchant: {
+                id: r.merchant?.id,
                 name: getMerchantName(r.merchant),
                 logoUrl: getMerchantLogo(r.merchant),
                 bannerUrl: getMerchantBanner(r.merchant),
                 addressText: getMerchantAddress(r.merchant),
-                isClosed, // This is the combined status
+                townId: r.merchant?.town_id,
+                category: r.merchant?.category, // Added
+                isClosed: isMerchantClosed, // ONLY merchant business hours, NOT deal expiration
                 nextOpen: status.nextOpenText ?? undefined,
                 closesAt: status.closesAt,
               },
@@ -291,7 +351,20 @@ export default function ConsumerDealsPage() {
     }
 
     init();
-    return () => { mounted = false; };
+
+    const onFocus = () => {
+      if (document.visibilityState === 'visible') {
+        fetchProfile();
+      }
+    };
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("visibilitychange", onFocus);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("visibilitychange", onFocus);
+    };
   }, []);
 
 
@@ -323,10 +396,13 @@ export default function ConsumerDealsPage() {
       result = result.filter(d => d.townSlug === filterTown);
     }
 
-    // Future: Category Filter
+    // Category Filter
+    if (filterCategory !== "all") {
+      result = result.filter(d => d.merchant?.category === filterCategory);
+    }
 
     return result;
-  }, [deals, searchQuery, filterTown, subscribedTownSlugs]);
+  }, [deals, searchQuery, filterTown, filterCategory, subscribedTownSlugs]);
 
 
   /* -----------------------
@@ -379,16 +455,25 @@ export default function ConsumerDealsPage() {
     setSubmitting(true);
     setSubmitError(null);
 
+    console.log("Attempting redemption with:", { p_offer_id: activeDeal.id, p_pin: pin });
+
     try {
-      const { error } = await sb.rpc("redeem_offer_with_pin", {
+      const response = await sb.rpc("redeem_offer_with_pin", {
         p_offer_id: activeDeal.id,
         p_pin: pin
       });
+      console.log("RPC Response:", response);
 
+      const { error } = response;
       if (error) throw error;
+
       setStep("success");
-    } catch (e) {
-      setSubmitError("Code incorrect or redemption failed.");
+    } catch (e: any) {
+      console.error("Redemption error object:", e);
+      // Force visibility with alert
+      const errString = `Debug Error:\nMessage: ${e.message}\nCode: ${e.code}\nDetails: ${e.details}\nHint: ${e.hint}`;
+      alert(errString);
+      setSubmitError(errString);
     } finally {
       setSubmitting(false);
     }
@@ -400,11 +485,160 @@ export default function ConsumerDealsPage() {
     if (digits) handleConfirmRedemption(digits);
   };
 
+  /* -----------------------
+     4. Notification Handlers
+     ----------------------- */
+  const handleBellClick = (deal: Coupon) => {
+    if (!userSession) {
+      router.push('/signin');
+      return;
+    }
+
+    // If already enabled, maybe we warn "disable?" or just allow toggle.
+    // Requirement: "Enable notifs from this merchant..." - usually implies enabling.
+    // If user wants to disable, logic should likely handle that too or just toggle.
+    // But user prompt specifically detailed the flow for ENABLE.
+    // We will open modal. If already enabled, maybe we confirm disable?
+    // For now, let's open modal to ENABLE if not enabled.
+    // If already enabled, we can just disable immediately or confirm.
+    // Logic: If enabled -> Disable immediately (with visual feedback).
+    // If disabled -> Open modal to Enable.
+
+    if (!deal.merchant?.id) return;
+
+    if (enabledMerchantIds.has(deal.merchant.id)) {
+      // Disable immediately
+      toggleMerchantNotification(deal, false);
+    } else {
+      // Open Modal
+      setNotificationTargetDeal(deal);
+      setNotificationModalOpen(true);
+    }
+  };
+
+  const toggleMerchantNotification = async (deal: Coupon, enable: boolean) => {
+    if (!userSession || !deal.merchant?.id) return;
+
+    setNotificationLoading(true);
+    try {
+      // Get fresh session token to ensure validity
+      const { data: { session } } = await sb.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        throw new Error("No active session. Please sign in again.");
+      }
+
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      };
+
+      if (!enable) {
+        // Disable
+        const res = await fetch(`/api/notifications/preferences?merchant_id=${deal.merchant.id}`, {
+          method: 'DELETE',
+          headers: headers, // Pass auth header
+        });
+        if (!res.ok) {
+          const errorData = await res.json();
+          console.error("Failed to disable notification:", errorData);
+          throw new Error(errorData.error || "Failed to disable notification");
+        }
+
+        setEnabledMerchantIds(prev => {
+          const next = new Set(prev);
+          if (deal.merchant?.id) next.delete(deal.merchant.id);
+          return next;
+        });
+      } else {
+        // Enable
+        const res = await fetch('/api/notifications/preferences', {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify({
+            merchant_id: deal.merchant.id,
+            town_id: deal.merchant.townId,
+            enabled: true,
+          }),
+        });
+        if (!res.ok) {
+          const errorData = await res.json();
+          console.error("Failed to enable notification:", errorData);
+          throw new Error(errorData.error || "Failed to enable notification");
+        }
+
+        setEnabledMerchantIds(prev => {
+          const next = new Set(prev);
+          if (deal.merchant?.id) next.add(deal.merchant.id);
+          return next;
+        });
+        setNotificationModalOpen(false); // Close ONLY on success
+      }
+    } catch (err) {
+      console.error("Failed to toggle notification", err);
+      alert(`Failed to update notification: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setNotificationLoading(false);
+    }
+  };
+
+
+  const handleNotificationConfirm = () => {
+    if (!notificationTargetDeal) return;
+    toggleMerchantNotification(notificationTargetDeal, true);
+  };
+
+  const closeNotificationModal = () => {
+    setNotificationModalOpen(false);
+    setNotificationTargetDeal(null);
+  };
+
 
   /* -----------------------
      Render
      ----------------------- */
   if (loading) return <Loading message="Loading Deals..." />;
+
+  // Dynamic Header Logic
+  const displayName = profileFirstName ? profileFirstName : (userSession ? "there" : "Guest");
+
+  let headerTitle = `Welcome ${displayName}`;
+  let headerSubtitle: React.ReactNode = "";
+
+  if (filterTown === "all") {
+    // If not subscribed to anything, maybe prompt? or just show all
+    if (subscribedTownSlugs.length === 0) {
+      if (!userSession) {
+        headerSubtitle = (
+          <>
+            <Link href="/signin" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-4 decoration-emerald-500/30">Sign in</Link>
+            {" and "}
+            <Link href="/areas" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-4 decoration-emerald-500/30">subscribe to a town</Link>
+            {" to see local deals."}
+          </>
+        );
+      } else {
+        headerSubtitle = (
+          <>
+            You aren&apos;t subscribed to any towns yet. <Link href="/areas" className="text-emerald-400 hover:text-emerald-300 underline">Browse Areas</Link>
+          </>
+        );
+      }
+    } else {
+      headerSubtitle = "Showing all deals from all the towns you are subscribed to.";
+    }
+  } else if (filterTown === "subscribed") {
+    if (subscribedTownSlugs.length === 0) {
+      headerSubtitle = "You aren't subscribed to any towns yet.";
+    } else {
+      headerSubtitle = "Showing deals from your subscribed towns.";
+    }
+  } else {
+    // Specific town
+    const t = towns.find(t => t.slug === filterTown);
+    headerSubtitle = `Showing all deals from ${t?.name ?? "selected town"}.`;
+  }
 
   return (
     <main className="min-h-screen bg-[#0A0F13] text-white">
@@ -416,46 +650,24 @@ export default function ConsumerDealsPage() {
 
       <div className="relative z-10 mx-auto max-w-7xl px-4 py-8">
 
-        {/* Banner */}
-        <div className="flex justify-center mb-10">
-          <Gold3DBanner />
-        </div>
-
-        {/* --- Header: User Status --- */}
-        <section className="mb-8 bg-[#111821] border border-white/5 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold mb-1">Explore Local Deals</h1>
-            {subscribedTownSlugs.length > 0 ? (
-              <p className="text-sm text-gray-400">
-                You are subscribed to: <span className="text-emerald-400 font-medium">
-                  {towns
-                    .filter(t => subscribedTownSlugs.includes(t.slug))
-                    .map(t => t.name)
-                    .join(", ")}
-                </span>
-              </p>
-            ) : (
-              <p className="text-sm text-gray-400">
-                You aren&apos;t subscribed to any areas yet.
-                <Link href="/areas" className="text-emerald-400 hover:text-emerald-300 ml-1 underline">
-                  Find towns to join.
-                </Link>
-              </p>
-            )}
-          </div>
-          <Link
-            href="/areas"
-            className="px-5 py-2.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-sm font-medium transition-colors whitespace-nowrap"
-          >
-            Browse All Areas
-          </Link>
+        {/* --- Dynamic Header --- */}
+        {/* --- Dynamic Header --- */}
+        <section className="mb-8 text-center max-w-4xl mx-auto">
+          <h1 className="text-4xl md:text-6xl font-bold mb-4 tracking-tight">
+            <span className="bg-gradient-to-r from-[#2563EB] to-[#60A5FA] bg-clip-text text-transparent">Welcome</span>
+            <span className="text-white"> {displayName}</span>
+          </h1>
+          <p className="text-gray-300 text-lg md:text-2xl font-light">
+            {headerSubtitle}
+          </p>
         </section>
 
         {/* --- Controls: Search & Filters --- */}
-        <div className="sticky top-[60px] z-30 bg-[#0A0F13]/95 backdrop-blur-md py-4 mb-6 border-b border-white/5">
-          <div className="flex flex-col md:flex-row gap-4">
-            {/* Search */}
-            <div className="relative flex-1">
+        <div className="sticky top-[60px] z-30 bg-[#0A0F13]/95 backdrop-blur-md py-4 mb-6 border-b border-white/5 -mx-4 px-4 md:mx-0 md:px-0 md:rounded-2xl md:border-none">
+          <div className="flex flex-col gap-4">
+
+            {/* Search Bar */}
+            <div className="relative w-full">
               <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
               <input
                 type="text"
@@ -466,82 +678,68 @@ export default function ConsumerDealsPage() {
               />
             </div>
 
-            {/* Desktop Filter Toggles */}
-            <div className="hidden md:flex items-center gap-2 overflow-x-auto no-scrollbar">
+            {/* Scrollable Pill Filters */}
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+              {/* 1. All Deals */}
               <button
                 onClick={() => setFilterTown("all")}
-                className={`px-4 py-2.5 rounded-full text-xs font-semibold whitespace-nowrap border transition-all ${filterTown === "all"
-                  ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-400"
-                  : "bg-[#111821] border-white/10 text-gray-400 hover:bg-white/5"
+                className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap border transition-all ${filterTown === "all"
+                  ? "bg-emerald-500 text-white border-emerald-500"
+                  : "bg-[#111821] border-white/10 text-gray-400 hover:bg-white/5 hover:text-white"
                   }`}
               >
                 All Deals
               </button>
 
-              {userSession && (
-                <button
-                  onClick={() => setFilterTown("subscribed")}
-                  className={`px-4 py-2.5 rounded-full text-xs font-semibold whitespace-nowrap border transition-all ${filterTown === "subscribed"
-                    ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-400"
-                    : "bg-[#111821] border-white/10 text-gray-400 hover:bg-white/5"
-                    }`}
-                >
-                  My Towns ({subscribedTownSlugs.length})
-                </button>
-              )}
+              {/* 2. My Subscribed Towns (Always Visible) */}
+              <button
+                onClick={() => setFilterTown("subscribed")}
+                className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap border transition-all ${filterTown === "subscribed"
+                  ? "bg-emerald-500 text-white border-emerald-500"
+                  : "bg-[#111821] border-white/10 text-gray-400 hover:bg-white/5 hover:text-white"
+                  }`}
+              >
+                My Towns
+              </button>
 
-              {/* Specific Town Dropdown (Simplified as list for now) */}
+              {/* 3. Divider */}
+              <div className="w-px h-6 bg-white/10 mx-1 flex-shrink-0" />
+
+              {/* 4. Town Selector Dropdown */}
               <select
-                value={filterTown === "subscribed" || filterTown === "all" ? "" : filterTown}
+                value={filterTown === "all" || filterTown === "subscribed" ? "" : filterTown}
                 onChange={(e) => setFilterTown(e.target.value || "all")}
-                className="bg-[#111821] border border-white/10 text-gray-300 text-xs rounded-full px-4 py-2.5 focus:outline-none focus:border-emerald-500/30"
-              >
-                <option value="">Specific Town...</option>
-                {towns.map(t => (
-                  <option key={t.id} value={t.slug}>{t.name}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Mobile Filter Toggle */}
-            <button
-              className="md:hidden p-3 rounded-xl bg-[#111821] border border-white/10 text-gray-300"
-              onClick={() => setShowFiltersMobile(!showFiltersMobile)}
-            >
-              <FunnelIcon className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Mobile Filters Expanded */}
-          {showFiltersMobile && (
-            <div className="md:hidden mt-4 grid grid-cols-2 gap-2 animate-in slide-in-from-top-2">
-              <button
-                onClick={() => setFilterTown("all")}
-                className={`p-2 rounded-lg text-xs font-medium border ${filterTown === "all" ? "bg-emerald-900/20 border-emerald-500 text-emerald-400" : "bg-[#161e29] border-white/5 text-gray-400"
+                className={`px-3 py-2 rounded-full text-xs font-semibold border transition-all appearance-none cursor-pointer focus:outline-none ${filterTown !== "all" && filterTown !== "subscribed"
+                  ? "bg-emerald-500 text-white border-emerald-500"
+                  : "bg-[#111821] border-white/10 text-gray-400 hover:bg-white/5 hover:text-white"
                   }`}
               >
-                All Deals
-              </button>
-              {userSession && (
-                <button
-                  onClick={() => setFilterTown("subscribed")}
-                  className={`p-2 rounded-lg text-xs font-medium border ${filterTown === "subscribed" ? "bg-emerald-900/20 border-emerald-500 text-emerald-400" : "bg-[#161e29] border-white/5 text-gray-400"
-                    }`}
-                >
-                  My Subscriptions
-                </button>
-              )}
-              <select
-                onChange={(e) => setFilterTown(e.target.value)}
-                className="col-span-2 bg-[#161e29] border border-white/5 text-gray-300 text-xs rounded-lg p-2"
-              >
-                <option value="all">Filter by Town...</option>
+                <option value="" className="bg-[#111821] text-gray-400">Select Town...</option>
                 {towns.map(t => (
-                  <option key={t.id} value={t.slug}>{t.name}</option>
+                  <option key={t.id} value={t.slug} className="bg-[#111821] text-white">
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+
+              {/* 5. Category Selector Dropdown */}
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className={`px-3 py-2 rounded-full text-xs font-semibold border transition-all appearance-none cursor-pointer focus:outline-none ${filterCategory !== "all"
+                  ? "bg-emerald-500 text-white border-emerald-500"
+                  : "bg-[#111821] border-white/10 text-gray-400 hover:bg-white/5 hover:text-white"
+                  }`}
+              >
+                <option value="all" className="bg-[#111821] text-gray-400">All Categories</option>
+                {merchantCategories.map(cat => (
+                  <option key={cat} value={cat} className="bg-[#111821] text-white">
+                    {cat}
+                  </option>
                 ))}
               </select>
             </div>
-          )}
+          </div>
         </div>
 
         {/* --- Content: Grid --- */}
@@ -554,14 +752,34 @@ export default function ConsumerDealsPage() {
           areaUnlocked={true}
           visibleDeals={visibleDeals}
           onRedeem={handleRedeemClick}
+          onBellClick={handleBellClick}
+          enabledMerchantIds={enabledMerchantIds}
         />
 
         {visibleDeals.length === 0 && (
           <div className="py-20 text-center border-2 border-dashed border-white/5 rounded-3xl">
-            <p className="text-gray-500 mb-4">No deals found matching your criteria.</p>
-            <button onClick={() => { setFilterTown("all"); setSearchQuery(""); }} className="text-emerald-400 text-sm font-medium hover:underline">
-              Clear Filters
-            </button>
+            {filterTown === "subscribed" && subscribedTownSlugs.length === 0 ? (
+              // Empty Subscriptions State
+              <>
+                <p className="text-gray-400 mb-4 text-base">
+                  You aren&apos;t subscribed to any towns yet.
+                </p>
+                <Link
+                  href="/areas"
+                  className="px-6 py-3 rounded-full bg-emerald-500 text-white font-semibold hover:bg-emerald-600 transition-colors inline-block"
+                >
+                  View Towns to Join
+                </Link>
+              </>
+            ) : (
+              // Generic Empty State
+              <>
+                <p className="text-gray-500 mb-4">No deals found matching your criteria.</p>
+                <button onClick={() => { setFilterTown("all"); setFilterCategory("all"); setSearchQuery(""); }} className="text-emerald-400 text-sm font-medium hover:underline">
+                  Clear Filters
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -579,6 +797,15 @@ export default function ConsumerDealsPage() {
         submitError={submitError}
         onConfirm={handleConfirmRedemption}
         onQrDetected={handleQrDetected}
+      />
+
+      <NotificationModal
+        open={notificationModalOpen}
+        onClose={closeNotificationModal}
+        merchantName={notificationTargetDeal?.merchant?.name || "Merchant"}
+        isConfigured={!!userNotificationMethod}
+        onConfirm={handleNotificationConfirm}
+        loading={notificationLoading}
       />
     </main>
   );

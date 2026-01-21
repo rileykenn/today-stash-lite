@@ -9,10 +9,14 @@ export default function DealsGrid({
   areaUnlocked,
   visibleDeals,
   onRedeem,
+  onBellClick,
+  enabledMerchantIds,
 }: {
   areaUnlocked: boolean;
   visibleDeals: Coupon[];
   onRedeem: (deal: Coupon) => void;
+  onBellClick: (deal: Coupon) => void;
+  enabledMerchantIds: Set<string>;
 }) {
   if (!areaUnlocked) {
     return (
@@ -34,7 +38,13 @@ export default function DealsGrid({
     <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
       {visibleDeals.map((d) => (
         <li key={d.id}>
-          <CouponTicket coupon={d} onRedeem={onRedeem} areaUnlocked={areaUnlocked} />
+          <CouponTicket
+            coupon={d}
+            onRedeem={onRedeem}
+            areaUnlocked={areaUnlocked}
+            isNotificationEnabled={enabledMerchantIds.has(d.merchant?.id as string)}
+            onBellClick={() => onBellClick(d)}
+          />
         </li>
       ))}
     </ul>

@@ -111,7 +111,7 @@ export default function Header() {
               <img
                 src="/logo6.png"
                 alt="Today's Stash"
-                className="h-10 sm:h-9 md:h-10 w-auto object-contain mx-auto"
+                className="h-10 sm:h-9 md:h-7 w-auto object-contain mx-auto"
               />
             </Link>
           </div>

@@ -89,19 +89,32 @@ export default function MerchantDeals({
       return {
         id: r.id,
         title: r.title ?? '',
+        description: null,
         terms: r.terms ?? '',
         totalValue: (Number(r.savings_cents || 0) || 0) / 100,
         imageUrl: r.image_url ?? null,
         merchant: {
+          id: merchant.id,
           name: merchant.name,
           logoUrl: null,
+          bannerUrl: null,
+          townId: '', // not strictly needed for this view
           addressText,
         },
         usedCount: Number(r.redeemed_count || 0) || 0,
         totalLimit: r.total_limit ?? null,
         areaKey: r.area_key ?? 'unknown',
         areaLabel: r.area_name ?? (merchant.town_name ?? 'Unknown'),
+        townSlug: '', // not needed for admin view
         daysLeft,
+
+        // New required fields
+        price: null,
+        originalPrice: null,
+        descriptionMerchant: null,
+        validFrom: null,
+        validUntil: null,
+        collectionWindow: null,
       };
     });
   }, [rows, merchant]);
@@ -137,10 +150,11 @@ export default function MerchantDeals({
               {coupons.map((c) => (
                 <CouponTicket
                   key={c.id}
-                  deal={c as any}
-                  onShow={() => {
-                    // keep same UI as consumer; admin doesn't need redeem action
-                  }}
+                  coupon={c}
+                  onRedeem={() => { }}
+                  areaUnlocked={true}
+                  isNotificationEnabled={false}
+                  onBellClick={() => { }}
                 />
               ))}
             </div>

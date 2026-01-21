@@ -287,7 +287,7 @@ begin
     raise exception 'Offer not valid yet' using errcode = 'P0001';
   end if;
 
-  if v_offer.valid_to is not null and now() > v_offer.valid_to then
+  if v_offer.valid_until is not null and now() > v_offer.valid_until then
     raise exception 'Offer has expired' using errcode = 'P0001';
   end if;
 

@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabaseClient";
+import Loading from "@/components/Loading";
 
 type StoryRow = {
   id: string;
@@ -88,6 +89,10 @@ export default function SuccessStoriesPage() {
       .getPublicUrl(story.image_path).data.publicUrl;
   };
 
+  if (loading) {
+    return <Loading message="Loading Success Stories..." />;
+  }
+
   return (
     <main className="mx-auto max-w-5xl px-4 pb-16 pt-8 text-[#E8FFF3]">
       {/* Hero */}
@@ -119,10 +124,9 @@ export default function SuccessStoriesPage() {
                 className={`
                   whitespace-nowrap rounded-full px-3 sm:px-4 py-1.5 text-xs sm:text-[13px] 
                   border transition shadow-sm
-                  ${
-                    isActive
-                      ? "bg-emerald-400 text-black border-emerald-300"
-                      : "bg-white/5 text-white/75 border-white/10 hover:bg-white/10"
+                  ${isActive
+                    ? "bg-emerald-400 text-black border-emerald-300"
+                    : "bg-white/5 text-white/75 border-white/10 hover:bg-white/10"
                   }
                 `}
               >
@@ -158,11 +162,6 @@ export default function SuccessStoriesPage() {
       </section>
 
       {/* Stories grid */}
-      {loading && (
-        <p className="text-sm text-white/60">
-          Loading success stories from the archive…
-        </p>
-      )}
 
       {!loading && filteredStories.length === 0 && (
         <p className="text-sm text-white/60">

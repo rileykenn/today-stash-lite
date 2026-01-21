@@ -25,7 +25,7 @@ export default function DealDetailsPage() {
     const router = useRouter();
 
     const [deal, setDeal] = useState<Coupon | null>(null);
-    const [status, setStatus] = useState<MerchantStatus>({ isOpen: false, nextOpenText: null, isManualClose: false }); // New State
+    const [status, setStatus] = useState<MerchantStatus>({ isOpen: false, nextOpenText: null, closesAt: null, isManualClose: false }); // New State
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -84,7 +84,8 @@ export default function DealDetailsPage() {
             const townSlug = String(r?.area_key ?? "").toLowerCase().trim();
 
             // Calculate Status
-            const statusResult = getMerchantStatus(r.merchant);
+            const merch = Array.isArray(r.merchant) ? r.merchant[0] : r.merchant;
+            const statusResult = getMerchantStatus(merch);
             setStatus(statusResult);
 
             // 2. Check Deal Specific Schedule
@@ -137,10 +138,12 @@ export default function DealDetailsPage() {
                 totalValue: (r.savings_cents ?? 0) / 100,
                 imageUrl: resolvePublicUrl(r.image_url, process.env.NEXT_PUBLIC_OFFER_BUCKET || "offer-media"),
                 merchant: {
-                    name: getMerchantName(r.merchant),
-                    logoUrl: getMerchantLogo(r.merchant),
-                    bannerUrl: getMerchantBanner(r.merchant),
-                    addressText: getMerchantAddress(r.merchant),
+                    id: merch.id,
+                    name: getMerchantName(merch),
+                    logoUrl: getMerchantLogo(merch),
+                    bannerUrl: getMerchantBanner(merch),
+                    townId: merch.town_id,
+                    addressText: getMerchantAddress(merch),
                     isClosed: !statusResult.isOpen, // Sync for legacy checks if needed
                 },
                 usedCount: r.redeemed_count ?? 0,
@@ -201,20 +204,28 @@ export default function DealDetailsPage() {
         setSubmitting(true);
         setSubmitError(null);
 
+        console.log("Attempting redemption from DEAL PAGE with:", { p_offer_id: deal.id, p_pin: pin });
+
         try {
-            const { error } = await sb.rpc("redeem_offer_with_pin", {
+            const response = await sb.rpc("redeem_offer_with_pin", {
                 p_offer_id: deal.id,
                 p_pin: pin
             });
+            console.log("RPC Response:", response);
 
+            const { error } = response;
             if (error) throw error;
             setStep("success");
 
             // Update local state (increment used count)
             setDeal(prev => prev ? ({ ...prev, usedCount: (prev.usedCount || 0) + 1 }) : null);
 
-        } catch (e) {
-            setSubmitError("Code incorrect or redemption failed.");
+        } catch (e: any) {
+            console.error("Redemption error object:", e);
+            // Force visibility with alert
+            const errString = `Debug Error:\nMessage: ${e.message}\nCode: ${e.code}\nDetails: ${e.details}\nHint: ${e.hint}`;
+            alert(errString);
+            setSubmitError(errString);
         } finally {
             setSubmitting(false);
         }

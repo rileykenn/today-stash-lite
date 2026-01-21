@@ -24,17 +24,19 @@ export async function POST(req: Request) {
       email?: string | null;
       phone?: string | null;
       password: string;
+      first_name?: string | null;
     };
 
     const email = body.email?.trim() || null;
     const phone = normalizePhoneAU(body.phone);
     const password = body.password;
+    const firstName = body.first_name?.trim() || null;
 
     if (!password || (!email && !phone)) {
       return NextResponse.json({ error: 'password and (email or phone) required' }, { status: 400 });
     }
 
-    console.log('👤 creating user', { email, phone });
+    console.log('👤 creating user', { email, phone, firstName });
 
     const { data, error } = await admin.auth.admin.createUser({
       email: email ?? undefined,
@@ -42,6 +44,7 @@ export async function POST(req: Request) {
       password,
       email_confirm: false,      // email will be confirmed via OTP flow
       phone_confirm: Boolean(phone), // Twilio Verify already approved
+      user_metadata: firstName ? { first_name: firstName } : undefined,
     });
 
     if (error) {

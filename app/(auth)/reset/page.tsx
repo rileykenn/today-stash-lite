@@ -1,8 +1,18 @@
 'use client';
 
+import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { sb } from '@/lib/supabaseBrowser';
 import { useRouter } from 'next/navigation';
+
+function normalizePhoneAU(input: string): string | null {
+  const raw = input.trim().replace(/\s+/g, '').replace(/^0+/, '');
+  if (/^\+61\d{9}$/.test(raw)) return raw;
+  if (/^61\d{9}$/.test(raw)) return `+${raw}`;
+  if (/^4\d{8}$/.test(raw)) return `+61${raw}`;
+  if (/^\+?\d{6,15}$/.test(raw)) return raw.startsWith('+') ? raw : `+${raw}`;
+  return null;
+}
 
 export default function ResetPage() {
   const router = useRouter();
@@ -16,6 +26,14 @@ export default function ResetPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+
+  // cooldown ticker
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const id = setInterval(() => setCooldown((s) => s - 1), 1000);
+    return () => clearInterval(id);
+  }, [cooldown]);
 
   // Step 1: Request reset (email)
   async function handleIdentify() {
@@ -34,11 +52,22 @@ export default function ResetPage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to send reset email');
 
+        setCooldown(60);
         setStep('verify'); // Move to enter code step
       } else {
-        // Phone reset (Twilio, using your backend RPC - unchanged)
-        const { error } = await sb.rpc('send_phone_reset_code', { p_phone: identifier });
+        // Phone reset -> Send SMS OTP
+        const pn = normalizePhoneAU(identifier);
+        if (!pn) throw new Error('Invalid phone number format');
+
+        // Update identifier to normalized version for verifying step
+        setIdentifier(pn);
+
+        const { error } = await sb.auth.signInWithOtp({
+          phone: pn,
+          options: { shouldCreateUser: false }
+        });
         if (error) throw error;
+        setCooldown(60);
         setStep('verify');
       }
     } catch (e: any) {
@@ -66,13 +95,16 @@ export default function ResetPage() {
         if (!res.ok) throw new Error(data.error || 'Invalid code');
 
         setStep('reset');
+        setStep('reset');
       } else {
-        // Phone verify
-        const { data, error } = await sb.rpc('verify_phone_reset_code', {
-          p_phone: identifier,
-          p_code: code,
+        // Phone verify -> standard Supabase verifyOtp
+        const { error } = await sb.auth.verifyOtp({
+          phone: identifier,
+          token: code,
+          type: 'sms',
         });
         if (error) throw error;
+        // User is now logged in via SMS OTP
         setStep('reset');
       }
     } catch (e: any) {
@@ -80,6 +112,12 @@ export default function ResetPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  // Resend Code
+  async function handleResend() {
+    if (cooldown > 0 || loading) return;
+    await handleIdentify();
   }
 
   // Step 3: Change password
@@ -140,23 +178,27 @@ export default function ResetPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0A0F13] flex items-center justify-center px-6">
-      <div className="w-full max-w-sm bg-[#13202B] rounded-2xl p-6 shadow-lg ring-1 ring-white/10">
+    <main className="mx-auto max-w-screen-sm px-4 py-8 text-white">
+      <h1 className="text-2xl font-bold">Reset Password</h1>
+
+      <section className="mt-5 rounded-2xl bg-[rgb(24_32_45)] border border-white/10 p-6 sm:p-8">
         {step === 'identify' && (
           <>
-            <h1 className="text-xl font-bold text-white mb-4">Reset Password</h1>
+            <p className="text-sm text-white/60 mb-6">
+              Enter your email or phone number to receive a verification code.
+            </p>
             <input
               type="text"
               placeholder="Email or phone number"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
-              className="w-full rounded-lg bg-white/10 text-white px-3 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+              className="w-full rounded-xl bg-black/20 border border-white/10 px-4 py-3 text-base focus:outline-none focus:border-[var(--color-brand-600)] transition-colors placeholder:text-white/30"
             />
-            {error && <p className="text-red-400 text-sm mb-2">{error}</p>}
+            {error && <div className="mt-4 rounded-xl p-4 bg-red-500/10 border border-red-500/20 text-red-200 text-sm">{error}</div>}
             <button
               onClick={handleIdentify}
               disabled={loading || !identifier}
-              className="w-full h-12 rounded-xl bg-emerald-500 hover:bg-emerald-400 font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full mt-6 rounded-full bg-[var(--color-brand-600)] py-3.5 font-bold text-lg hover:brightness-110 disabled:opacity-60 disabled:hover:brightness-100 transition-all shadow-lg shadow-[var(--color-brand-600)]/20"
             >
               {loading ? 'Sending…' : 'Send Code'}
             </button>
@@ -165,82 +207,105 @@ export default function ResetPage() {
 
         {step === 'verify' && (
           <>
-            <h1 className="text-xl font-bold text-white mb-4">Enter Verification Code</h1>
-            <p className="text-gray-400 text-sm mb-4">
-              We sent a 6-digit code to <span className="text-white">{identifier}</span>
+            <p className="text-sm text-white/60 mb-6">
+              We sent a 6-digit code to <span className="text-white font-medium">{identifier}</span>
             </p>
             <input
               type="text"
               placeholder="Enter 6-digit code"
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              className="w-full rounded-lg bg-white/10 text-white px-3 py-2 mb-3 text-center tracking-widest text-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+              className="w-full rounded-xl bg-black/20 border border-white/10 px-4 py-3 text-base text-center tracking-widest focus:outline-none focus:border-[var(--color-brand-600)] transition-colors placeholder:text-white/30"
               maxLength={6}
             />
-            {error && <p className="text-red-400 text-sm mb-2">{error}</p>}
-            <button
-              onClick={handleVerify}
-              disabled={loading || !code}
-              className="w-full h-12 rounded-xl bg-emerald-500 hover:bg-emerald-400 font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Verifying…' : 'Verify Code'}
-            </button>
-            <button
-              onClick={() => setStep('identify')}
-              className="w-full mt-3 text-sm text-gray-500 hover:text-gray-300"
-            >
-              Back to email
-            </button>
+            {error && <div className="mt-4 rounded-xl p-4 bg-red-500/10 border border-red-500/20 text-red-200 text-sm">{error}</div>}
+
+            <div className="flex flex-col gap-3 mt-6">
+              <button
+                onClick={handleVerify}
+                disabled={loading || !code}
+                className="w-full rounded-full bg-[var(--color-brand-600)] py-3.5 font-bold text-lg hover:brightness-110 disabled:opacity-60 disabled:hover:brightness-100 transition-all shadow-lg shadow-[var(--color-brand-600)]/20"
+              >
+                {loading ? 'Verifying…' : 'Verify Code'}
+              </button>
+              <button
+                onClick={handleResend}
+                disabled={cooldown > 0 || loading}
+                className="w-full rounded-full bg-white/5 border border-white/10 py-3 font-semibold text-sm hover:bg-white/10 transition-colors disabled:opacity-50"
+              >
+                {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend Code'}
+              </button>
+              <button
+                onClick={() => setStep('identify')}
+                className="w-full rounded-full bg-transparent py-2 text-sm text-white/40 hover:text-white transition-colors"
+              >
+                Change email/phone
+              </button>
+            </div>
           </>
         )}
 
         {step === 'reset' && (
-          <>
-            <h1 className="text-xl font-bold text-white mb-4">Choose New Password</h1>
-            <input
-              type="password"
-              placeholder="New password"
-              value={newPass}
-              onChange={(e) => setNewPass(e.target.value)}
-              className="w-full rounded-lg bg-white/10 text-white px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-            />
-            <input
-              type="password"
-              placeholder="Confirm new password"
-              value={confirmPass}
-              onChange={(e) => setConfirmPass(e.target.value)}
-              className="w-full rounded-lg bg-white/10 text-white px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-            />
+          <div className="space-y-4">
+            <p className="text-sm text-white/60 mb-6">
+              Create a new password for your account.
+            </p>
+            <div className="space-y-4">
+              <input
+                type="password"
+                placeholder="New password"
+                value={newPass}
+                onChange={(e) => setNewPass(e.target.value)}
+                className="w-full rounded-xl bg-black/20 border border-white/10 px-4 py-3 text-base focus:outline-none focus:border-[var(--color-brand-600)] transition-colors placeholder:text-white/30"
+              />
+              <input
+                type="password"
+                placeholder="Confirm new password"
+                value={confirmPass}
+                onChange={(e) => setConfirmPass(e.target.value)}
+                className="w-full rounded-xl bg-black/20 border border-white/10 px-4 py-3 text-base focus:outline-none focus:border-[var(--color-brand-600)] transition-colors placeholder:text-white/30"
+              />
+            </div>
             {newPass && confirmPass && newPass !== confirmPass && (
-              <p className="text-red-400 text-sm mb-2">Passwords do not match</p>
+              <p className="text-red-400 text-sm ml-1">Passwords do not match</p>
             )}
-            {error && <p className="text-red-400 text-sm mb-2">{error}</p>}
+            {error && <div className="mt-4 rounded-xl p-4 bg-red-500/10 border border-red-500/20 text-red-200 text-sm">{error}</div>}
             <button
               onClick={handleResetPassword}
               disabled={loading || !newPass || !confirmPass}
-              className="w-full h-12 rounded-xl bg-emerald-500 hover:bg-emerald-400 font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full mt-2 rounded-full bg-[var(--color-brand-600)] py-3.5 font-bold text-lg hover:brightness-110 disabled:opacity-60 disabled:hover:brightness-100 transition-all shadow-lg shadow-[var(--color-brand-600)]/20"
             >
               {loading ? 'Updating…' : 'Update Password'}
             </button>
-          </>
+          </div>
         )}
 
         {step === 'success' && (
-          <div className="text-center py-4">
-            <div className="mx-auto w-12 h-12 bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mb-4">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+          <div className="text-center py-8">
+            <div className="mx-auto w-16 h-16 bg-emerald-500/10 text-emerald-400 rounded-full flex items-center justify-center mb-6 ring-1 ring-emerald-500/20">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
             </div>
-            <h1 className="text-lg font-semibold text-emerald-400 mb-2">Success!</h1>
-            <p className="text-sm text-gray-300 mb-4">
-              Your password has been reset successfully.
+            <h2 className="text-xl font-bold text-white mb-2">Password Reset!</h2>
+            <p className="text-white/60 mb-6">
+              Your password has been changed successfully.
             </p>
-            <p className="text-xs text-gray-500">
+            <p className="text-sm text-[var(--color-brand-600)] animate-pulse">
               Redirecting to sign in...
             </p>
           </div>
         )}
-      </div>
-    </main>
+      </section>
+
+      {
+        step !== 'success' && (
+          <div className="mt-8 text-center">
+            <Link href="/signin" className="text-sm text-white/40 hover:text-white transition-colors">
+              Cancel and return to sign in
+            </Link>
+          </div>
+        )
+      }
+    </main >
   );
 }
 
