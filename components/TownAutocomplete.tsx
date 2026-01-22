@@ -1,4 +1,3 @@
-/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -16,9 +15,6 @@ interface TownAutocompleteProps {
   onSelect: (value: SelectedTown | null) => void;
   onTextChange?: (text: string) => void;
 }
-
-// Let TypeScript know google exists at runtime
-declare const google: any;
 
 export default function TownAutocomplete({
   label = "Your town",
@@ -41,7 +37,7 @@ export default function TownAutocomplete({
       return;
     }
 
-    let autocomplete: any = null;
+    let autocomplete: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
     let cancelled = false;
     let pollId: ReturnType<typeof setInterval> | null = null;
 
@@ -57,8 +53,10 @@ export default function TownAutocomplete({
       let postcode: string | null = null;
       let state: string | null = null;
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const components: any[] = place.address_components || [];
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       components.forEach((comp: any) => {
         const types: string[] = comp.types || [];
 
@@ -108,6 +106,7 @@ export default function TownAutocomplete({
     // ---------- Script + Autocomplete bootstrapping ----------
     function initAutocomplete() {
       if (cancelled) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const win = window as any;
       if (!win.google || !win.google.maps || !win.google.maps.places) return;
       if (!inputRef.current) return;
@@ -125,6 +124,7 @@ export default function TownAutocomplete({
     }
 
     function ensureScriptAndInit() {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const win = window as any;
 
       // Already loaded

@@ -1,4 +1,3 @@
-/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -22,9 +21,6 @@ interface AddressAutocompleteProps {
   placeholder?: string;
 }
 
-// Let TypeScript know google exists at runtime
-declare const google: any;
-
 export default function AddressAutocomplete({
   label = "Address",
   required = true,
@@ -36,6 +32,12 @@ export default function AddressAutocomplete({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [value, setValue] = useState(initialValue);
   const [ready, setReady] = useState(false);
+  const valueRef = useRef(value);
+
+  // Keep valueRef in sync
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -47,7 +49,7 @@ export default function AddressAutocomplete({
       return;
     }
 
-    let autocomplete: any = null;
+    let autocomplete: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
     let cancelled = false;
     let pollId: ReturnType<typeof setInterval> | null = null;
 
@@ -58,6 +60,7 @@ export default function AddressAutocomplete({
         return;
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const components: any[] = place.address_components || [];
 
       let streetNumber = "";
@@ -66,6 +69,7 @@ export default function AddressAutocomplete({
       let state: string | null = null;
       let postcode: string | null = null;
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       components.forEach((comp: any) => {
         const types: string[] = comp.types || [];
 
@@ -93,7 +97,7 @@ export default function AddressAutocomplete({
 
       const streetLine = [streetNumber, route].filter(Boolean).join(" ").trim();
 
-      const formatted = place.formatted_address || value;
+      const formatted = place.formatted_address || valueRef.current;
 
       const lat =
         place.geometry?.location?.lat ? place.geometry.location.lat() : null;
@@ -117,6 +121,7 @@ export default function AddressAutocomplete({
 
     function initAutocomplete() {
       if (cancelled) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const win = window as any;
       if (!win.google || !win.google.maps || !win.google.maps.places) return;
       if (!inputRef.current) return;
@@ -138,6 +143,7 @@ export default function AddressAutocomplete({
     }
 
     function ensureScriptAndInit() {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const win = window as any;
 
       // Already loaded

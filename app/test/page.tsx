@@ -20,10 +20,10 @@ function ExportableSpendSave() {
     let mounted = true;
     (async () => {
       try {
-        // @ts-ignore
-        if (document?.fonts?.load) await (document.fonts as any).load('1rem "BebasNeueExpandedProBoldItalic"');
-        // @ts-ignore
-        if (document?.fonts?.ready) await (document.fonts as any).ready;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if ((document as any)?.fonts?.load) await ((document as any).fonts).load('1rem "BebasNeueExpandedProBoldItalic"');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if ((document as any)?.fonts?.ready) await ((document as any).fonts).ready;
       } catch {}
       if (mounted) setReady(true);
     })();
@@ -35,8 +35,8 @@ function ExportableSpendSave() {
   const handleDownload = useCallback(async () => {
     if (!nodeRef.current) return;
     try {
-      // @ts-ignore
-      if (document?.fonts?.ready) await (document.fonts as any).ready;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((document as any)?.fonts?.ready) await ((document as any).fonts).ready;
     } catch {}
     const canvas = await html2canvas(nodeRef.current, {
       backgroundColor: null,

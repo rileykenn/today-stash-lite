@@ -19,7 +19,7 @@ export async function middleware(req: NextRequest) {
           return req.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => req.cookies.set(name, value));
+          cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value));
           res = NextResponse.next({
             request: {
               headers: req.headers,
@@ -41,6 +41,7 @@ export async function middleware(req: NextRequest) {
   // ✅ Consider phone-confirmed users as verified too
   const confirmed =
     Boolean(user.email_confirmed_at) ||
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     Boolean((user as any).phone_confirmed_at) || // present on Supabase user
     Boolean(user.phone); // if they have a phone login, they had to verify via Twilio first
 

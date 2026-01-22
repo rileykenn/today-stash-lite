@@ -1,4 +1,3 @@
-/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -41,11 +40,31 @@ type EnrichedRedemption = {
   savingsCents: number;
 };
 
+type MerchantApplication = {
+  id: string;
+  created_at: string;
+  status: string;
+  business_name: string;
+};
+
+type MerchantOffer = {
+  id: string;
+  title: string;
+  description: string;
+  price_cents: number;
+  original_price_cents: number;
+  savings_cents: number;
+  valid_until: string | null;
+  total_limit: number | null;
+  recurring_schedule: any[]; // eslint-disable-line @typescript-eslint/no-explicit-any
+  redemptions: { count: number }[];
+};
+
 type State =
   | { status: "loading" }
   | { status: "not-logged-in" }
   | { status: "not-merchant" }
-  | { status: "application-pending"; app: any }
+  | { status: "application-pending"; app: MerchantApplication }
   | {
     status: "ready";
     merchant: Merchant;
@@ -53,7 +72,7 @@ type State =
     uniqueCustomers: number;
     estimatedRevenueCents: number;
     redemptions: EnrichedRedemption[];
-    merchantOffers: any[];
+    merchantOffers: MerchantOffer[];
     error: string | null;
   };
 
@@ -132,7 +151,7 @@ export default function MerchantDashboardPage() {
       if (!profile || !profile.merchant_id || profile.role !== "merchant") {
 
         // Check for application
-        const { data: appData, error: appErr } = await sb
+        const { data: appData } = await sb
           .from("applications")
           .select("*")
           .eq("user_id", userId)
@@ -143,7 +162,8 @@ export default function MerchantDashboardPage() {
 
         if (appData) {
           // User has an application
-          if (!cancelled) setState({ status: "application-pending", app: appData });
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          if (!cancelled) setState({ status: "application-pending", app: appData as any });
           return;
         }
 
@@ -253,6 +273,7 @@ export default function MerchantDashboardPage() {
         if (offersErr) {
           console.error("offers query error:", offersErr);
         } else if (offers) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           for (const o of offers as any[]) {
             offersMap.set(String(o.id), {
               id: String(o.id),
@@ -282,6 +303,7 @@ export default function MerchantDashboardPage() {
         if (profErr) {
           console.error("profiles (for customers) query error:", profErr);
         } else if (profiles) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           for (const p of profiles as any[]) {
             profileMap.set(String(p.user_id), {
               user_id: String(p.user_id),
@@ -322,7 +344,8 @@ export default function MerchantDashboardPage() {
           uniqueCustomers,
           estimatedRevenueCents,
           redemptions: enriched,
-          merchantOffers: offersData ?? [],
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          merchantOffers: (offersData ?? []) as any[],
           error: null,
         });
     }
@@ -416,10 +439,14 @@ export default function MerchantDashboardPage() {
               </button>
             )}
 
-            {/* 
-                 TODO: Allow editing if pending? 
-                 For now just view status is enough MVP.
-               */}
+            {!isDenied && !isApproved && (
+               <button
+                 onClick={() => router.push('/contactsupport')}
+                 className="w-full bg-white/5 hover:bg-white/10 text-white/70 hover:text-white rounded-xl py-3 text-sm transition"
+               >
+                 Contact Support / Request Edit
+               </button>
+            )}
           </div>
         </section>
       </main>
@@ -468,11 +495,11 @@ export default function MerchantDashboardPage() {
 
   // Split offers into active and expired
   const now = new Date();
-  const activeOffers = state.merchantOffers.filter((o: any) => {
+  const activeOffers = state.merchantOffers.filter((o: MerchantOffer) => {
     if (!o.valid_until) return true; // Assume active if no expiry? Or maybe hidden.
     return new Date(o.valid_until) > now;
   });
-  const expiredOffers = state.merchantOffers.filter((o: any) => {
+  const expiredOffers = state.merchantOffers.filter((o: MerchantOffer) => {
     if (!o.valid_until) return false;
     return new Date(o.valid_until) <= now;
   });
@@ -585,7 +612,7 @@ export default function MerchantDashboardPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4">
-              {activeOffers.map((offer: any) => {
+              {activeOffers.map((offer: MerchantOffer) => {
                 const isRecurring = offer.recurring_schedule && offer.recurring_schedule.length > 0;
                 const expiry = offer.valid_until ? new Date(offer.valid_until) : null;
 
@@ -597,6 +624,7 @@ export default function MerchantDashboardPage() {
                 // Format Recurring Days
                 let recurringDays = "";
                 if (isRecurring) {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const days = offer.recurring_schedule.map((s: any) => s.day.substring(0, 3));
                   // Capitalize first letter
                   const formattedDays = days.map((d: string) => d.charAt(0).toUpperCase() + d.slice(1));
@@ -676,7 +704,7 @@ export default function MerchantDashboardPage() {
 
           {expiredOffers.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4">
-              {expiredOffers.map((offer: any) => (
+              {expiredOffers.map((offer: MerchantOffer) => (
                 <div key={offer.id} className="bg-black/20 rounded-xl p-4 border border-white/5 flex flex-col justify-between grayscale-[0.3] hover:grayscale-0 transition-all">
                   <div>
                     <h3 className="font-semibold text-gray-300 text-sm mb-1">{offer.title}</h3>
