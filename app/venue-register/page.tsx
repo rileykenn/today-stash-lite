@@ -2,10 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
+import { User } from "@supabase/supabase-js";
 import { sb } from "@/lib/supabaseBrowser";
 import AddressAutocomplete, {
   type SelectedAddress,
 } from "@/components/AddressAutocomplete";
+import TownAutocomplete from "@/components/TownAutocomplete";
 
 type SelectedTown = {
   town: string;
@@ -41,7 +43,7 @@ function normalizePhoneToE164AU(input: string): string | null {
 
 export default function VenueRegisterPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
 
   // Form State
@@ -130,7 +132,7 @@ export default function VenueRegisterPage() {
       });
       if (!res.ok) throw new Error((await res.json()).error || "Failed to send code");
       setShowEmailCodeInput(true);
-    } catch (e: any) {
+    } catch (e: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
       setEmailError(e.message);
     } finally {
       setVerifyingEmail(false);
@@ -156,7 +158,7 @@ export default function VenueRegisterPage() {
       await refreshSession();
       setIsEmailVerified(true);
       setShowEmailCodeInput(false);
-    } catch (e: any) {
+    } catch (e: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
       setEmailError(e.message);
     } finally {
       setVerifyingEmail(false);
@@ -176,7 +178,7 @@ export default function VenueRegisterPage() {
       });
       if (!res.ok) throw new Error((await res.json()).error || "Failed to send code");
       setShowPhoneCodeInput(true);
-    } catch (e: any) {
+    } catch (e: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
       setPhoneError(e.message);
     } finally {
       setVerifyingPhone(false);
@@ -200,7 +202,7 @@ export default function VenueRegisterPage() {
       await refreshSession(); // This should now see the new phone
       setIsPhoneVerified(true);
       setShowPhoneCodeInput(false);
-    } catch (e: any) {
+    } catch (e: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
       setPhoneError(e.message);
     } finally {
       setVerifyingPhone(false);
@@ -388,6 +390,25 @@ export default function VenueRegisterPage() {
             />
             <p className="mt-1 text-[11px] text-white/45">
               Start typing and <span className="text-emerald-400">tap an address</span> from the list.
+            </p>
+          </div>
+
+          {/* Town (Optional) */}
+          <div>
+            <TownAutocomplete
+              key={townInputKey}
+              label="Town (Optional)"
+              required={false}
+              onSelect={(value) => {
+                setSelectedTown(value);
+                setTownRaw(value?.fullText || "");
+              }}
+              onTextChange={(text) => {
+                setTownRaw(text);
+              }}
+            />
+            <p className="mt-1 text-[11px] text-white/45">
+              Helps us group your venue. Leave blank if unsure.
             </p>
           </div>
 

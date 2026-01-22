@@ -2,6 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { User } from '@supabase/supabase-js';
 import { sb } from '@/lib/supabaseBrowser';
 import Loading from '@/components/Loading';
 import PhoneVerificationModal from './components/PhoneVerificationModal';
@@ -10,13 +12,31 @@ import MerchantNotificationsModal from './components/MerchantNotificationsModal'
 import ResetPasswordModal from './components/ResetPasswordModal';
 import WelcomeNameModal from './components/WelcomeNameModal';
 
+type UserProfile = {
+  first_name: string | null;
+  phone: string | null;
+  email: string | null;
+  phone_verified: boolean;
+  email_verified: boolean;
+  notification_method: 'phone' | 'email' | null;
+  notifications_enabled: boolean;
+  subscribed_towns: string[];
+};
+
+type Town = {
+  id: string;
+  name: string;
+  slug: string;
+  image_url: string | null;
+};
+
 export default function ProfilePage() {
   const router = useRouter();
 
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [savedCents, setSavedCents] = useState<number>(0);
-  const [myTowns, setMyTowns] = useState<any[]>([]);
+  const [myTowns, setMyTowns] = useState<Town[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [enabledMerchants, setEnabledMerchants] = useState<string[]>([]);
@@ -32,7 +52,7 @@ export default function ProfilePage() {
   const [tempName, setTempName] = useState('');
 
   const handleUpdateName = async () => {
-    if (!tempName.trim()) return;
+    if (!tempName.trim() || !user || !profile) return;
 
     try {
       const { error } = await sb
@@ -146,8 +166,8 @@ export default function ProfilePage() {
 
         if (prefs) {
           // Flatten the structure to just get an array of names
-          // @ts-ignore - Supabase type inference might differ slightly
-          const names = prefs.map(p => p.merchants?.name).filter(Boolean);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const names = prefs.map(p => (p.merchants as any)?.name).filter(Boolean);
           setEnabledMerchants(names);
         }
       }
@@ -226,7 +246,7 @@ export default function ProfilePage() {
       }
 
       setProfile({ ...profile, notifications_enabled: true });
-    } catch (error: any) {
+    } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
       console.error('Error in handleToggleNotifications:', error);
       setNotificationMsg({ type: 'error', text: 'An unexpected error occurred.' });
     }
@@ -305,10 +325,12 @@ export default function ProfilePage() {
       const result = await response.json();
       console.log('Update success:', result);
 
-      setProfile({ ...profile, notification_method: method });
+      if (profile) {
+        setProfile({ ...profile, notification_method: method });
+      }
       setNotificationMsg({ type: 'success', text: `Notifications set to ${method === 'phone' ? 'SMS' : 'Email'}` });
 
-    } catch (error: any) {
+    } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
       console.error('Error in handleClickMethod:', error);
       setNotificationMsg({ type: 'error', text: 'An unexpected error occurred.' });
     }
@@ -332,7 +354,7 @@ export default function ProfilePage() {
       if (error) throw error;
 
       setRefreshKey(prev => prev + 1);
-    } catch (err: any) {
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
       alert('Failed to unsubscribe: ' + err.message);
     }
   };
@@ -494,12 +516,15 @@ export default function ProfilePage() {
             </div>
           </div>
           {/* Connected Accounts - Only show if OAuth providers exist */}
+          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           {(user?.identities || []).filter((id: any) => id.provider !== 'email' && id.provider !== 'phone').length > 0 && (
             <div className="mt-6 pt-6 border-t border-white/10">
               <p className="text-sm text-white/60 mb-3">Connected Accounts</p>
               <div className="space-y-3">
                 {(user?.identities || [])
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   .filter((id: any) => id.provider !== 'email' && id.provider !== 'phone')
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   .map((identity: any) => (
                     <div key={identity.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10">
                       <div className="flex items-center gap-3">
@@ -624,7 +649,7 @@ export default function ProfilePage() {
                       <div className="flex-1">
                         <p className="text-amber-200 font-medium mb-1">No alerts configured</p>
                         <p className="text-amber-200/70 text-sm">
-                          You won't receive any notifications until you choose which merchants to follow.
+                          You won&apos;t receive any notifications until you choose which merchants to follow.
                         </p>
                       </div>
                       <button
@@ -640,7 +665,7 @@ export default function ProfilePage() {
 
               {myTowns.length === 0 && (
                 <p className="text-sm text-white/50 text-center py-2">
-                  Subscribe to a town from the <a href="/areas" className="text-emerald-400 underline">Areas page</a> to manage merchant alerts
+                  Subscribe to a town from the <Link href="/areas" className="text-emerald-400 underline">Areas page</Link> to manage merchant alerts
                 </p>
               )}
             </div>
@@ -653,7 +678,7 @@ export default function ProfilePage() {
           {myTowns.length === 0 ? (
             <p className="text-white/50 text-sm">
               You are not subscribed to any towns.{' '}
-              <a href="/areas" className="text-emerald-400 underline">Browse towns</a>
+              <Link href="/areas" className="text-emerald-400 underline">Browse towns</Link>
             </p>
           ) : (
             <div className="space-y-3">
@@ -694,7 +719,9 @@ export default function ProfilePage() {
         open={!!user && !loading && !profile?.first_name}
         userId={user?.id}
         onSuccess={(newName) => {
-          setProfile({ ...profile, first_name: newName });
+          if (profile) {
+            setProfile({ ...profile, first_name: newName });
+          }
         }}
       />
       <PhoneVerificationModal

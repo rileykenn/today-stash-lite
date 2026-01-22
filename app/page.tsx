@@ -6,12 +6,7 @@ import Link from "next/link";
 import LogoBannerDynamic from "@/components/LogoBannerDynamic";
 import HowItWorksSection from "@/components/HowItWorksSection";
 
-/** ---------- Controls ---------- */
-const HERO_LOGO_WIDTH = 220;
-
 /** ---------- Assets ---------- */
-const CHEST_LOGO_URL =
-  "https://ufxmucwtywfavsmorkpr.supabase.co/storage/v1/object/public/LOGO/todays%20stash%20logo%20chest%20only.png";
 const URBAN_CARD_URL =
   "https://ufxmucwtywfavsmorkpr.supabase.co/storage/v1/object/public/LOGO/Urban%20promotion%20card.png";
 

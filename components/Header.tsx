@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { sb } from "@/lib/supabaseBrowser";
@@ -108,10 +109,13 @@ export default function Header() {
               href="/"
               className="flex items-center"
             >
-              <img
+              <Image
                 src="/logo6.png"
                 alt="Today's Stash"
+                width={160}
+                height={40}
                 className="h-10 sm:h-9 md:h-7 w-auto object-contain mx-auto"
+                priority
               />
             </Link>
           </div>

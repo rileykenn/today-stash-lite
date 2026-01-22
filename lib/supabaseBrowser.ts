@@ -6,6 +6,6 @@ export const sb = createClient(
 );
 // expose for debugging ONLY (we'll remove later)
 if (typeof window !== "undefined") {
-  // @ts-ignore
+  // @ts-expect-error - Exposing sb for debugging
   window.sb = sb;
 }

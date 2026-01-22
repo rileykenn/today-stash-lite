@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 
 interface LoadingProps {
     message?: string;
@@ -15,10 +16,13 @@ export default function Loading({ message, size = "md" }: LoadingProps) {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
             <div className="flex flex-col items-center gap-4">
-                <img
+                <Image
                     src="/loader_60fps.webp"
                     alt="Loading..."
+                    width={128}
+                    height={128}
                     className={`${sizeMap[size]} object-contain`}
+                    unoptimized
                 />
                 {message && (
                     <p className="text-white text-sm font-medium">{message}</p>
