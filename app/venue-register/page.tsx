@@ -39,6 +39,18 @@ function normalizePhoneToE164AU(input: string): string | null {
   return null;
 }
 
+const MERCHANT_CATEGORIES = [
+  'Cafe & Bakery',
+  'Financial',
+  'Fitness',
+  'Hair & Beauty',
+  'Mechanical',
+  'Miscellaneous',
+  'Pet Care',
+  'Photography',
+  'Recreation',
+] as const;
+
 export default function VenueRegisterPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
@@ -362,13 +374,25 @@ export default function VenueRegisterPage() {
           {/* Category */}
           <div>
             <label className="block text-sm mb-1">Category</label>
-            <input
-              required
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full rounded-lg bg-white/5 border border-white/15 px-3 py-2 text-sm outline-none"
-              placeholder="e.g., Cafe, Restaurant, Hair & Beauty"
-            />
+            <div className="relative">
+              <select
+                required
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full rounded-lg bg-[#111821] border border-white/15 px-3 py-2 text-sm outline-none appearance-none focus:border-emerald-500/50 transition-colors cursor-pointer"
+              >
+                <option value="" disabled>Select a category...</option>
+                {MERCHANT_CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+              {/* Chevron Icon */}
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-white/30">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                </svg>
+              </div>
+            </div>
           </div>
 
           {/* Address */}

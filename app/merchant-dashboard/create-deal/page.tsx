@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { sb } from "@/lib/supabaseBrowser";
 import Link from "next/link";
 import { resolvePublicUrl } from "@/app/consumer/components/helpers";
+import { TimePicker } from "@/components/TimePicker";
 
 type DaySchedule = {
     isOpen: boolean;
@@ -40,7 +41,6 @@ function CreateDealContent() {
     // Form State
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
-    // const [terms, setTerms] = useState(""); // Removed
     const [dealPrice, setDealPrice] = useState<string>("");
     const [originalPrice, setOriginalPrice] = useState<string>("");
     const [totalLimit, setTotalLimit] = useState<string>("10");
@@ -60,10 +60,9 @@ function CreateDealContent() {
     const [todayFullDay, setTodayFullDay] = useState(false);
 
     // Recurring Mode
-    const [recurringStartDate, setRecurringStartDate] = useState("");
-    const [recurringEndDate, setRecurringEndDate] = useState("");
+    // Removed start/end dates as requested. Will use now -> far future.
     const [recurringSchedule, setRecurringSchedule] = useState<ScheduleItem[]>(
-        DAYS.map(d => ({ day: d, start: "", end: "", isFullDay: false, enabled: false }))
+        DAYS.map(d => ({ day: d, start: "", end: "", isFullDay: true, enabled: false }))
     );
 
     useEffect(() => {
@@ -117,17 +116,9 @@ function CreateDealContent() {
             } else {
                 setTitle(deal.title);
                 setDescription(deal.description || "");
-                // setTerms(deal.terms || "");
                 setDealPrice(((deal.price_cents || 0) / 100).toFixed(2));
                 setOriginalPrice(((deal.original_price_cents || 0) / 100).toFixed(2));
                 if (deal.total_limit) setTotalLimit(String(deal.total_limit));
-
-                // Image logic
-                if (deal.image_url) {
-                    // Logic to detect if it's the banner or custom
-                    // Simplification: just show it as 'custom' override unless we match banner URL perfectly, 
-                    // but for now, we just let them upload new or switch to banner.
-                }
 
                 // Check Expiry State
                 if (deal.valid_until) {
@@ -139,14 +130,8 @@ function CreateDealContent() {
                 }
 
                 // Schedule Logic Reverse Engineering
-                // This is complex. We need to see if it matches "Today" (one-off) or "Recurring".
-                // If recurring_schedule is set and valid_until is far future, likely recurring.
                 if (deal.recurring_schedule && Array.isArray(deal.recurring_schedule) && deal.recurring_schedule.length > 0) {
                     setScheduleMode("recurring");
-                    const startRaw = new Date(deal.valid_from);
-                    const endRaw = new Date(deal.valid_until);
-                    setRecurringStartDate(startRaw.toISOString().split('T')[0]);
-                    setRecurringEndDate(endRaw.toISOString().split('T')[0]);
 
                     // Map schedule items
                     const newSched = DAYS.map(d => ({ day: d, start: "", end: "", isFullDay: false, enabled: false }));
@@ -156,13 +141,21 @@ function CreateDealContent() {
                             newSched[idx].enabled = true;
                             newSched[idx].start = item.start;
                             newSched[idx].end = item.end;
-                            // Check full day heuristically? Or just leave manual.
+                            // Re-infer isFullDay if we have operating hours? For now assume false if loaded custom times
+                            // But better to check:
+                            /* 
+                            if (operatingHours && 
+                                operatingHours[item.day]?.open === item.start && 
+                                operatingHours[item.day]?.close === item.end) {
+                                newSched[idx].isFullDay = true;
+                            }
+                            */
+                            // Simple fallback: keep inputs visible
                         }
                     });
                     setRecurringSchedule(newSched);
                 } else if (deal.valid_from && deal.valid_until) {
                     // Likely "Today" or specific range
-                    // Check if valid_from/until are same day
                     const s = new Date(deal.valid_from);
                     const e = new Date(deal.valid_until);
                     if (s.getDate() === e.getDate()) {
@@ -178,9 +171,9 @@ function CreateDealContent() {
         if (editId) loadDeal();
     }, [editId]);
 
-    // Initialize "Today" defaults when hours load - BUT ONLY FOR NEW DEALS
+    // Initialize "Today" defaults when hours load
     useEffect(() => {
-        if (editId) return; // Don't overwrite existing deal data with defaults
+        if (editId) return;
 
         if (operatingHours && scheduleMode === "today") {
             const now = new Date();
@@ -212,7 +205,7 @@ function CreateDealContent() {
         const newSchedule = [...recurringSchedule];
         newSchedule[index].enabled = !newSchedule[index].enabled;
 
-        // Default to operating hours if enabling
+        // Default to Full Business Hours if enabling
         if (newSchedule[index].enabled && operatingHours) {
             const dayName = newSchedule[index].day;
             const hours = operatingHours[dayName];
@@ -220,15 +213,10 @@ function CreateDealContent() {
                 newSchedule[index].start = hours.open;
                 newSchedule[index].end = hours.close;
                 newSchedule[index].isFullDay = true;
+            } else {
+                newSchedule[index].isFullDay = false; // Cannot be full day if closed
             }
         }
-        setRecurringSchedule(newSchedule);
-    };
-
-    const updateRecurringTime = (index: number, field: 'start' | 'end', value: string) => {
-        const newSchedule = [...recurringSchedule];
-        newSchedule[index][field] = value;
-        newSchedule[index].isFullDay = false; // Custom time means not strictly full day anymore (UI simplification)
         setRecurringSchedule(newSchedule);
     };
 
@@ -246,13 +234,19 @@ function CreateDealContent() {
         setRecurringSchedule(newSchedule);
     };
 
+    const updateRecurringTime = (index: number, field: 'start' | 'end', value: string) => {
+        const newSchedule = [...recurringSchedule];
+        newSchedule[index][field] = value;
+        newSchedule[index].isFullDay = false;
+        setRecurringSchedule(newSchedule);
+    };
+
     const sendNotification = async (merchantId: string, offerId: string, type: 'new' | 'restock') => {
         try {
             const { data: { session } } = await sb.auth.getSession();
             const token = session?.access_token;
             if (!token) return;
 
-            // Fire and forget - don't block UI? No, for debugging let's wait and see.
             const res = await fetch('/api/notifications/notify-subscribers', {
                 method: 'POST',
                 headers: {
@@ -269,19 +263,12 @@ function CreateDealContent() {
             if (!res.ok) {
                 const errorData = await res.json();
                 console.error("Notification API Failed:", errorData);
-                // alert(`DEBUG: Notification failed! ${errorData.error || JSON.stringify(errorData)}`);
             } else {
                 const data = await res.json();
                 console.log("Notification Success:", data);
-                // if (data.sent_count === 0) {
-                //     alert(`DEBUG: Notification API ran, but sent 0 SMS. Reason: ${data.message || 'Unknown'}`);
-                // } else {
-                //     alert(`DEBUG: Success! Sent ${data.sent_count} SMS notifications.`);
-                // }
             }
         } catch (err) {
             console.error("Error sending notification:", err);
-            // alert(`DEBUG: Notification fetch error: ${err}`);
         }
     };
 
@@ -295,13 +282,18 @@ function CreateDealContent() {
         try {
             // ... Validation ...
             if (scheduleMode === "recurring") {
-                if (!recurringStartDate || !recurringEndDate) throw new Error("Please select start and end dates.");
                 if (!recurringSchedule.some(s => s.enabled)) throw new Error("Please select at least one day for the recurring schedule.");
+
+                // Validate open hours
+                const badDays = recurringSchedule.filter(s => s.enabled && operatingHours && !operatingHours[s.day]?.isOpen);
+                if (badDays.length > 0) {
+                    throw new Error(`You cannot schedule deals on days you are closed: ${badDays.map(d => d.day).join(', ')}`);
+                }
             }
 
             // Image Validation
             if (!imageFile && !useBanner) {
-                // Optional: You can enforce an image here if desired.
+                // Optional
             }
 
             // 1. Determine Image URL
@@ -341,11 +333,13 @@ function CreateDealContent() {
                 validFrom = start.toISOString();
                 validUntil = end.toISOString();
             } else {
-                const start = new Date(recurringStartDate);
+                // RECURRING LOGIC CHANGE:
+                const start = new Date();
                 start.setHours(0, 0, 0, 0);
                 validFrom = start.toISOString();
 
-                const end = new Date(recurringEndDate);
+                const end = new Date();
+                end.setFullYear(end.getFullYear() + 5); // 5 years validity
                 end.setHours(23, 59, 59, 999);
                 validUntil = end.toISOString();
 
@@ -363,8 +357,6 @@ function CreateDealContent() {
             const areaKey = (merchantPos?.town as any)?.slug ?? "default";
             const areaName = (merchantPos?.town as any)?.name ?? "Local";
 
-
-
             if (editId) {
                 // UPDATE
                 const { error: updateError } = await sb
@@ -372,7 +364,6 @@ function CreateDealContent() {
                     .update({
                         title,
                         description,
-                        // terms, // Removed
                         price_cents: price,
                         original_price_cents: orig,
                         savings_cents: savings,
@@ -387,10 +378,6 @@ function CreateDealContent() {
 
                 if (updateError) throw updateError;
 
-                // Check for Restock Notification (Expired -> Active)
-                // We use a simplified check: if we are editing and the new date is in the future.
-                // Ideally we check if it WAS expired, but for now let's assume if you edit an expired deal you want to notify.
-                // To be precise, we need the initial state.
                 const now = new Date();
                 const newEnd = new Date(validUntil);
                 if (wasExpired && newEnd > now) {
@@ -405,7 +392,6 @@ function CreateDealContent() {
                         merchant_id: merchantId,
                         title,
                         description,
-                        // terms, // Removed
                         price_cents: price,
                         original_price_cents: orig,
                         savings_cents: savings,
@@ -471,15 +457,15 @@ function CreateDealContent() {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div>
                                 <label className="block text-sm font-medium text-gray-400 mb-2">Deal Price ($)</label>
-                                <input required type="number" step="0.01" value={dealPrice} onChange={e => setDealPrice(e.target.value)} placeholder="10.00" className="w-full bg-[#0A0F13] border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500/50 transition-colors" />
+                                <input required type="number" step="0.01" value={dealPrice} onChange={e => setDealPrice(e.target.value)} placeholder="10.00" className="w-full bg-[#0A0F13] border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500/50 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-400 mb-2">Original Price ($)</label>
-                                <input required type="number" step="0.01" value={originalPrice} onChange={e => setOriginalPrice(e.target.value)} placeholder="20.00" className="w-full bg-[#0A0F13] border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500/50 transition-colors" />
+                                <input required type="number" step="0.01" value={originalPrice} onChange={e => setOriginalPrice(e.target.value)} placeholder="20.00" className="w-full bg-[#0A0F13] border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500/50 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-400 mb-2">Quantity (you can increase this later)</label>
-                                <input type="number" value={totalLimit} onChange={e => setTotalLimit(e.target.value)} placeholder="10" className="w-full bg-[#0A0F13] border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500/50 transition-colors" />
+                                <input type="number" value={totalLimit} onChange={e => setTotalLimit(e.target.value)} placeholder="10" className="w-full bg-[#0A0F13] border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500/50 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                             </div>
                         </div>
 
@@ -489,7 +475,7 @@ function CreateDealContent() {
 
                             <div className="flex bg-[#0A0F13] p-1 rounded-xl mb-6 w-full md:w-fit border border-white/10">
                                 <button type="button" onClick={() => setScheduleMode("today")} className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all ${scheduleMode === "today" ? "bg-emerald-500 text-white shadow-lg" : "text-gray-400 hover:text-white"}`}>Today Only</button>
-                                <button type="button" onClick={() => setScheduleMode("recurring")} className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all ${scheduleMode === "recurring" ? "bg-emerald-500 text-white shadow-lg" : "text-gray-400 hover:text-white"}`}>Schedule / Repeat</button>
+                                <button type="button" onClick={() => setScheduleMode("recurring")} className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all ${scheduleMode === "recurring" ? "bg-emerald-500 text-white shadow-lg" : "text-gray-400 hover:text-white"}`}>Repeat</button>
                             </div>
 
                             {scheduleMode === "today" ? (
@@ -503,11 +489,11 @@ function CreateDealContent() {
                                         <div className="flex items-center gap-4">
                                             <div className="flex-1">
                                                 <label className="block text-xs text-gray-400 mb-1">Start Time</label>
-                                                <input type="time" value={todayStart} onChange={e => setTodayStart(e.target.value)} className="w-full bg-[#111821] border border-white/10 rounded-lg px-3 py-2 text-sm" />
+                                                <TimePicker value={todayStart} onChange={setTodayStart} />
                                             </div>
                                             <div className="flex-1">
                                                 <label className="block text-xs text-gray-400 mb-1">End Time</label>
-                                                <input type="time" value={todayEnd} onChange={e => setTodayEnd(e.target.value)} className="w-full bg-[#111821] border border-white/10 rounded-lg px-3 py-2 text-sm" />
+                                                <TimePicker value={todayEnd} onChange={setTodayEnd} />
                                             </div>
                                         </div>
                                     )}
@@ -518,55 +504,56 @@ function CreateDealContent() {
                                 </div>
                             ) : (
                                 <div className="space-y-6">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-xs text-gray-400 mb-1">Start Date</label>
-                                            <input type="date" value={recurringStartDate} onChange={e => setRecurringStartDate(e.target.value)} className="w-full bg-[#0A0F13] border border-white/10 rounded-lg px-3 py-2 text-sm text-white" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs text-gray-400 mb-1">End Date</label>
-                                            <input type="date" value={recurringEndDate} onChange={e => setRecurringEndDate(e.target.value)} className="w-full bg-[#0A0F13] border border-white/10 rounded-lg px-3 py-2 text-sm text-white" />
-                                        </div>
-                                    </div>
-
                                     <div className="space-y-2">
                                         <label className="block text-sm font-medium text-gray-400">Weekly Schedule</label>
+                                        <p className="text-xs text-gray-500 mb-2">Deal will likely repeat every week on these days.</p>
+
                                         {recurringSchedule.map((item, idx) => (
-                                            <div key={item.day} className={`flex flex-col sm:flex-row gap-3 p-3 rounded-xl border transition-colors ${item.enabled ? "bg-[#0A0F13] border-emerald-500/30" : "bg-[#0A0F13]/50 border-white/5 opacity-60"}`}>
-                                                <div className="flex items-center gap-3 w-32">
-                                                    <input type="checkbox" checked={item.enabled} onChange={() => toggleRecurringDay(idx)} className="rounded border-white/20 bg-[#111821] text-emerald-500" />
-                                                    <span className="capitalize text-sm font-medium">{item.day}</span>
+                                            <div key={item.day} className={`flex flex-col gap-3 p-3 rounded-xl border transition-colors ${item.enabled ? "bg-[#0A0F13] border-emerald-500/30" : "bg-[#0A0F13]/50 border-white/5 opacity-60"}`}>
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                        <input type="checkbox" checked={item.enabled} onChange={() => toggleRecurringDay(idx)} className="rounded border-white/20 bg-[#111821] text-emerald-500" />
+                                                        <span className="capitalize text-sm font-medium">{item.day}</span>
+                                                    </div>
+
+                                                    {item.enabled && operatingHours && !operatingHours[item.day]?.isOpen && (
+                                                        <span className="text-xs text-red-400 font-medium">Closed</span>
+                                                    )}
                                                 </div>
 
-                                                {item.enabled && (
-                                                    <div className="flex-1 flex items-center gap-3 flex-wrap">
-                                                        {!item.isFullDay && (
-                                                            <>
-                                                                <input type="time" value={item.start} onChange={e => updateRecurringTime(idx, 'start', e.target.value)} className="bg-[#111821] border border-white/10 rounded px-2 py-1 text-sm w-32" />
-                                                                <span className="text-gray-500">-</span>
-                                                                <input type="time" value={item.end} onChange={e => updateRecurringTime(idx, 'end', e.target.value)} className="bg-[#111821] border border-white/10 rounded px-2 py-1 text-sm w-32" />
-                                                            </>
-                                                        )}
+                                                {item.enabled && operatingHours && operatingHours[item.day]?.isOpen && (
+                                                    <div className="pl-7 space-y-2">
+                                                        <div className="flex items-center gap-3 flex-wrap">
+                                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                                <input type="checkbox" checked={item.isFullDay} onChange={e => handleRecurringFullDay(idx, e.target.checked)} className="rounded border-white/20 bg-[#111821] text-emerald-500" disabled={!operatingHours} />
+                                                                <span className="text-xs text-gray-400">Full Business Day ({operatingHours[item.day].open} - {operatingHours[item.day].close})</span>
+                                                            </label>
+                                                        </div>
 
-                                                        <label className="flex items-center gap-2 ml-auto cursor-pointer">
-                                                            <input type="checkbox" checked={item.isFullDay} onChange={e => handleRecurringFullDay(idx, e.target.checked)} className="rounded border-white/20 bg-[#111821] text-emerald-500" />
-                                                            <span className="text-xs text-gray-400">Run for full business hours today</span>
-                                                        </label>
+                                                        {!item.isFullDay && (
+                                                            <div className="flex items-center gap-2">
+                                                                <TimePicker value={item.start} onChange={v => updateRecurringTime(idx, 'start', v)} />
+                                                                <span className="text-gray-500">-</span>
+                                                                <TimePicker value={item.end} onChange={v => updateRecurringTime(idx, 'end', v)} />
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 )}
 
                                                 {item.enabled && operatingHours && !operatingHours[item.day]?.isOpen && (
-                                                    <div className="text-xs text-yellow-500 flex items-center">
-                                                        Closed on {item.day}
+                                                    <div className="text-xs text-red-400 flex items-center ml-auto">
+                                                        Closed on {item.day} (Cannot schedule)
                                                     </div>
                                                 )}
                                             </div>
                                         ))}
                                     </div>
                                     {!operatingHours && (
-                                        <p className="text-xs text-gray-500 text-center">
-                                            Don't see your hours? <Link href="/merchant-dashboard/settings" className="underline text-emerald-500">Configure them here</Link>
-                                        </p>
+                                        <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
+                                            <p className="text-xs text-yellow-200 text-center">
+                                                You haven't set your operating hours yet. Please <Link href="/merchant-dashboard/settings" className="underline text-white font-bold">configure them here</Link> first to handle scheduling correctly.
+                                            </p>
+                                        </div>
                                     )}
                                 </div>
                             )}
@@ -574,7 +561,6 @@ function CreateDealContent() {
 
                         {/* Image & Terms */}
                         <div className="space-y-4 pt-4 border-t border-white/10">
-                            {/* Terms removed */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-400 mb-2">Deal Image</label>
 
@@ -593,7 +579,6 @@ function CreateDealContent() {
                                             <span className="block text-sm font-medium text-white">Use my business banner image</span>
                                             <span className="block text-xs text-gray-400">Your existing banner will be used for this deal.</span>
                                         </div>
-                                        {/* Small preview of banner */}
                                         <img src={resolvePublicUrl(bannerUrl) || ""} alt="Banner" className="w-12 h-8 rounded object-cover ml-2 border border-white/10" />
                                     </label>
                                 )}

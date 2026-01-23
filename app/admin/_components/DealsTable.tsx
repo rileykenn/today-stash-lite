@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { sb } from '@/lib/supabaseBrowser';
-import DealForm from './DealForm';
 
 type DealRow = {
   id: string;
@@ -58,10 +57,6 @@ export default function DealsTable() {
 
   // ✅ NEW: merchant filter
   const [merchantFilter, setMerchantFilter] = useState<string>('all'); // 'all' or merchant_id
-
-  // modal state
-  const [open, setOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
 
   const fetchDeals = async () => {
     const { data, error } = await sb
@@ -120,23 +115,13 @@ export default function DealsTable() {
     });
   }, [deals, qDeals, merchantFilter]);
 
-  const deleteDeal = async (deal_id: string) => {
-    if (!confirm('Delete this deal? This cannot be undone.')) return;
-    const { error } = await sb.from('offers').delete().eq('id', deal_id);
-    if (error) {
-      alert('Failed to delete deal: ' + error.message);
-      return;
-    }
-    await fetchDeals();
-  };
-
   return (
     <div className="space-y-3">
       {/* Top bar */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
           <h2 className="text-base font-semibold">Deals</h2>
-          <p className="text-sm text-slate-600">Manage offers, expiry status, and editing.</p>
+          <p className="text-sm text-slate-600">View current offers (Read Only).</p>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
@@ -163,15 +148,7 @@ export default function DealsTable() {
             className="w-full sm:w-72 px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:ring-2 focus:ring-slate-200"
           />
 
-          <button
-            onClick={() => {
-              setEditingId(null);
-              setOpen(true);
-            }}
-            className="px-3 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:opacity-95"
-          >
-            Create deal
-          </button>
+          {/* Create button removed */}
         </div>
       </div>
 
@@ -184,7 +161,6 @@ export default function DealsTable() {
               <th className="py-3 px-3 text-left font-medium">Merchant</th>
               <th className="py-3 px-3 text-left font-medium">Status</th>
               <th className="py-3 px-3 text-left font-medium">Valid to</th>
-              <th className="py-3 px-3 text-left font-medium">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -207,32 +183,13 @@ export default function DealsTable() {
                     </span>
                   </td>
                   <td className="py-3 px-3">{fmtDateAU(d.exp_date)}</td>
-                  <td className="py-3 px-3">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => {
-                          setEditingId(d.id);
-                          setOpen(true);
-                        }}
-                        className="px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => deleteDeal(d.id)}
-                        className="px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-red-600"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
                 </tr>
               );
             })}
 
             {filteredDeals.length === 0 && (
               <tr>
-                <td className="py-4 px-3 text-slate-500" colSpan={5}>
+                <td className="py-4 px-3 text-slate-500" colSpan={4}>
                   No deals found.
                 </td>
               </tr>
@@ -268,24 +225,6 @@ export default function DealsTable() {
                   </div>
                 </div>
               </div>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  onClick={() => {
-                    setEditingId(d.id);
-                    setOpen(true);
-                  }}
-                  className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => deleteDeal(d.id)}
-                  className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium text-red-600"
-                >
-                  Delete
-                </button>
-              </div>
             </div>
           );
         })}
@@ -296,37 +235,6 @@ export default function DealsTable() {
           </div>
         )}
       </div>
-
-      {/* Modal */}
-      {open && (
-        <div className="fixed inset-0 z-50 bg-black/30 p-3 flex items-center justify-center">
-          <div className="w-full max-w-2xl rounded-2xl bg-white border border-slate-200 shadow-xl overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
-              <div className="font-semibold">{editingId ? 'Edit deal' : 'Create deal'}</div>
-              <button
-                onClick={() => {
-                  setOpen(false);
-                  setEditingId(null);
-                }}
-                className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="p-4 max-h-[80vh] overflow-auto">
-              <DealForm
-                offerId={editingId ?? undefined}
-                onSaved={async () => {
-                  setOpen(false);
-                  setEditingId(null);
-                  await fetchDeals();
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

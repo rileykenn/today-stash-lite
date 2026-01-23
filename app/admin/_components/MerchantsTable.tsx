@@ -3,7 +3,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { sb } from '@/lib/supabaseBrowser';
-import MerchantCreate from './MerchantCreate';
 import MerchantDeals from './MerchantDeals';
 
 type MerchantRow = {
@@ -19,7 +18,6 @@ type MerchantRow = {
 export default function MerchantsTable() {
   const [rows, setRows] = useState<MerchantRow[]>([]);
   const [q, setQ] = useState('');
-  const [createOpen, setCreateOpen] = useState(false);
 
   const [dealsOpen, setDealsOpen] = useState(false);
   const [activeMerchant, setActiveMerchant] = useState<{
@@ -81,12 +79,7 @@ export default function MerchantsTable() {
             placeholder="Search name, town, pin, address…"
             className="w-full sm:w-72 px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:ring-2 focus:ring-slate-200"
           />
-          <button
-            onClick={() => setCreateOpen(true)}
-            className="px-3 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:opacity-95"
-          >
-            Create merchant
-          </button>
+          {/* Create Button Removed */}
         </div>
       </div>
 
@@ -107,10 +100,10 @@ export default function MerchantsTable() {
             {filtered.map((m) => {
               const createdLabel = m.created_at
                 ? new Date(m.created_at).toLocaleDateString('en-AU', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                  })
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                })
                 : '—';
 
               return (
@@ -164,10 +157,10 @@ export default function MerchantsTable() {
         {filtered.map((m) => {
           const createdLabel = m.created_at
             ? new Date(m.created_at).toLocaleDateString('en-AU', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-              })
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })
             : '—';
 
           return (
@@ -214,13 +207,6 @@ export default function MerchantsTable() {
           </div>
         )}
       </div>
-
-      {/* Create */}
-      <MerchantCreate
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        onCreated={() => fetchMerchants()}
-      />
 
       {/* Deals */}
       <MerchantDeals

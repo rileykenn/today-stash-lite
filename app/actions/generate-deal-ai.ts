@@ -6,10 +6,11 @@ import OpenAI from 'openai';
 export type GeneratedDeal = {
     title: string;
     description: string;
-    terms: string;
-    originalPrice: number;
-    newPrice: number;
-    savings: number; // calculated as original - new
+    scheduleDays: string[]; // e.g. ["monday", "tuesday"]
+    timeStrategy?: {
+        start: string; // "open" | "close" | "HH:MM" (24h)
+        end: string;   // "open" | "close" | "HH:MM" (24h)
+    };
 };
 
 export async function generateDealSuggestions(businessDescription: string): Promise<GeneratedDeal[]> {
@@ -32,9 +33,12 @@ export async function generateDealSuggestions(businessDescription: string): Prom
     For each deal, provide:
     1. A catchy title (short, e.g., "50% Off Pizza").
     2. A brief description (1-2 sentences).
-    3. Terms and conditions (short, e.g., "Dine-in only, one per person").
-    4. An estimated original price (number).
-    5. An estimated new price (number).
+    3. An array of days this deal applies to, based on the description (e.g. if it says "Taco Tuesday", return ["tuesday"]). If no specific days are mentioned, return an empty array [].
+    4. A time strategy if a time of day is mentioned (e.g. "mornings", "happy hour", "afternoon").
+       - "Mornings" -> start: "open", end: "11:00"
+       - "Afternoon" -> start: "13:00", end: "17:00" (or "close" if implied)
+       - "Evening" / "Dinner" -> start: "17:00", end: "close"
+       - Specific times -> Use 24h format "HH:MM"
 
     Return ONLY a JSON array of objects. Do not include markdown code blocks.
     The JSON structure should be:
@@ -42,9 +46,8 @@ export async function generateDealSuggestions(businessDescription: string): Prom
       {
         "title": "...",
         "description": "...",
-        "terms": "...",
-        "originalPrice": 20,
-        "newPrice": 10
+        "scheduleDays": ["monday", "wednesday"],
+        "timeStrategy": { "start": "open", "end": "11:00" } // Optional
       }
     ]
   `;
@@ -62,16 +65,18 @@ export async function generateDealSuggestions(businessDescription: string): Prom
             throw new Error('No content received from OpenAI');
         }
 
-        // Clean up if the model wraps it in markdown code blocks
-        const cleanContent = content.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+        // Robust JSON extraction
+        const jsonStart = content.indexOf('[');
+        const jsonEnd = content.lastIndexOf(']');
 
-        const deals = JSON.parse(cleanContent);
+        if (jsonStart === -1 || jsonEnd === -1) {
+            throw new Error("Failed to parse AI response: No JSON array found.");
+        }
 
-        // Add calculated savings and validate
-        return deals.map((d: any) => ({
-            ...d,
-            savings: d.originalPrice - d.newPrice
-        }));
+        const jsonString = content.substring(jsonStart, jsonEnd + 1);
+        const deals = JSON.parse(jsonString);
+
+        return deals;
 
     } catch (error) {
         console.error('Error generating deals:', error);

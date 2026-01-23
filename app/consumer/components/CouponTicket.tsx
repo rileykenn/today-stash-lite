@@ -177,15 +177,7 @@ export default function CouponTicket({
           className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${isGray || isSoldOut ? "grayscale filter opacity-90" : ""}`}
         />
 
-        {/* X Overlay for Expired Deals (Corner to Corner) */}
-        {isDealExpired && (
-          <div className="absolute inset-0 z-20 pointer-events-none">
-            <svg className="w-full h-full text-red-500/60" viewBox="0 0 100 100" preserveAspectRatio="none">
-              <line x1="0" y1="0" x2="100" y2="100" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-              <line x1="100" y1="0" x2="0" y2="100" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-            </svg>
-          </div>
-        )}
+
 
         {/* Overlay: Badges (Top) */}
         <div className="absolute top-3 left-3 right-3 z-10 flex items-start justify-between gap-2">

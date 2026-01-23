@@ -25,10 +25,14 @@ export default function WelcomeNameModal({ open, userId, onSuccess }: WelcomeNam
 
         try {
             // 1. Update Supabase Profile
+            // 1. Update Supabase Profile (Upsert to handle missing rows)
             const { error: updateError } = await sb
                 .from('profiles')
-                .update({ first_name: name.trim() })
-                .eq('user_id', userId);
+                .upsert({
+                    user_id: userId,
+                    first_name: name.trim()
+                })
+                .select();
 
             if (updateError) throw updateError;
 
@@ -36,7 +40,9 @@ export default function WelcomeNameModal({ open, userId, onSuccess }: WelcomeNam
             onSuccess(name.trim());
         } catch (err: any) {
             console.error('Error updating name:', err);
-            setError('Failed to save name. Please try again.');
+            // DEBUGGING: Show full raw error to user
+            const rawError = JSON.stringify(err, null, 2);
+            setError(`Error: ${err.message || ''} (Code: ${err.code || 'N/A'}) - ${rawError}`);
         } finally {
             setLoading(false);
         }

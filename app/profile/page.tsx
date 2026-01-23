@@ -37,16 +37,18 @@ export default function ProfilePage() {
     try {
       const { error } = await sb
         .from('profiles')
-        .update({ first_name: tempName.trim() })
-        .eq('user_id', user.id);
+        .upsert({
+          user_id: user.id,
+          first_name: tempName.trim()
+        });
 
       if (error) throw error;
 
       setProfile({ ...profile, first_name: tempName.trim() });
       setEditingName(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating name:', error);
-      alert('Failed to update name. Please try again.');
+      alert(`Failed to update name: ${error.message || ''} (Code: ${error.code || 'N/A'})`);
     }
   };
 
