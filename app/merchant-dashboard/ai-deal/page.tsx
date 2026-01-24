@@ -294,8 +294,29 @@ export default function AIDealPage() {
             });
             setRecurringSchedule(newSchedule);
         } else {
-            // Default to 'Today'
-            setScheduleMode('today');
+            // Default to 'Recurring' (All Days) if no specific days mentioned
+            setScheduleMode('recurring');
+            const newSchedule = recurringSchedule.map(item => {
+                let start = item.start;
+                let end = item.end;
+                let isFullDay = true;
+
+                // Use operating hours if available
+                if (operatingHours && operatingHours[item.day]?.isOpen) {
+                    start = operatingHours[item.day].open;
+                    end = operatingHours[item.day].close;
+                    isFullDay = true;
+                }
+
+                return {
+                    ...item,
+                    enabled: true, // Enable all by default
+                    start,
+                    end,
+                    isFullDay
+                };
+            });
+            setRecurringSchedule(newSchedule);
         }
 
         setStep('editing');
@@ -529,6 +550,15 @@ export default function AIDealPage() {
                                 Generate Ideas
                             </button>
                         </div>
+
+                        <div className="mt-6 text-center">
+                            <Link
+                                href="/merchant-dashboard/create-deal"
+                                className="text-sm text-white/40 hover:text-white transition-colors underline decoration-white/20 hover:decoration-white/50"
+                            >
+                                Create my own deal manually instead
+                            </Link>
+                        </div>
                     </div>
                 )}
 
@@ -595,6 +625,13 @@ export default function AIDealPage() {
                             >
                                 Try a different prompt
                             </button>
+                            <span className="text-white/20 px-2">•</span>
+                            <Link
+                                href="/merchant-dashboard/create-deal"
+                                className="text-sm text-white/30 hover:text-white transition"
+                            >
+                                Create manually instead
+                            </Link>
                         </div>
                     </div>
                 )}

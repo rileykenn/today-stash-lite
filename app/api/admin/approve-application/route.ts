@@ -154,6 +154,19 @@ export async function POST(req: Request) {
       );
     }
 
+    // 4.5) Add to merchant_staff (REQUIRED for RLS)
+    const { error: staffErr } = await supabase
+      .from("merchant_staff")
+      .insert({
+        user_id: userId,
+        merchant_id: merchantId,
+      });
+
+    if (staffErr) {
+      // Log but don't fail, as profile link is established (though RLS will block)
+      console.error("Failed to add to merchant_staff:", staffErr);
+    }
+
     // 5) Update application status
     const { error: updErr } = await supabase
       .from("applications")

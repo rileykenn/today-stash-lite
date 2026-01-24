@@ -4,42 +4,37 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { sb } from "@/lib/supabaseBrowser";
-import AdminLink from "./AdminLink"; // adjust path if needed
+import AdminLink from "./AdminLink";
 import { UserCircleIcon } from "@heroicons/react/24/solid";
+import { AnimatePresence, motion } from "framer-motion";
 
-// Main top-level links (no invitations here)
-const navLinks = [
-  { href: "/", label: "What is Today’s Stash?" },
-  { href: "/merchant", label: "For businesses" },
-  { href: "/success-stories", label: "Success Stories" },
+// 1. Consumer / Main Links (Center Pill)
+const consumerLinks = [
   { href: "/consumer", label: "View Deals" },
-  { href: "/merchant-dashboard", label: "Merchant Dashboard" },
+  { href: "/areas", label: "Areas" },
+  { href: "/merchant", label: "For Business" },
 ];
 
-// Invitation / promo areas
-const invitationLinks = [
-  { href: "/areas", label: "Browse All Areas" },
-  // Keeping these for legacy support if needed, or we can remove them.
-  // The user asked to make "areas we are promoting" link to the new page.
-  // We can just keep one main link in the dropdown for now, or fetch them dynamically (which would make this a server component or require client fetching).
-  // For simplicity and speed, let's link to the main hub.
+// 2. Merchant / Partner Links (Separated)
+const merchantLinks = [
+  { href: "/success-stories", label: "Success Stories" },
+  { href: "/merchant-dashboard", label: "Dashboard" },
 ];
 
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
 
-  const [open, setOpen] = useState(false); // mobile nav open
-  // const [areasOpen, setAreasOpen] = useState(false); // desktop dropdown - REMOVED dropdown logic for now to simplify
+  const [open, setOpen] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [signedIn, setSignedIn] = useState(false);
 
-  // Close mobile nav & dropdown on route change
+  // Close mobile nav on route change
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
 
-  // Supabase auth state
+  // Auth check
   useEffect(() => {
     const supabase = sb;
     let mounted = true;
@@ -74,8 +69,6 @@ export default function Header() {
   const isActive = (href: string) =>
     pathname === href || pathname?.startsWith(href + "/");
 
-  const isInvitationActive = invitationLinks.some((l) => isActive(l.href));
-
   const authLabel = isAuthLoading ? "…" : signedIn ? "Sign out" : "Sign in";
 
   const handleAuthClick = async () => {
@@ -84,222 +77,243 @@ export default function Header() {
   };
 
   return (
-    <header
-      className="
-        sticky top-0 z-40
-        border-b border-white/5
-        bg-gradient-to-b from-[#0B1210]/80 via-[#0B1210]/60 to-[#0B1210]/30
-        backdrop-blur-xl
-      "
-    >
-      <div className="mx-auto max-w-5xl px-4">
-        {/* TOP ROW */}
-        <div className="flex h-14 items-center">
-          {/* LEFT: Admin link */}
-          <div className="flex-1">
-            <span className="inline text-[11px] text-white/60">
-              <AdminLink />
-            </span>
-          </div>
+    <>
+      <header
+        className="
+          fixed top-0 inset-x-0 z-40
+          h-[72px]
+          border-b border-white/5
+          bg-[#0B1210]/60
+          backdrop-blur-xl
+        "
+      >
+        <div className="mx-auto max-w-6xl px-4 h-full flex items-center justify-between relative">
 
-          {/* LOGO */}
-          <div className="flex-1 flex justify-center">
-            <Link
-              href="/"
-              className="flex items-center"
-            >
+          {/* --- LEFT: Logo (& Admin) --- */}
+          <div className="flex items-center gap-4 z-20 shrink-0">
+            <Link href="/" className="flex items-center group">
               <img
                 src="/logo6.png"
                 alt="Today's Stash"
-                className="h-10 sm:h-9 md:h-7 w-auto object-contain mx-auto"
+                className="h-8 w-auto object-contain transition-transform group-hover:scale-105"
               />
             </Link>
+
+            <div className="hidden lg:block">
+              <AdminLink />
+            </div>
           </div>
 
-          {/* RIGHT SIDE */}
-          <div className="flex-1 flex justify-end items-center gap-2">
-            {/* Sign in / out desktop */}
-            {/* Sign in / Profile desktop */}
+          {/* --- CENTER: "Pill" Navigation (Desktop) --- */}
+          <nav className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+            <div className="
+              flex items-center p-1.5 gap-1
+              rounded-full
+              bg-white/5 border border-white/10
+              backdrop-blur-2xl shadow-xl shadow-black/20
+            ">
+              {consumerLinks.map((link) => {
+                const active = isActive(link.href);
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`
+                      relative px-4 py-1.5 rounded-full text-[13px] font-semibold transition-colors z-10
+                      ${active ? "text-black" : "text-white/70 hover:text-white"}
+                    `}
+                  >
+                    {active && (
+                      <motion.div
+                        layoutId="active-pill"
+                        className="absolute inset-0 bg-white rounded-full -z-10 shadow-sm"
+                        transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
+                      />
+                    )}
+                    {link.label}
+                  </Link>
+                );
+              })}
+            </div>
+          </nav>
+
+          {/* --- RIGHT: Secondary Actions (Desktop) --- */}
+          <div className="hidden md:flex items-center gap-5 z-20 shrink-0">
+            {/* Merchant Group */}
+            <div className="flex items-center gap-3 pr-4 border-r border-white/10">
+              {merchantLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`
+                    text-[12px] font-medium transition-colors
+                    ${isActive(link.href) ? "text-emerald-400" : "text-white/50 hover:text-white/90"}
+                  `}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+
+            {/* Auth Button */}
             {signedIn ? (
               <Link
                 href="/profile"
-                className="hidden sm:inline-flex items-center justify-center text-white/80 hover:text-emerald-400 transition"
+                className="flex items-center justify-center text-white/50 hover:text-white transition-colors"
                 title="View Profile"
               >
                 <UserCircleIcon className="w-8 h-8" />
               </Link>
             ) : (
               <button
-                type="button"
                 onClick={handleAuthClick}
                 disabled={isAuthLoading}
-                className={`
-                  hidden sm:inline-flex
-                  items-center justify-center
-                  rounded-full px-3 py-1.5
-                  text-[11px] font-medium
-                  bg-white/10 hover:bg-white/20
-                  text-white transition
-                  ${isAuthLoading ? "opacity-60 cursor-default" : ""}
-                `}
+                className="
+                  px-4 py-1.5 rounded-full
+                  bg-white/5 hover:bg-white/10
+                  border border-white/10
+                  text-[12px] font-semibold text-white
+                  transition-all
+                "
               >
                 {authLabel}
               </button>
             )}
+          </div>
 
-            {/* Hamburger */}
+          {/* --- MOBILE: Hamburger Toggle --- */}
+          <div className="md:hidden flex items-center gap-3 z-50">
+            {/* Small Admin Link for Mobile */}
+            <div className="scale-90 opacity-70">
+              <AdminLink />
+            </div>
+
             <button
-              type="button"
-              onClick={() => setOpen((v) => !v)}
-              className="
-                inline-flex sm:hidden
-                items-center justify-center
-                rounded-full p-2.5
-                hover:bg-white/10 transition
-              "
+              onClick={() => setOpen(!open)}
+              className="p-2 -mr-2 text-white outline-none"
+              aria-label="Menu"
             >
-              <span className="flex flex-col gap-1.5">
-                <span className="w-5 h-[1.5px] rounded-full bg-white" />
-                <span className="w-5 h-[1.5px] rounded-full bg-white" />
-                <span className="w-5 h-[1.5px] rounded-full bg-white" />
-              </span>
+              <div className="flex flex-col gap-1.5 w-6">
+                <motion.span
+                  animate={open ? { rotate: 45, y: 7 } : { rotate: 0, y: 0 }}
+                  className="h-0.5 w-full bg-white rounded-full origin-center"
+                />
+                <motion.span
+                  animate={open ? { opacity: 0 } : { opacity: 1 }}
+                  className="h-0.5 w-full bg-white rounded-full"
+                />
+                <motion.span
+                  animate={open ? { rotate: -45, y: -7 } : { rotate: 0, y: 0 }}
+                  className="h-0.5 w-full bg-white rounded-full origin-center"
+                />
+              </div>
             </button>
           </div>
         </div>
+      </header>
 
-        {/* DESKTOP NAV */}
-        <nav className="hidden sm:flex items-center justify-center gap-3 pb-2">
-          {navLinks.map((link) => {
-            const active = isActive(link.href);
-            const isHome = link.href === "/";
-            const isBusiness = link.href === "/merchant";
-            const isDashboard = link.href === "/merchant-dashboard";
-
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`
-                  rounded-full px-4 py-1.5 text-[13px] font-medium transition
-                  ${active
-                    ? "bg-white text-black shadow-sm"
-                    : isHome
-                      ? "border border-white/40 text-white hover:bg-white/10"
-                      : isBusiness
-                        ? "border border-emerald-500/60 text-emerald-300 hover:bg-emerald-500/10 hover:text-emerald-200"
-                        : isDashboard
-                          ? "text-white/80 bg-white/5 hover:bg-white/10"
-                          : "text-white/75 hover:text-white hover:bg-white/10"
-                  }
-                `}
-              >
-                {link.label}
-              </Link>
-            );
-          })}
-
-          {/* Invitations dropdown (desktop) */}
-          {/* Invitations/Areas Link (Desktop) */}
-          <Link
-            href="/areas"
-            className={`
-              rounded-full px-4 py-1.5 text-[13px] font-medium transition
-              inline-flex items-center gap-1.5
-              ${isInvitationActive
-                ? "bg-white text-black shadow-sm"
-                : "text-white/75 hover:text-white hover:bg-white/10"
-              }
-            `}
+      {/* --- MOBILE: Full Screen Menu --- */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.2 }}
+            className="
+              fixed inset-0 z-30 pt-[72px]
+              bg-[#0B1210]/95 backdrop-blur-3xl
+              flex flex-col
+            "
           >
-            Areas we&apos;re promoting
-          </Link>
-        </nav>
-      </div>
+            <div className="flex-1 overflow-y-auto px-6 py-8 space-y-8">
 
-      {/* MOBILE NAV */}
-      {open && (
-        <div
-          className="
-            sm:hidden border-t border-white/5
-            bg-gradient-to-b from-[#0B1210] via-[#07131F] to-[#02050A]
-            backdrop-blur-2xl
-          "
-        >
-          <nav className="mx-auto max-w-5xl px-4 py-3 flex flex-col gap-1">
-            {navLinks.map((link) => {
-              const active = isActive(link.href);
-              const isHome = link.href === "/";
-              const isBusiness = link.href === "/merchant";
-              const isDashboard = link.href === "/merchant-dashboard";
+              {/* Section 1: Explore (Consumer) */}
+              <div className="space-y-3">
+                <p className="text-[11px] uppercase tracking-widest text-white/40 font-semibold pl-1">
+                  Explore
+                </p>
+                <div className="space-y-1">
+                  {consumerLinks.map((link, i) => (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      onClick={() => setOpen(false)}
+                      className={`
+                        block w-full px-4 py-3 rounded-2xl text-lg font-medium transition-colors border
+                        ${isActive(link.href)
+                          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                          : "bg-white/5 border-transparent text-white hover:bg-white/10"
+                        }
+                      `}
+                    >
+                      {link.label}
+                    </Link>
+                  ))}
+                  {/* Home Link explicitly */}
+                  <Link
+                    href="/"
+                    onClick={() => setOpen(false)}
+                    className={`
+                        block w-full px-4 py-3 rounded-2xl text-lg font-medium transition-colors border
+                        bg-white/5 border-transparent text-white hover:bg-white/10
+                      `}
+                  >
+                    About Today&apos;s Stash
+                  </Link>
+                </div>
+              </div>
 
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`
-                    w-full rounded-lg px-3 py-2 text-[13px] transition
-                    ${active
-                      ? "bg-white text-black"
-                      : isHome
-                        ? "border border-white/40 text-white hover:bg-white/10"
-                        : isBusiness
-                          ? "border border-emerald-500/60 text-emerald-200 hover:bg-emerald-500/10"
-                          : isDashboard
-                            ? "text-white/85 bg-white/5 hover:bg-white/10"
-                            : "text-white/85 hover:text-white hover:bg-white/10"
-                    }
-                  `}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
+              {/* Section 2: Partners & Account */}
+              <div className="space-y-3">
+                <p className="text-[11px] uppercase tracking-widest text-white/40 font-semibold pl-1">
+                  Account & Business
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  {merchantLinks.map((link) => (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      onClick={() => setOpen(false)}
+                      className={`
+                        flex items-center justify-center
+                        px-3 py-3 rounded-xl text-sm font-medium
+                        bg-white/5 border border-white/5 text-white/70
+                      `}
+                    >
+                      {link.label}
+                    </Link>
+                  ))}
+                </div>
 
-            {/* Mobile invitations list */}
-            {/* Mobile Areas Link */}
-            <div className="mt-3">
-              <Link
-                href="/areas"
-                className={`
-                      block w-full rounded-lg px-3 py-2 text-[13px] transition
-                      ${isInvitationActive
-                    ? "bg-white text-black"
-                    : "text-white/85 hover:text-white hover:bg-white/10"
-                  }
-                    `}
-              >
-                Areas we&apos;re promoting
-              </Link>
+                <div className="pt-2">
+                  {signedIn ? (
+                    <Link
+                      href="/profile"
+                      onClick={() => setOpen(false)}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-500 text-white font-semibold"
+                    >
+                      <UserCircleIcon className="w-5 h-5" />
+                      My Profile
+                    </Link>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setOpen(false);
+                        handleAuthClick();
+                      }}
+                      className="w-full px-4 py-3 rounded-xl bg-white text-black font-semibold"
+                    >
+                      Sign In / Sign Up
+                    </button>
+                  )}
+                </div>
+              </div>
+
             </div>
-
-            {/* Auth button mobile */}
-            {/* Auth button mobile */}
-            {signedIn ? (
-              <Link
-                href="/profile"
-                className="mt-3 flex items-center gap-2 w-full rounded-lg px-3 py-2 text-[13px] bg-white/10 text-white/90 hover:bg-white/20 transition"
-              >
-                <UserCircleIcon className="w-5 h-5 text-emerald-400" />
-                My Profile
-              </Link>
-            ) : (
-              <button
-                type="button"
-                onClick={handleAuthClick}
-                disabled={isAuthLoading}
-                className={`
-                  mt-3 w-full rounded-lg px-3 py-2 text-[13px]
-                  bg-white/10 hover:bg-white/20
-                  text-white/90 text-left transition
-                  ${isAuthLoading ? "opacity-60 cursor-default" : ""}
-                `}
-              >
-                {authLabel}
-              </button>
-            )}
-          </nav>
-        </div>
-      )}
-    </header>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }

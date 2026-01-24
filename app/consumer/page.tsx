@@ -18,6 +18,7 @@ import {
   getSydneyToday,
 } from "./components/helpers";
 import { getMerchantStatus } from "./components/merchantStatus";
+import { getNextRecurringSlot } from "./components/scheduler";
 
 import DealsGrid from "./components/DealsGrid";
 import RedeemModal from "./components/RedeemModal";
@@ -78,6 +79,17 @@ export default function ConsumerDealsPage() {
   const [lastScanned, setLastScanned] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Time state for Sorting
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    const t = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Today's redeemed deals
+  const [todayRedeemedOfferIds, setTodayRedeemedOfferIds] = useState<Set<string>>(new Set());
 
   /* -----------------------
      1. Init Data Loading & Sync
@@ -153,6 +165,26 @@ export default function ConsumerDealsPage() {
           ...t,
           slug: (t.slug ?? "").toLowerCase().trim()
         })));
+      }
+
+      // D. Fetch today's redemptions for current user (if logged in)
+      const { data: { session } } = await sb.auth.getSession();
+      if (session && mounted) {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0); // Midnight today (browser local time)
+
+        const { data: redemptionsData } = await sb
+          .from("redemptions")
+          .select("offer_id")
+          .eq("user_id", session.user.id)
+          .gte("redeemed_at", todayStart.toISOString());
+
+        if (redemptionsData) {
+          const redeemedIds = new Set(
+            redemptionsData.map((r: any) => r.offer_id)
+          );
+          setTodayRedeemedOfferIds(redeemedIds);
+        }
       }
 
 
@@ -300,6 +332,18 @@ export default function ConsumerDealsPage() {
               }
             }
 
+
+            // 4. Calculate Next Available Slot (if closed)
+            let nextStart: Date | null = null;
+            let nextEnd: Date | null = null;
+            if (isDealClosed && r.recurring_schedule && Array.isArray(r.recurring_schedule)) {
+              const slot = getNextRecurringSlot(r.recurring_schedule, now);
+              if (slot) {
+                nextStart = slot.start;
+                nextEnd = slot.end;
+              }
+            }
+
             return {
               id: String(r.id),
               title: String(r.title ?? ""),
@@ -334,8 +378,30 @@ export default function ConsumerDealsPage() {
               collectionWindow: windowText,
               todayStart: todayStartStr,
               todayEnd: todayEndStr,
+              nextAvailableStart: nextStart ? nextStart.toISOString() : null,
+              nextAvailableEnd: nextEnd ? nextEnd.toISOString() : null,
             } as Coupon;
-          }).filter(Boolean) as Coupon[];
+          }).filter((d) => {
+            if (!d) return false;
+            // Always keep if recurring/next available is set
+            if (d.nextAvailableStart) {
+              const next = new Date(d.nextAvailableStart);
+              const today = new Date();
+              const tomorrow = new Date();
+              tomorrow.setDate(tomorrow.getDate() + 1);
+
+              const isToday = next.getDate() === today.getDate() && next.getMonth() === today.getMonth();
+              const isTomorrow = next.getDate() === tomorrow.getDate() && next.getMonth() === tomorrow.getMonth();
+
+              // Only show if active/starts Today or Tomorrow
+              if (isToday || isTomorrow) return true;
+              return false;
+            }
+            // If manual expiry (daysLeft), keep if not expired > 1 day ago
+            // daysLeft < 0 means expired. < -1 means more than 1 day ago.
+            if (d.daysLeft !== null && d.daysLeft !== undefined && d.daysLeft < -1) return false;
+            return true;
+          }) as Coupon[];
 
           // Sort: Open merchants first, then by creation (preserved)
           mapped.sort((a, b) => {
@@ -401,8 +467,44 @@ export default function ConsumerDealsPage() {
       result = result.filter(d => d.merchant?.category === filterCategory);
     }
 
+    // Sort by Availability Priority
+    if (now) {
+      result.sort((a, b) => {
+        const getRank = (d: Coupon) => {
+          // 0. Closed Business (Always Bottom)
+          if (d.merchant?.isClosed) return 10;
+
+          // 4. Sold Out
+          const rem = (d.totalLimit ?? 999999) - d.usedCount;
+          if (d.totalLimit !== null && rem <= 0) return 4;
+
+          // Schedule logic
+          if (d.todayStart && d.todayEnd) {
+            const s = new Date(d.todayStart);
+            const e = new Date(d.todayEnd);
+            if (now > e) return 5; // Expired
+            if (now < s) return 2; // Active In
+
+            // Inside Window / Available
+            return 1;
+          }
+
+          if (d.nextAvailableStart) return 3; // Available Tomorrow
+
+          if (d.daysLeft != null && d.daysLeft < 0) return 5; // Expired
+
+          // Fallback
+          return 1;
+        };
+
+        const rA = getRank(a);
+        const rB = getRank(b);
+        return rA - rB;
+      });
+    }
+
     return result;
-  }, [deals, searchQuery, filterTown, filterCategory, subscribedTownSlugs]);
+  }, [deals, searchQuery, filterTown, filterCategory, subscribedTownSlugs, now]);
 
 
   /* -----------------------
@@ -663,7 +765,7 @@ export default function ConsumerDealsPage() {
         </section>
 
         {/* --- Controls: Search & Filters --- */}
-        <div className="sticky top-[60px] z-30 bg-[#0A0F13]/95 backdrop-blur-md py-4 mb-6 border-b border-white/5 -mx-4 px-4 md:mx-0 md:px-0 md:rounded-2xl md:border-none">
+        <div className="relative z-10 py-4 mb-6 border-b border-white/5 -mx-4 px-4 md:mx-0 md:px-0 md:rounded-2xl md:border-none">
           <div className="flex flex-col gap-4">
 
             {/* Search Bar */}
@@ -754,6 +856,10 @@ export default function ConsumerDealsPage() {
           onRedeem={handleRedeemClick}
           onBellClick={handleBellClick}
           enabledMerchantIds={enabledMerchantIds}
+          isDealUnlocked={(d) => {
+            return subscribedTownSlugs.includes(d.townSlug);
+          }}
+          todayRedeemedOfferIds={todayRedeemedOfferIds}
         />
 
         {visibleDeals.length === 0 && (

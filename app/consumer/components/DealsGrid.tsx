@@ -11,12 +11,16 @@ export default function DealsGrid({
   onRedeem,
   onBellClick,
   enabledMerchantIds,
+  isDealUnlocked,
+  todayRedeemedOfferIds,
 }: {
   areaUnlocked: boolean;
   visibleDeals: Coupon[];
   onRedeem: (deal: Coupon) => void;
   onBellClick: (deal: Coupon) => void;
   enabledMerchantIds: Set<string>;
+  isDealUnlocked?: (deal: Coupon) => boolean;
+  todayRedeemedOfferIds?: Set<string>;
 }) {
   if (!areaUnlocked) {
     return (
@@ -41,9 +45,10 @@ export default function DealsGrid({
           <CouponTicket
             coupon={d}
             onRedeem={onRedeem}
-            areaUnlocked={areaUnlocked}
+            areaUnlocked={isDealUnlocked ? isDealUnlocked(d) : areaUnlocked}
             isNotificationEnabled={enabledMerchantIds.has(d.merchant?.id as string)}
             onBellClick={() => onBellClick(d)}
+            isRedeemedToday={todayRedeemedOfferIds?.has(d.id) ?? false}
           />
         </li>
       ))}

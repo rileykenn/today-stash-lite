@@ -3,6 +3,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { sb } from "@/lib/supabaseBrowser";
 import Loading from "@/components/Loading";
 import {
@@ -127,6 +128,11 @@ export default function MerchantDashboardPage() {
   const router = useRouter();
   const [state, setState] = useState<State>({ status: "loading" });
   const [deletingOfferId, setDeletingOfferId] = useState<string | null>(null);
+
+  // Restock State
+  const [restockingOffer, setRestockingOffer] = useState<any>(null);
+  const [restockAmount, setRestockAmount] = useState("");
+  const [savingRestock, setSavingRestock] = useState(false);
 
   // Settings State
   const [hours, setHours] = useState<WeeklyHours>(DEFAULT_HOURS);
@@ -457,6 +463,47 @@ export default function MerchantDashboardPage() {
     }
   };
 
+  const handleRestockSave = async () => {
+    if (!restockingOffer) return;
+    setSavingRestock(true);
+
+    try {
+      const addedAmount = parseInt(restockAmount, 10);
+      if (isNaN(addedAmount) || addedAmount < 0) {
+        alert("Please enter a valid amount.");
+        return;
+      }
+
+      const currentRedeemed = restockingOffer.redeemed_count || 0;
+      const newTotalLimit = currentRedeemed + addedAmount;
+
+      const { error } = await sb
+        .from("offers")
+        .update({ total_limit: newTotalLimit })
+        .eq("id", restockingOffer.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setState((prev) => {
+        if (prev.status !== "ready") return prev;
+        const updatedOffers = prev.merchantOffers.map((o) =>
+          o.id === restockingOffer.id ? { ...o, total_limit: newTotalLimit } : o
+        );
+        return { ...prev, merchantOffers: updatedOffers };
+      });
+
+      setRestockingOffer(null);
+      setRestockAmount("");
+      alert("Stock updated successfully!");
+    } catch (err: any) {
+      console.error(err);
+      alert("Failed to update stock.");
+    } finally {
+      setSavingRestock(false);
+    }
+  };
+
   /* =======================
      Render
      ======================= */
@@ -616,20 +663,13 @@ export default function MerchantDashboardPage() {
             </p>
           </div>
           <div className="flex gap-3">
-            <button
-              onClick={() => router.push("/merchant-dashboard/create-deal")}
+            <Link
+              href="/merchant-dashboard/ai-deal"
               className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition shadow-lg shadow-emerald-500/20"
             >
               <PlusIcon className="w-4 h-4" />
               Create Deal
-            </button>
-            <button
-              onClick={() => router.push("/merchant-dashboard/ai-deal")}
-              className="inline-flex items-center gap-2 bg-[#1A2330] hover:bg-[#232d3d] text-emerald-400 px-5 py-2.5 rounded-xl text-sm font-semibold transition border border-emerald-500/30"
-            >
-              <SparklesIcon className="w-4 h-4" />
-              AI Deal
-            </button>
+            </Link>
           </div>
         </header>
 
@@ -684,16 +724,23 @@ export default function MerchantDashboardPage() {
                   </div>
                   <h3 className="text-white font-medium mb-1">No active deals</h3>
                   <p className="text-white/40 text-sm mb-4">Create a deal to start attracting customers.</p>
-                  <button onClick={() => router.push("/merchant-dashboard/create-deal")} className="text-emerald-400 text-sm font-medium hover:underline">
+                  <Link href="/merchant-dashboard/create-deal" className="text-emerald-400 text-sm font-medium hover:underline">
                     + Create first deal
-                  </button>
+                  </Link>
                 </div>
               ) : (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {activeOffers.map((offer: any, idx: number) => (
                       <div key={offer.id} className={idx > 0 && !showAllActive ? "hidden md:block" : ""}>
-                        <ActiveDealCard offer={offer} router={router} />
+                        <ActiveDealCard
+                          offer={offer}
+                          router={router}
+                          onRestock={(o: any) => {
+                            setRestockingOffer(o);
+                            setRestockAmount("10"); // Default recommendation or empty
+                          }}
+                        />
                       </div>
                     ))}
                   </div>
@@ -923,6 +970,58 @@ export default function MerchantDashboardPage() {
         </div>
 
       </div>
+
+      {/* Restock Modal */}
+      {restockingOffer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#111821] border border-white/10 rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-white mb-4">Restock Deal</h3>
+            <p className="text-sm text-white/60 mb-6">
+              Adjust the <strong>remaining stock</strong> for this deal.
+            </p>
+
+            <div className="space-y-4">
+              <div className="flex justify-between text-sm py-2 border-b border-white/5">
+                <span className="text-white/40">Total Sold</span>
+                <span className="text-white font-mono">{restockingOffer.redeemed_count || 0}</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-white/40 uppercase tracking-wider mb-2">
+                  New Remaining Quantity
+                </label>
+                <input
+                  type="number"
+                  value={restockAmount}
+                  onChange={(e) => setRestockAmount(e.target.value)}
+                  className="w-full bg-[#0A0F13] border border-white/10 rounded-xl py-3 px-4 text-lg text-white font-bold focus:outline-none focus:border-emerald-500/50 transition-colors"
+                  placeholder="0"
+                  autoFocus
+                />
+                <p className="text-xs text-white/30 mt-2">
+                  This will set the Total Capacity to {(restockingOffer.redeemed_count || 0) + (parseInt(restockAmount || "0", 10))}.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mt-6">
+                <button
+                  onClick={() => setRestockingOffer(null)}
+                  className="bg-white/5 hover:bg-white/10 text-white py-3 rounded-xl text-sm font-semibold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRestockSave}
+                  disabled={savingRestock}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl text-sm font-semibold transition shadow-lg shadow-emerald-900/20 disabled:opacity-50"
+                >
+                  {savingRestock ? "Saving..." : "Update Stock"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </main >
   );
 }
@@ -961,10 +1060,10 @@ function StatCard({
 }
 
 
-function ActiveDealCard({ offer, router }: { offer: any, router: any }) {
+function ActiveDealCard({ offer, router, onRestock }: { offer: any, router: any, onRestock: (offer: any) => void }) {
   const isRecurring = offer.recurring_schedule && offer.recurring_schedule.length > 0;
   const totalLimit = offer.total_limit || 0;
-  const redeemedCount = offer.redemptions?.[0]?.count || 0;
+  const redeemedCount = offer.redeemed_count || 0;
   const remaining = Math.max(0, totalLimit - redeemedCount);
 
   let recurringDays = "";
@@ -1004,12 +1103,20 @@ function ActiveDealCard({ offer, router }: { offer: any, router: any }) {
         </div>
       </div>
 
-      <button
-        onClick={() => router.push(`/merchant-dashboard/create-deal?id=${offer.id}`)}
-        className="w-full mt-auto bg-white/5 hover:bg-white/10 text-white text-xs font-medium py-2.5 rounded-xl border border-white/5 transition flex items-center justify-center gap-2"
-      >
-        Edit Deal
-      </button>
+      <div className="mt-auto grid grid-cols-2 gap-3">
+        <Link
+          href={`/merchant-dashboard/create-deal?id=${offer.id}`}
+          className="bg-white/5 hover:bg-white/10 text-white text-xs font-medium py-2.5 rounded-xl border border-white/5 transition flex items-center justify-center gap-2"
+        >
+          Edit Deal
+        </Link>
+        <button
+          onClick={() => onRestock(offer)}
+          className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-medium py-2.5 rounded-xl border border-emerald-500/20 transition flex items-center justify-center gap-2"
+        >
+          Restock
+        </button>
+      </div>
     </div>
   )
 }
@@ -1042,12 +1149,12 @@ function ExpiredDealCard({ offer, router, onDelete, isDeleting }: { offer: any, 
           >
             {isDeleting ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : <TrashIcon className="w-4 h-4" />}
           </button>
-          <button
-            onClick={() => router.push(`/merchant-dashboard/create-deal?id=${offer.id}`)}
+          <Link
+            href={`/merchant-dashboard/create-deal?id=${offer.id}`}
             className="bg-white/5 hover:bg-white/10 text-white text-xs px-3 py-2 rounded-lg border border-white/5 transition"
           >
             Re-use
-          </button>
+          </Link>
         </div>
       </div>
     </div>

@@ -71,13 +71,7 @@ export default function RedeemModal({
 
         {/* Header */}
         <div className="flex items-center gap-3 pb-3 border-b border-white/10">
-          {activeDeal?.merchant?.logoUrl && (
-            <img
-              src={activeDeal.merchant.logoUrl}
-              alt={activeDeal.merchant.name || "Merchant"}
-              className="h-10 w-10 rounded-md object-cover"
-            />
-          )}
+
           <div className="min-w-0 flex-1">
             <p className="text-[11px] text-white/60 truncate">
               {activeDeal?.merchant?.name ?? "Merchant"}

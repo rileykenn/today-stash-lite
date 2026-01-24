@@ -18,6 +18,7 @@ export type Coupon = {
     isClosed?: boolean;
     nextOpen?: string;
     closesAt?: string | null;
+    operating_hours?: any; // Added for hours display
   } | null;
 
   usedCount: number; // from offers.redeemed_count
@@ -37,6 +38,8 @@ export type Coupon = {
   collectionWindow: string | null;
   todayStart?: string | null;
   todayEnd?: string | null;
+  nextAvailableStart?: string | null; // Calculated next valid start time if currently closed
+  nextAvailableEnd?: string | null;
 };
 
 export type Town = {

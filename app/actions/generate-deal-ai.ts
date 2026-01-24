@@ -39,6 +39,8 @@ export async function generateDealSuggestions(businessDescription: string): Prom
        - "Afternoon" -> start: "13:00", end: "17:00" (or "close" if implied)
        - "Evening" / "Dinner" -> start: "17:00", end: "close"
        - Specific times -> Use 24h format "HH:MM"
+    5. Handle day typos or abbreviations intelligently (e.g., "wensday" -> ["wednesday"], "tmrw" -> ignore/ask or map if context clear).
+    6. If the user implies "Today", do NOT guess the day name. Return empty array [].
 
     Return ONLY a JSON array of objects. Do not include markdown code blocks.
     The JSON structure should be:
