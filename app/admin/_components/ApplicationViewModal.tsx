@@ -19,6 +19,7 @@ type ApplicationRow = {
   phone: string | null;
 
   status: AppStatus | null;
+  town_name: string | null; // Raw town string from form
 };
 
 type TownRow = {
@@ -78,61 +79,6 @@ function StatusPill({ status }: { status: AppStatus }) {
   );
 }
 
-function ConfirmModal({
-  open,
-  title,
-  description,
-  confirmLabel,
-  confirmTone,
-  loading,
-  onCancel,
-  onConfirm,
-}: {
-  open: boolean;
-  title: string;
-  description: string;
-  confirmLabel: string;
-  confirmTone: 'danger' | 'primary';
-  loading?: boolean;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  if (!open) return null;
-
-  const confirmClass =
-    confirmTone === 'danger'
-      ? 'bg-red-600 hover:bg-red-700 text-white'
-      : 'bg-slate-900 hover:opacity-95 text-white';
-
-  return (
-    <div className="fixed inset-0 z-[60] bg-black/50 p-3 sm:p-6 flex items-center justify-center">
-      <div className="w-full max-w-md rounded-2xl bg-white border border-slate-200 shadow-xl overflow-hidden max-h-[90dvh] flex flex-col">
-        <div className="px-4 py-3 border-b border-slate-200">
-          <div className="font-semibold">{title}</div>
-          <div className="mt-1 text-sm text-slate-600 whitespace-pre-line">{description}</div>
-        </div>
-
-        <div className="px-4 py-3 flex flex-col sm:flex-row sm:justify-end gap-2">
-          <button
-            onClick={onCancel}
-            className="w-full sm:w-auto px-3 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm font-medium"
-            disabled={loading}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className={`w-full sm:w-auto px-3 py-2.5 rounded-xl text-sm font-semibold ${confirmClass} disabled:opacity-50`}
-            disabled={loading}
-          >
-            {loading ? 'Working…' : confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function ApplicationViewModal({
   open,
   applicationId,
@@ -147,35 +93,14 @@ export default function ApplicationViewModal({
   const [row, setRow] = useState<ApplicationRow | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const [confirm, setConfirm] = useState<null | 'approve' | 'deny'>(null);
-  const [acting, setActing] = useState(false);
-
   // status control
   const [statusDraft, setStatusDraft] = useState<AppStatus>('unread');
   const [savingStatus, setSavingStatus] = useState(false);
-
-  // required approval selections
-  const [towns, setTowns] = useState<TownRow[]>([]);
-  const [loadingTowns, setLoadingTowns] = useState(false);
-  const [townId, setTownId] = useState<string>(''); // required
-  const [category, setCategory] = useState<MerchantCategory | ''>(''); // required
 
   const status = (row?.status ?? 'unread') as AppStatus;
 
   const contactLabel = row?.contact_name || row?.email || 'this contact';
   const businessLabel = row?.business_name || 'this business';
-
-  const selectedTownName = towns.find((t) => t.id === townId)?.name?.trim() || '';
-
-  const approveCopy =
-    `Are you sure you want to approve this application?\n\n` +
-    `Town: ${selectedTownName || '—'}\n` +
-    `Category: ${category || '—'}\n\n` +
-    `A merchant will be created and linked to the user profile.`;
-
-  const denyCopy =
-    `Are you sure you want to deny this application?\n\n` +
-    `No merchant account will be created.`;
 
   // ✅ IMPORTANT: lock background scroll while modal is open
   useEffect(() => {
@@ -202,7 +127,7 @@ export default function ApplicationViewModal({
 
     const { data, error } = await sb
       .from('applications')
-      .select('id,created_at,business_name,category,address,contact_name,position,email,phone,status')
+      .select('id,created_at,business_name,category,address,town_name,contact_name,position,email,phone,status')
       .eq('id', applicationId)
       .single();
 
@@ -219,32 +144,10 @@ export default function ApplicationViewModal({
     setStatusDraft(((r?.status ?? 'unread') as AppStatus) || 'unread');
   };
 
-  const loadTowns = async () => {
-    setLoadingTowns(true);
-
-    const { data, error } = await sb.from('towns').select('id,name').order('name', { ascending: true });
-
-    setLoadingTowns(false);
-
-    if (error) {
-      console.error('Failed to load towns:', error.message);
-      setTowns([]);
-      return;
-    }
-
-    setTowns((data as any as TownRow[]) || []);
-  };
-
   // Fetch on open
   useEffect(() => {
     if (!open || !applicationId) return;
-
-    // reset selections on each open
-    setTownId('');
-    setCategory('');
-
     loadRow();
-    loadTowns();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, applicationId]);
 
@@ -285,75 +188,6 @@ export default function ApplicationViewModal({
     onRefresh?.();
   };
 
-  const doApprove = async () => {
-    if (!row?.id) return;
-
-    // REQUIRE town + category before approving
-    if (!townId) {
-      alert('Please select a town before approving.');
-      return;
-    }
-    if (!category) {
-      alert('Please select a category before approving.');
-      return;
-    }
-
-    setActing(true);
-    try {
-      // ✅ ONE server call does: create/find user, create merchant, link profile, set app approved
-      const res = await fetch('/api/admin/approve-application', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          applicationId: row.id,
-          townId,
-          category,
-        }),
-      });
-
-      const json = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        console.error('approve-application failed:', json);
-        alert('Approve failed: ' + (json?.error || 'Unknown error'));
-        return;
-      }
-
-      // success UI feedback
-      if (json.createdNewUser) {
-        alert(`Approved ✅\nMerchant created ✅\nTemp password: ${json.tempPassword}`);
-      } else {
-        alert(`Approved ✅\nMerchant created ✅\nUser already existed (no temp password)`);
-      }
-
-      // update local state to approved
-      setRow((prev) => (prev ? { ...prev, status: 'approved' } : prev));
-      setStatusDraft('approved');
-      setConfirm(null);
-      onRefresh?.();
-    } finally {
-      setActing(false);
-    }
-  };
-
-  const doDeny = async () => {
-    if (!row?.id) return;
-    setActing(true);
-    try {
-      const { error } = await sb.from('applications').update({ status: 'denied' }).eq('id', row.id);
-      if (error) {
-        alert('Failed to deny: ' + error.message);
-        return;
-      }
-      setRow((prev) => (prev ? { ...prev, status: 'denied' } : prev));
-      setStatusDraft('denied');
-      setConfirm(null);
-      onRefresh?.();
-    } finally {
-      setActing(false);
-    }
-  };
-
   const statusOptions: { value: AppStatus; label: string }[] = useMemo(
     () => [
       { value: 'unread', label: 'Unread' },
@@ -364,8 +198,6 @@ export default function ApplicationViewModal({
     ],
     [],
   );
-
-  const canApprove = !!row && !!townId && !!category;
 
   if (!open) return null;
 
@@ -419,68 +251,9 @@ export default function ApplicationViewModal({
             {/* Action bar */}
             <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
               <div className="space-y-3">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="text-sm text-slate-700">Review the details below, then approve or deny.</div>
-
-                  <div className="flex w-full gap-2 sm:w-auto">
-                    <button
-                      onClick={() => setConfirm('deny')}
-                      className="w-1/2 sm:w-auto px-3 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-sm font-semibold text-red-700"
-                      disabled={!row}
-                    >
-                      Deny
-                    </button>
-
-                    <button
-                      onClick={() => setConfirm('approve')}
-                      className="w-1/2 sm:w-auto px-3 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold disabled:opacity-50"
-                      disabled={!canApprove}
-                      title={!canApprove ? 'Select town and category first' : 'Approve'}
-                    >
-                      Approve
-                    </button>
-                  </div>
-                </div>
-
-                {/* Town + Category required selectors */}
-                <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <div className="text-xs font-semibold text-slate-500">Town (required)</div>
-                      <select
-                        className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 bg-white text-sm"
-                        value={townId}
-                        onChange={(e) => setTownId(e.target.value)}
-                        disabled={!row || loadingTowns}
-                      >
-                        <option value="">{loadingTowns ? 'Loading towns…' : 'Select town'}</option>
-                        {towns.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.name || 'Unnamed town'}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="mt-1 text-[11px] text-slate-500">Must be an existing town on the server.</div>
-                    </div>
-
-                    <div>
-                      <div className="text-xs font-semibold text-slate-500">Category (required)</div>
-                      <select
-                        className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 bg-white text-sm"
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value as MerchantCategory)}
-                        disabled={!row}
-                      >
-                        <option value="">Select category</option>
-                        {MERCHANT_CATEGORIES.map((c) => (
-                          <option key={c} value={c}>
-                            {c}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="mt-1 text-[11px] text-slate-500">Matches your merchants.category enum.</div>
-                    </div>
-                  </div>
+                <div className="text-sm text-slate-700">
+                  This application is for manual review. <br />
+                  <span className="text-slate-500 text-xs">Approving here creates record only - authentication & merchant creation must be done manually.</span>
                 </div>
 
                 {/* Set Status section */}
@@ -488,7 +261,7 @@ export default function ApplicationViewModal({
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div>
                       <div className="text-xs font-semibold text-slate-500">Set status</div>
-                      <div className="text-sm text-slate-700">Use this to mark as pending, approved, etc.</div>
+                      <div className="text-sm text-slate-700">Manually update application status.</div>
                     </div>
 
                     <div className="flex w-full gap-2 sm:w-auto sm:items-center">
@@ -528,9 +301,10 @@ export default function ApplicationViewModal({
               {!loading && row && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Field label="Business name" value={row.business_name ?? '—'} />
-                  <Field label="Category (from form)" value={row.category ?? '—'} />
+                  <Field label="Category" value={row.category ?? '—'} />
                   <div className="sm:col-span-2">
                     <Field label="Address" value={row.address ?? '—'} />
+                    {row.town_name && <div className="text-[11px] text-slate-400 mt-1">Raw Town: {row.town_name}</div>}
                   </div>
 
                   <Field label="Contact name" value={row.contact_name ?? '—'} />
@@ -544,28 +318,6 @@ export default function ApplicationViewModal({
           </div>
         </div>
       </div>
-
-      <ConfirmModal
-        open={confirm === 'approve'}
-        title="Approve application?"
-        description={approveCopy}
-        confirmLabel="Approve"
-        confirmTone="primary"
-        loading={acting}
-        onCancel={() => setConfirm(null)}
-        onConfirm={doApprove}
-      />
-
-      <ConfirmModal
-        open={confirm === 'deny'}
-        title="Deny application?"
-        description={denyCopy}
-        confirmLabel="Deny"
-        confirmTone="danger"
-        loading={acting}
-        onCancel={() => setConfirm(null)}
-        onConfirm={doDeny}
-      />
     </>
   );
 }

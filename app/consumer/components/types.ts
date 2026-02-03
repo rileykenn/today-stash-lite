@@ -40,6 +40,7 @@ export type Coupon = {
   todayEnd?: string | null;
   nextAvailableStart?: string | null; // Calculated next valid start time if currently closed
   nextAvailableEnd?: string | null;
+  recurring_schedule?: any[] | null;
 };
 
 export type Town = {

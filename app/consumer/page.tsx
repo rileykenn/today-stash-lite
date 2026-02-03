@@ -26,7 +26,7 @@ import NotificationModal from "./components/NotificationModal";
 import Loading from "@/components/Loading";
 
 // Helper components for Filters
-import { MagnifyingGlassIcon, FunnelIcon } from "@heroicons/react/24/outline";
+import { MagnifyingGlassIcon, FunnelIcon, CalendarIcon } from "@heroicons/react/24/outline";
 
 export default function ConsumerDealsPage() {
   const router = useRouter();
@@ -762,6 +762,17 @@ export default function ConsumerDealsPage() {
           <p className="text-gray-300 text-lg md:text-2xl font-light">
             {headerSubtitle}
           </p>
+          {userSession && (
+            <div className="mt-6 flex justify-center">
+              <Link
+                href="/consumer/reservations"
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 text-white font-medium transition backdrop-blur-md"
+              >
+                <CalendarIcon className="w-5 h-5 text-emerald-400" />
+                My Reservations
+              </Link>
+            </div>
+          )}
         </section>
 
         {/* --- Controls: Search & Filters --- */}

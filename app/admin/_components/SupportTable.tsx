@@ -151,32 +151,32 @@ export default function SupportTable() {
   };
 
   const updateStatus = async (id: string, status: SupportStatus) => {
-    setSavingStatus(true);
+  setSavingStatus(true);
 
-    const { data, error } = await sb
-      .from('support_requests')
-      .update({ status })
-      .eq('id', id)
-      .select('status, updated_at')
-      .single();
+  const { data, error } = await sb
+    .from('support_requests')
+    .update({ status })
+    .eq('id', id)
+    .select('status, updated_at')
+    .single();
 
-    if (error) {
-      console.error('SUPPORT STATUS UPDATE ERROR:', error);
-      alert('Failed to update status: ' + error.message);
-      setSavingStatus(false);
-      return;
-    }
-
-    const updated_at = (data as any)?.updated_at ?? null;
-    const newStatus = ((data as any)?.status ?? status) as SupportStatus;
-
-    setRows((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: newStatus, updated_at } : r))
-    );
-    setActive((prev) => (prev && prev.id === id ? { ...prev, status: newStatus, updated_at } : prev));
-
+  if (error) {
+    console.error('SUPPORT STATUS UPDATE ERROR:', error);
+    alert('Failed to update status: ' + error.message);
     setSavingStatus(false);
-  };
+    return;
+  }
+
+  const updated_at = (data as any)?.updated_at ?? null;
+  const newStatus = ((data as any)?.status ?? status) as SupportStatus;
+
+  setRows((prev) =>
+    prev.map((r) => (r.id === id ? { ...r, status: newStatus, updated_at } : r))
+  );
+  setActive((prev) => (prev && prev.id === id ? { ...prev, status: newStatus, updated_at } : prev));
+
+  setSavingStatus(false);
+};
 
 
   const toggleRead = async (id: string, next: boolean) => {

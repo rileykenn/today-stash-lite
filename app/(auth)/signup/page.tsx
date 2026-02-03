@@ -472,6 +472,9 @@ export default function SignupPage() {
             We sent a code to <span className="font-mono">{sentToPhone}</span>. Enter it below to finish signup.
           </p>
           <form onSubmit={handleConfirmPhone} className="space-y-3">
+            {notice && (
+              <div className="rounded-2xl p-3 bg-[color:rgb(16_185_129_/_0.18)] border border-[color:rgb(16_185_129_/_0.35)] text-[color:rgb(16_185_129)] text-sm">{notice}</div>
+            )}
             <input
               inputMode="numeric"
               placeholder="Enter code"
@@ -501,9 +504,6 @@ export default function SignupPage() {
             {error && (
               <div className="rounded-xl p-3 bg-[color:rgb(254_242_242)] text-[color:rgb(153_27_27)] text-sm">{error}</div>
             )}
-            {notice && (
-              <div className="rounded-2xl p-3 bg-[color:rgb(16_185_129_/_0.18)] border border-[color:rgb(16_185_129_/_0.35)] text-[color:rgb(16_185_129)] text-sm">{notice}</div>
-            )}
           </form>
 
           <button
@@ -522,6 +522,9 @@ export default function SignupPage() {
             We emailed a code to <span className="font-mono">{sentToEmail}</span>. Enter it below to finish signup.
           </p>
           <form onSubmit={handleConfirmEmail} className="space-y-3">
+            {notice && (
+              <div className="rounded-2xl p-3 bg-[color:rgb(16_185_129_/_0.18)] border border-[color:rgb(16_185_129_/_0.35)] text-[color:rgb(16_185_129)] text-sm">{notice}</div>
+            )}
             <input
               inputMode="numeric"
               placeholder="Enter 6-digit code"
@@ -550,9 +553,6 @@ export default function SignupPage() {
 
             {error && (
               <div className="rounded-xl p-3 bg-[color:rgb(254_242_242)] text-[color:rgb(153_27_27)] text-sm">{error}</div>
-            )}
-            {notice && (
-              <div className="rounded-2xl p-3 bg-[color:rgb(16_185_129_/_0.18)] border border-[color:rgb(16_185_129_/_0.35)] text-[color:rgb(16_185_129)] text-sm">{notice}</div>
             )}
           </form>
 

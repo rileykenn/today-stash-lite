@@ -6,12 +6,14 @@ export type AdminTabKey =
   | 'deals'
   | 'applications'
   | 'support'
-  | 'towns';
+  | 'towns'
+  | 'reservations';
 
 const tabs: { key: AdminTabKey; label: string }[] = [
   { key: 'users', label: 'Users' },
   { key: 'merchants', label: 'Merchants' },
   { key: 'deals', label: 'Deals' },
+  { key: 'reservations', label: 'Reservations' },
   { key: 'applications', label: 'Applications' },
   { key: 'support', label: 'Support' },
   { key: 'towns', label: 'Towns' },

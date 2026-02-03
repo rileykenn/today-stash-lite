@@ -7,6 +7,7 @@ import AdminTabs, { AdminTabKey } from './_components/AdminTabs';
 import UsersTable from './_components/UsersTable';
 import MerchantsTable from './_components/MerchantsTable';
 import DealsTable from './_components/DealsTable';
+import ReservationsTable from './_components/ReservationsTable';
 import ApplicationsTable from './_components/ApplicationsTable';
 import SupportTable from './_components/SupportTable';
 import TownsTable from './_components/TownsTable';
@@ -84,6 +85,7 @@ export default function AdminHome() {
             {tab === 'users' && <UsersTable meUserId={meUserId} />}
             {tab === 'merchants' && <MerchantsTable />}
             {tab === 'deals' && <DealsTable />}
+            {tab === 'reservations' && <ReservationsTable />}
             {tab === 'applications' && <ApplicationsTable />}
             {tab === 'support' && <SupportTable />}
             {tab === 'towns' && <TownsTable />}

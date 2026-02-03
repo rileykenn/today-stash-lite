@@ -15,10 +15,10 @@ import {
     getSydneyToday,
     fmtMoney
 } from "../../components/helpers";
-import RedeemModal from "../../components/RedeemModal";
+import ReservationModal from "../../components/ReservationModal"; // Import Reservation Modal
 import NotificationModal from "../../components/NotificationModal"; // Import Notification Modal
 import { BusinessHours } from "../../components/BusinessHours"; // Import Business Hours
-import { ArrowLeftIcon, MapPinIcon, BellIcon, ShareIcon, ClockIcon, CalendarIcon, HashtagIcon } from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, MapPinIcon, BellIcon, ShareIcon, ClockIcon, CalendarIcon, HashtagIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
 import { BellIcon as BellIconSolid } from "@heroicons/react/24/solid";
 import { getMerchantStatus, type MerchantStatus } from "../../components/merchantStatus";
 import { getNextRecurringSlot } from "../../components/scheduler";
@@ -44,6 +44,7 @@ export default function DealDetailsPage() {
     // Auth & Subscription
     const [userSession, setUserSession] = useState<any>(null);
     const [subscribedTownSlugs, setSubscribedTownSlugs] = useState<string[]>([]);
+    const [hasReservationToday, setHasReservationToday] = useState(false); // NEW STATE
 
     // Notification State
     const [isNotificationEnabled, setIsNotificationEnabled] = useState(false);
@@ -51,13 +52,8 @@ export default function DealDetailsPage() {
     const [notificationLoading, setNotificationLoading] = useState(false);
     const [isConfigured, setIsConfigured] = useState(false); // If user has notification method set
 
-    // Redemption
-    const [modalOpen, setModalOpen] = useState(false);
-    const [step, setStep] = useState<Step>("instructions");
-    const [flyerCode, setFlyerCode] = useState("");
-    const [lastScanned, setLastScanned] = useState<string | null>(null);
-    const [submitting, setSubmitting] = useState(false);
-    const [submitError, setSubmitError] = useState<string | null>(null);
+    // Reservation State
+    const [reservationOpen, setReservationOpen] = useState(false);
 
     useEffect(() => {
         async function init() {
@@ -77,6 +73,41 @@ export default function DealDetailsPage() {
                     // Check if global notifications are configured
                     if (profile.notifications_enabled && profile.notification_method) {
                         setIsConfigured(true);
+                    }
+                }
+
+                // Check for existing reservation *today*
+                if (id) {
+                    // Calculate "today" in Sydney
+                    // We can rely on the database check which uses correct TZ, 
+                    // but on frontend simple local date check is decent approximation if we assume user is in TZ.
+                    // Better: Query where slot_time date = now date (Sydney)
+                    // We'll trust the query logic used in backend: now() AT TIME ZONE 'Australia/Sydney'
+                    const todayStr = new Date().toISOString().split('T')[0]; // simple local check for query perf
+
+                    const { data: existing } = await sb
+                        .from('reservations')
+                        .select('id, slot_time')
+                        .eq('user_id', session.user.id)
+                        .eq('offer_id', id)
+                        .in('status', ['pending', 'redeemed', 'missed'])
+                        // We filter for "today" properly in JS to be safe with TZ
+                        // Or fetch most recent?
+                        .order('slot_time', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+
+                    if (existing) {
+                        // Check if it's "today"
+                        // Assuming user is in Sydney or near enough, or logic aligns.
+                        // Simplest strict check: does the slot_time fall on the same calendar day as now()?
+                        // Using the helper for Sydney Date
+                        const resDate = new Date(existing.slot_time);
+                        const isToday = getSydneyDateUTC(resDate).getDate() === getSydneyToday().getDate();
+
+                        if (isToday) {
+                            setHasReservationToday(true);
+                        }
                     }
                 }
             }
@@ -133,8 +164,6 @@ export default function DealDetailsPage() {
                     vDate.getFullYear() === now.getFullYear();
 
                 if (!isSameDay) isDealClosed = true;
-                // If same day, likely handled by recurring logic or explicit start?
-                // For simplicity, if not recurring, it might be open.
             }
             if (r.valid_until && new Date(r.valid_until) < now) isDealClosed = true;
 
@@ -158,15 +187,6 @@ export default function DealDetailsPage() {
 
                     if (eDate <= sDate) eDate.setDate(eDate.getDate() + 1);
 
-                    const currentMins = now.getHours() * 60 + now.getMinutes();
-                    const startMins = sH * 60 + sM;
-                    const endMins = eH * 60 + eM;
-
-                    // If overnight, next day handling is implied by date obj, 
-                    // but for strict `isDealClosed` check:
-                    // If eDate is tomorrow, we are open if now >= sDate.
-                    // Simplification: just assume if we are inside the window defined by sDate/eDate
-                    // But sDate/eDate are absolute.
                     if (now < sDate || now >= eDate) {
                         isDealClosed = true;
                     }
@@ -230,6 +250,7 @@ export default function DealDetailsPage() {
                 nextAvailableEnd: nextEnd ? nextEnd.toISOString() : null,
                 todayStart: todayStartStr,  // NEW
                 todayEnd: todayEndStr,      // NEW
+                recurring_schedule: r.recurring_schedule,
             };
 
             setDeal(mapped);
@@ -375,7 +396,7 @@ export default function DealDetailsPage() {
         }
     };
 
-    const handleRedeemClick = () => {
+    const handleReserveClick = () => {
         if (!deal) return;
         if (!userSession) {
             router.push(`/signup?next=${encodeURIComponent(window.location.pathname)}`);
@@ -383,49 +404,11 @@ export default function DealDetailsPage() {
         }
 
         const isSubscribed = subscribedTownSlugs.includes(deal.townSlug);
-        // Also check if town is free
-        // For simplicity reusing subscription check logic from main page would be best, 
-        // but here we just check explicit subscription or if we want to allow it.
-        // Assuming strict subscription for now or redirect.
         if (isSubscribed) {
-            setStep("instructions");
-            setModalOpen(true);
+            setReservationOpen(true);
         } else {
             router.push(`/areas/${deal.townSlug}`);
         }
-    };
-
-    const closeModal = () => {
-        setModalOpen(false);
-        setFlyerCode("");
-        setSubmitError(null);
-    };
-
-    const handleConfirmRedemption = async (codeOverride?: string) => {
-        if (!deal) return;
-        const pin = (codeOverride ?? flyerCode).trim();
-        if (!pin || pin.length < 6) { return setSubmitError("Invalid code."); }
-
-        setSubmitting(true);
-        setSubmitError(null);
-
-        try {
-            const { error } = await sb.rpc("redeem_offer_with_pin", { p_offer_id: deal.id, p_pin: pin });
-            if (error) throw error;
-            setStep("success");
-            setDeal(prev => prev ? ({ ...prev, usedCount: (prev.usedCount || 0) + 1 }) : null);
-        } catch (e: any) {
-            alert(e.message);
-            setSubmitError(e.message);
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    const handleQrDetected = (val: string) => {
-        if (step !== "instructions") return;
-        const digits = val.replace(/[^\d]/g, "").slice(0, 6);
-        if (digits) handleConfirmRedemption(digits);
     };
 
     if (loading) return <Loading message="Loading Deal..." />;
@@ -437,9 +420,8 @@ export default function DealDetailsPage() {
 
     return (
         <main className="min-h-screen bg-white text-gray-900 pb-24 md:pb-0 font-sans">
-
             <div className="md:grid md:grid-cols-2 lg:grid-cols-5 min-h-screen">
-
+                {/* ... (Left Column same as before) ... */}
                 {/* --- Left Column: Hero Image (Desktop) / Top (Mobile) --- */}
                 {/* On desktop we make this sticky full height maybe? Or just large. */}
                 <div className="relative w-full h-[40vh] md:h-screen md:col-span-1 lg:col-span-2 md:sticky md:top-0">
@@ -575,13 +557,7 @@ export default function DealDetailsPage() {
                             </div>
                         </div>
 
-                        {/* Additional Info / Terms */}
-                        <div className="flex gap-4 text-xs text-gray-400 pt-4">
-                            <div className="flex items-center gap-1">
-                                <CalendarIcon className="w-4 h-4" />
-                                <span>Valid until {deal.validUntil ? new Date(deal.validUntil).toLocaleDateString() : "Ongoing"}</span>
-                            </div>
-                        </div>
+
                     </div>
                 </div>
             </div>
@@ -591,18 +567,25 @@ export default function DealDetailsPage() {
                 <div className="md:hidden shadow-[0_-10px_40px_rgba(0,0,0,0.05)] absolute -top-4 inset-x-0 h-4 bg-gradient-to-t from-white to-transparent" />
                 <div className="max-w-md mx-auto md:max-w-none md:mx-0 md:bg-white md:p-8 md:border-t md:border-gray-100 md:relative">
                     <button
-                        onClick={handleRedeemClick}
-                        disabled={isSoldOut || deal.merchant?.isClosed || isExpired}
-                        className={`w-full py-4 rounded-xl font-bold text-lg shadow-xl shadow-emerald-200 flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${isSoldOut || isExpired
+                        onClick={handleReserveClick}
+                        disabled={isSoldOut || deal.merchant?.isClosed || isExpired || hasReservationToday}
+                        className={`w-full py-4 rounded-xl font-bold text-lg shadow-xl shadow-emerald-200 flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${isSoldOut || isExpired || hasReservationToday
                             ? "bg-gray-100 text-gray-400 cursor-not-allowed shadow-none"
                             : deal.merchant?.isClosed
-                                ? "bg-gray-900 text-white hover:bg-black" // Allow redeeming when closed? Or warn? Usually better to disable or warn.
+                                ? "bg-gray-900 text-white hover:bg-black"
                                 : "bg-emerald-600 text-white hover:bg-emerald-500"
                             }`}
                     >
-                        {isSoldOut ? "Sold Out" : isExpired ? "Expired" : "Redeem Offer"}
+                        {hasReservationToday
+                            ? "Already Reserved Today"
+                            : isSoldOut
+                                ? "Sold Out"
+                                : isExpired
+                                    ? "Expired"
+                                    : "Reserve Deal"
+                        }
                     </button>
-                    {deal.merchant?.isClosed && !isSoldOut && !isExpired && (
+                    {deal.merchant?.isClosed && !isSoldOut && !isExpired && !hasReservationToday && (
                         <p className="text-center text-xs text-amber-600 font-medium mt-2">
                             Merchant is currently closed.
                         </p>
@@ -610,18 +593,15 @@ export default function DealDetailsPage() {
                 </div>
             </div>
 
-            <RedeemModal
-                open={modalOpen}
-                onClose={closeModal}
-                activeDeal={deal}
-                step={step}
-                lastScanned={lastScanned}
-                flyerCode={flyerCode}
-                setFlyerCode={setFlyerCode}
-                submitting={submitting}
-                submitError={submitError}
-                onConfirm={handleConfirmRedemption}
-                onQrDetected={handleQrDetected}
+            <ReservationModal
+                open={reservationOpen}
+                onClose={() => setReservationOpen(false)}
+                deal={deal}
+                onSuccess={() => {
+                    // Optimistically update existing status so they can't click again immediately without reload
+                    setHasReservationToday(true);
+                    router.push('/consumer/reservations');
+                }}
             />
 
             <NotificationModal

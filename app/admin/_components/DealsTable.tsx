@@ -3,15 +3,33 @@
 import { useEffect, useMemo, useState } from 'react';
 import { sb } from '@/lib/supabaseBrowser';
 
+type ScheduleItem = {
+  day: string;
+  start: string;
+  end: string;
+  isOpen: boolean;
+};
+
 type DealRow = {
   id: string;
   title: string | null;
   merchant_id: string;
   merchants: { name: string } | null;
   exp_date: string | null;
+  valid_until: string | null;
+  recurring_schedule: ScheduleItem[] | null;
   is_active: boolean;
   created_at?: string | null;
 };
+
+function fmtTime(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString('en-AU', {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
 
 function fmtDateAU(iso: string | null) {
   if (!iso) return '—';
@@ -26,27 +44,77 @@ function fmtDateAU(iso: string | null) {
   });
 }
 
-function getDealStatus(deal: DealRow) {
-  if (!deal.exp_date) {
-    return { label: 'No expiry', className: 'text-slate-600 border-slate-200 bg-slate-50' };
+function getValidToDisplay(deal: DealRow) {
+  // 1. Scheduled Logic
+  if (deal.recurring_schedule && Array.isArray(deal.recurring_schedule) && deal.recurring_schedule.length > 0) {
+    const days = deal.recurring_schedule.map((s) => s.day.slice(0, 3)).join(', ');
+    // capitalize first letter of each day short code
+    const formattedDays = days.replace(/\b\w/g, (c) => c.toUpperCase());
+    return (
+      <span className="text-slate-700">
+        <span className="font-semibold text-purple-700">Scheduled:</span> {formattedDays}
+      </span>
+    );
   }
 
-  const now = Date.now();
-  const exp = new Date(deal.exp_date).getTime();
+  // 2. Today Only Logic (using valid_until)
+  if (deal.valid_until) {
+    const now = Date.now();
+    const until = new Date(deal.valid_until).getTime();
+    const timeStr = fmtTime(deal.valid_until);
 
-  if (Number.isNaN(exp)) {
-    return { label: 'Unknown', className: 'text-slate-600 border-slate-200 bg-slate-50' };
+    if (until < now) {
+      return (
+        <span className="text-slate-500">
+          <span className="font-medium text-slate-700">Today only</span> (Expired {timeStr})
+        </span>
+      );
+    } else {
+      return (
+        <span className="text-slate-700">
+          <span className="font-medium text-emerald-700">Today only</span> (Valid until {timeStr})
+        </span>
+      );
+    }
+  }
+
+  // 3. Fallback (Legacy exp_date)
+  if (deal.exp_date) {
+    return <span className="text-slate-500">{fmtDateAU(deal.exp_date)}</span>;
+  }
+
+  return <span className="text-slate-400">—</span>;
+}
+
+function getDealStatus(deal: DealRow) {
+  const now = Date.now();
+
+  // If recurring, it's generally "Active" unless manually disabled
+  if (deal.recurring_schedule && deal.recurring_schedule.length > 0) {
+    return deal.is_active
+      ? { label: 'Active (Scheduled)', className: 'text-purple-700 border-purple-200 bg-purple-50' }
+      : { label: 'Inactive', className: 'text-slate-700 border-slate-200 bg-slate-50' };
+  }
+
+  // One-off checks
+  if (!deal.valid_until && !deal.exp_date) {
+    return deal.is_active
+      ? { label: 'Active', className: 'text-emerald-700 border-emerald-200 bg-emerald-50' }
+      : { label: 'No expiry', className: 'text-slate-600 border-slate-200 bg-slate-50' };
+  }
+
+  const expiryIso = deal.valid_until || deal.exp_date;
+  const exp = expiryIso ? new Date(expiryIso).getTime() : NaN;
+
+  if (!Number.isNaN(exp) && exp < now) {
+    return { label: 'Expired', className: 'text-red-700 border-red-200 bg-red-50' };
   }
 
   if (!deal.is_active) {
     return { label: 'Inactive', className: 'text-slate-700 border-slate-200 bg-slate-50' };
   }
 
-  if (exp >= now) {
-    return { label: 'Active', className: 'text-emerald-700 border-emerald-200 bg-emerald-50' };
-  }
-
-  return { label: 'Expired', className: 'text-red-700 border-red-200 bg-red-50' };
+  return { label: 'Active', className: 'text-emerald-700 border-emerald-200 bg-emerald-50' };
 }
 
 type MerchantOption = { id: string; name: string };
@@ -61,7 +129,7 @@ export default function DealsTable() {
   const fetchDeals = async () => {
     const { data, error } = await sb
       .from('offers')
-      .select('id,title,merchant_id,exp_date,is_active,created_at,merchants(name)')
+      .select('id,title,merchant_id,exp_date,valid_until,recurring_schedule,is_active,created_at,merchants(name)')
       .order('created_at', { ascending: false })
       .limit(500);
 
@@ -166,6 +234,7 @@ export default function DealsTable() {
           <tbody>
             {filteredDeals.map((d) => {
               const status = getDealStatus(d);
+              const validToDisplay = getValidToDisplay(d);
 
               return (
                 <tr key={d.id} className="border-t border-slate-200">
@@ -182,7 +251,7 @@ export default function DealsTable() {
                       {status.label}
                     </span>
                   </td>
-                  <td className="py-3 px-3">{fmtDateAU(d.exp_date)}</td>
+                  <td className="py-3 px-3">{validToDisplay}</td>
                 </tr>
               );
             })}
@@ -202,6 +271,8 @@ export default function DealsTable() {
       <div className="md:hidden space-y-2">
         {filteredDeals.map((d) => {
           const status = getDealStatus(d);
+          const validToDisplay = getValidToDisplay(d);
+
           return (
             <div key={d.id} className="rounded-xl border border-slate-200 bg-white p-3">
               <div className="flex items-start justify-between gap-3">
@@ -219,8 +290,8 @@ export default function DealsTable() {
                     >
                       {status.label}
                     </span>
-                    <span className="text-xs text-slate-500">
-                      Valid to: {fmtDateAU(d.exp_date)}
+                    <span className="text-xs text-slate-500 flex items-center gap-1">
+                      Valid to: {validToDisplay}
                     </span>
                   </div>
                 </div>
