@@ -31,11 +31,7 @@ export default function DealsGrid({
   }
 
   if (visibleDeals.length === 0) {
-    return (
-      <p className="text-gray-300/80 text-sm">
-        No active deals for this town yet. Check back soon.
-      </p>
-    );
+    return null;
   }
 
   return (

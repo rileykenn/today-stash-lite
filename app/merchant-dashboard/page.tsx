@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { sb } from "@/lib/supabaseBrowser";
 import Loading from "@/components/Loading";
+import { Checkbox } from "@/components/Checkbox";
 import {
   BuildingStorefrontIcon,
   UserGroupIcon,
@@ -139,6 +140,9 @@ export default function MerchantDashboardPage() {
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [streetAddress, setStreetAddress] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
@@ -211,7 +215,7 @@ export default function MerchantDashboardPage() {
 
       const { data: merchantRow, error: merchantErr } = await sb
         .from("merchants")
-        .select("id, name, operating_hours, banner_url, street_address")
+        .select("id, name, operating_hours, banner_url, logo_url, street_address")
         .eq("id", merchantId)
         .maybeSingle();
 
@@ -238,6 +242,10 @@ export default function MerchantDashboardPage() {
       if (merchantRow.banner_url) {
         setBannerUrl(merchantRow.banner_url);
         setBannerPreview(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${process.env.NEXT_PUBLIC_OFFER_BUCKET || "offer-media"}/${merchantRow.banner_url}`);
+      }
+      if ((merchantRow as any).logo_url) {
+        setLogoUrl((merchantRow as any).logo_url);
+        setLogoPreview(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${process.env.NEXT_PUBLIC_OFFER_BUCKET || "offer-media"}/${(merchantRow as any).logo_url}`);
       }
       if (merchantRow.street_address) {
         setStreetAddress(merchantRow.street_address);
@@ -423,6 +431,13 @@ export default function MerchantDashboardPage() {
     setBannerPreview(URL.createObjectURL(file));
   };
 
+  const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoFile(file);
+    setLogoPreview(URL.createObjectURL(file));
+  };
+
   const saveSettings = async () => {
     if (state.status !== "ready") return;
     setSavingSettings(true);
@@ -430,6 +445,7 @@ export default function MerchantDashboardPage() {
 
     try {
       let finalBannerUrl = bannerUrl;
+      let finalLogoUrl = logoUrl;
 
       if (bannerFile) {
         const fileExt = bannerFile.name.split('.').pop();
@@ -441,11 +457,22 @@ export default function MerchantDashboardPage() {
         finalBannerUrl = fileName;
       }
 
+      if (logoFile) {
+        const fileExt = logoFile.name.split('.').pop();
+        const fileName = `logo-${state.merchant.id}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const { error: uploadError } = await sb.storage
+          .from(process.env.NEXT_PUBLIC_OFFER_BUCKET || "offer-media")
+          .upload(fileName, logoFile);
+        if (uploadError) throw uploadError;
+        finalLogoUrl = fileName;
+      }
+
       const { error: updateError } = await sb
         .from("merchants")
         .update({
           operating_hours: hours,
           banner_url: finalBannerUrl,
+          logo_url: finalLogoUrl,
           street_address: streetAddress
         } as any)
         .eq("id", state.merchant.id);
@@ -454,6 +481,8 @@ export default function MerchantDashboardPage() {
 
       setBannerUrl(finalBannerUrl);
       setBannerFile(null);
+      setLogoUrl(finalLogoUrl);
+      setLogoFile(null);
       alert("Settings saved successfully!");
     } catch (err: any) {
       console.error(err);
@@ -873,6 +902,30 @@ export default function MerchantDashboardPage() {
 
               <div className="p-6 space-y-6">
 
+                {/* Business Logo */}
+                <div>
+                  <label className="block text-xs font-medium text-white/40 uppercase tracking-wider mb-2">Business Logo</label>
+                  <div className="flex items-center gap-4">
+                    <div className="relative group">
+                      <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-white/10 bg-[#0A0F13] flex items-center justify-center">
+                        {logoPreview ? (
+                          <img src={logoPreview} className="w-full h-full object-cover" alt="Logo" />
+                        ) : (
+                          <BuildingStorefrontIcon className="w-8 h-8 text-white/15" />
+                        )}
+                      </div>
+                      <label className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
+                        <PhotoIcon className="w-5 h-5 text-white" />
+                        <input type="file" accept="image/*" className="hidden" onChange={handleLogoFileChange} />
+                      </label>
+                    </div>
+                    <div className="text-xs text-white/40">
+                      <p>Upload your business logo</p>
+                      <p className="text-white/25 mt-0.5">Square image recommended</p>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Address */}
                 <div>
                   <label className="block text-xs font-medium text-white/40 uppercase tracking-wider mb-2">Business Address</label>
@@ -888,9 +941,10 @@ export default function MerchantDashboardPage() {
                   </div>
                 </div>
 
-                {/* Banner Image */}
+                {/* Default Deal Banner Image */}
                 <div>
-                  <label className="block text-xs font-medium text-white/40 uppercase tracking-wider mb-2">Banner Image</label>
+                  <label className="block text-xs font-medium text-white/40 uppercase tracking-wider mb-1">Default Deal Banner Image</label>
+                  <p className="text-[11px] text-white/25 mb-2">This image will be used as the default for all your deals</p>
                   <div className="relative group rounded-xl overflow-hidden border border-white/10 bg-[#0A0F13] aspect-[3/1]">
                     {bannerPreview ? (
                       <img src={bannerPreview} className="w-full h-full object-cover" alt="Banner" />
@@ -915,11 +969,9 @@ export default function MerchantDashboardPage() {
                     {DAYS.map(day => (
                       <div key={day} className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-3 w-32">
-                          <input
-                            type="checkbox"
+                          <Checkbox
                             checked={hours[day]?.isOpen}
-                            onChange={(e) => handleDayChange(day, "isOpen", e.target.checked)}
-                            className="w-4 h-4 rounded border-white/20 bg-white/5 text-emerald-500 focus:ring-offset-0 focus:ring-0 checked:bg-emerald-500 checked:border-emerald-500 transition cursor-pointer"
+                            onChange={(checked) => handleDayChange(day, "isOpen", checked)}
                           />
                           <span className="capitalize text-white/70">{day}</span>
                         </div>

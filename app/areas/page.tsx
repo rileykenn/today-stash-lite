@@ -59,7 +59,7 @@ export default function AreasPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                         {towns.map((town) => (
                             <Link
-                                href={`/areas/${town.slug}`}
+                                href={town.slug === "sussex-inlet" ? "/invitations/sussex-inlet" : `/areas/${town.slug}`}
                                 key={town.id}
                                 className="group relative overflow-hidden rounded-2xl bg-[#111821] border border-white/5 hover:border-emerald-500/30 transition-all duration-300 hover:shadow-[0_0_30px_rgba(16,185,129,0.15)] flex flex-col aspect-video sm:aspect-[4/3]"
                             >

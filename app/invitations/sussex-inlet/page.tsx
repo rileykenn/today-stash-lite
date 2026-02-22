@@ -1,12 +1,37 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+
+/* ── animated count-down hook ──────────────────────────── */
+function useCountDown(from: number, to: number, durationMs = 1800) {
+  const [value, setValue] = useState(from);
+  const hasRun = useRef(false);
+
+  useEffect(() => {
+    if (hasRun.current) return;
+    hasRun.current = true;
+    const start = performance.now();
+    function tick(now: number) {
+      const elapsed = now - start;
+      const t = Math.min(elapsed / durationMs, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const current = Math.round(from - (from - to) * eased);
+      setValue(current);
+      if (t < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }, [from, to, durationMs]);
+
+  return value;
+}
 
 export default function SussexInletBetaPage() {
   const router = useRouter();
   const [loggedIn, setLoggedIn] = useState(false);
+  const businessSpots = useCountDown(50, 20, 1600);
+  const consumerSpots = useCountDown(300, 100, 2000);
 
   useEffect(() => {
     async function loadSession() {
@@ -25,226 +50,428 @@ export default function SussexInletBetaPage() {
   };
 
   return (
-    <main className="relative min-h-screen bg-[#05090C] text-white overflow-x-hidden">
-      {/* Soft glows */}
-      <div className="pointer-events-none absolute -top-40 -left-24 h-[420px] w-[420px] rounded-full bg-emerald-500/15 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-0 right-[-80px] h-[460px] w-[460px] rounded-full bg-blue-500/10 blur-3xl" />
+    <main className="min-h-screen bg-white text-gray-900 overflow-x-hidden">
 
-      <section className="relative mx-auto max-w-5xl px-4 pt-12 pb-16 sm:pt-16 sm:pb-20">
-        {/* Hero badge + Sussex button */}
-        <div className="flex flex-col gap-3 mb-8 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-[11px] font-medium text-white/80 ring-1 ring-white/10">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              Today&apos;s Stash • Founding Beta
-            </div>
+      {/* ══════════════════════════════════════════════════
+          HERO — cinematic full-bleed launch announcement
+          ══════════════════════════════════════════════════ */}
+      <section className="relative min-h-[100svh] flex items-center justify-center overflow-hidden">
 
-            <button
-              type="button"
-              onClick={() =>
-                document
-                  .getElementById("join")
-                  ?.scrollIntoView({ behavior: "smooth" })
-              }
-              className="inline-flex items-center rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-1.5 text-[12px] font-semibold text-emerald-100 shadow-[0_0_12px_rgba(16,185,129,0.35)] hover:bg-emerald-500/20 transition"
-            >
-              Sussex Inlet • Founding town
-            </button>
+        {/* background image */}
+        <img
+          src="/Sussexinlet/sussexheroimage.JPG"
+          alt="Sussex Inlet aerial view"
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+
+        {/* layered gradient overlays */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black/80" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-transparent to-black/40" />
+        {/* subtle emerald tint at bottom */}
+        <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-emerald-950/30 to-transparent" />
+
+        {/* content */}
+        <div className="relative z-10 mx-auto max-w-4xl px-5 py-24 text-center">
+
+          {/* top badges */}
+          <div className="flex items-center justify-center gap-2.5 mb-8">
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 px-4 py-2 text-[13px] font-bold text-white shadow-lg">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+              </span>
+              Launching Now
+            </span>
+            <span className="rounded-full bg-emerald-500 px-4 py-2 text-[13px] font-bold text-white shadow-lg shadow-emerald-500/30">
+              Founding Town
+            </span>
           </div>
 
-          <p className="text-[11px] sm:text-xs text-white/55 sm:max-w-xs sm:text-right">
-            Beta access is{" "}
-            <span className="font-semibold text-emerald-300">free</span> for
-            Sussex Inlet until we hit our internal cap.
-          </p>
-        </div>
-
-        {/* Hero copy */}
-        <div className="space-y-4 max-w-3xl">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight">
-            A special invitation to{" "}
-            <span className="text-emerald-400">Sussex Inlet</span>.
+          {/* headline */}
+          <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold text-white leading-[1.05] tracking-tight">
+            Sussex Inlet,
+            <br />
+            <span className="bg-gradient-to-r from-emerald-400 via-emerald-300 to-teal-400 bg-clip-text text-transparent">
+              your deals are here.
+            </span>
           </h1>
-          <p className="text-sm sm:text-base text-white/70">
-            After 20+ years helping Australian communities save with Urban
-            Promotions, we&apos;re launching something new —{" "}
-            <span className="font-semibold text-white">Today&apos;s Stash</span>.
-            And we want <span className="font-semibold">Sussex Inlet</span> to be
-            our founding town.
-          </p>
-          <p className="text-sm sm:text-base text-white/70">
-            For a strictly limited beta period,{" "}
-            <span className="font-semibold text-emerald-300">
-              consumers and businesses in Sussex Inlet pay $0
-            </span>{" "}
-            to access the platform. No subscription fees, no listing fees, no
-            commissions.
-          </p>
-        </div>
 
-        {/* Hero CTAs */}
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center" id="join">
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          {/* sub-headline */}
+          <p className="mt-6 text-lg sm:text-xl md:text-2xl text-white/80 font-medium max-w-2xl mx-auto leading-relaxed">
+            Today&apos;s Stash is launching in Sussex Inlet. The first businesses
+            and locals get{" "}
+            <span className="text-white font-bold">6 months completely free</span>.
+          </p>
+
+          {/* urgency indicator */}
+          <div className="mt-8 inline-flex items-center gap-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 px-6 py-3">
+            <span className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-red-400" />
+              </span>
+              <span className="text-sm font-bold text-white/90">Only</span>
+            </span>
+            <span className="text-2xl font-extrabold text-emerald-400">{businessSpots}</span>
+            <span className="text-sm text-white/70 font-medium">business spots left</span>
+            <span className="text-white/30">|</span>
+            <span className="text-2xl font-extrabold text-blue-400">{consumerSpots}</span>
+            <span className="text-sm text-white/70 font-medium">consumer spots left</span>
+          </div>
+
+          {/* CTAs */}
+          <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <a
+              href="/merchant?area=sussex-inlet"
+              className="group inline-flex items-center justify-center rounded-2xl bg-emerald-500 hover:bg-emerald-400 px-8 py-4 text-base font-bold text-white shadow-xl shadow-emerald-500/30 transition-all duration-200 hover:scale-[1.03] hover:shadow-emerald-500/50 active:scale-[0.97]"
+            >
+              Claim My Free Business Spot
+              <svg className="ml-2 w-5 h-5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+              </svg>
+            </a>
             <button
               type="button"
               onClick={handleConsumerClick}
-              className="inline-flex items-center justify-center rounded-full bg-emerald-500 hover:bg-emerald-400 px-6 py-3 text-sm font-semibold text-white shadow-[0_0_22px_rgba(16,185,129,0.7)] transition-transform active:scale-[0.97]"
+              className="group inline-flex items-center justify-center rounded-2xl bg-white/15 hover:bg-white/25 backdrop-blur-md border border-white/25 px-8 py-4 text-base font-bold text-white shadow-xl transition-all duration-200 hover:scale-[1.03] active:scale-[0.97]"
             >
-              Join as a consumer – FREE
+              Get Free Coupons
+              <svg className="ml-2 w-5 h-5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+              </svg>
             </button>
-            <a
-              href="/merchant?area=sussex-inlet"
-              className="inline-flex items-center justify-center rounded-full border border-white/25 bg-white/5 px-6 py-3 text-sm font-semibold text-white hover:bg-white/10 transition"
-            >
-              Register your business – FREE
-            </a>
           </div>
 
-          <p className="text-xs text-white/55 sm:ml-1">
-            Limited beta spots. Once we reach capacity, free access closes.
+          {/* trust line */}
+          <p className="mt-8 text-sm text-white/50 font-medium">
+            Free advertising &middot; Free coupons &middot; No fees, no catch &middot; No credit card required
           </p>
+
         </div>
 
-        {/* Story / benefits section */}
-        <div className="mt-12 grid gap-8 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] items-start">
-          {/* Story-driven left column */}
-          <div className="space-y-5">
-            <h2 className="text-xl sm:text-2xl font-semibold">
-              Help us shape Today&apos;s Stash before it launches nationally.
-            </h2>
-            <p className="text-sm sm:text-base text-white/70">
-              We&apos;re looking for real people and real local businesses to
-              help us perfect the platform. In return for your feedback and
-              participation, you&apos;ll lock in{" "}
-              <span className="font-semibold text-emerald-300">
-                completely free beta access
-              </span>{" "}
-              on terms that may never be offered again.
-            </p>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              {/* Consumers card */}
-              <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-4 sm:p-5 shadow-[0_18px_40px_rgba(0,0,0,0.7)]">
-                <p className="text-xs font-semibold text-emerald-300 mb-1.5 uppercase tracking-[0.16em]">
-                  If you&apos;re a consumer
-                </p>
-                <ul className="space-y-1.5 text-xs sm:text-[13px] text-white/80">
-                  <li>• Permanent free access for the beta community</li>
-                  <li>• Thousands of dollars in local savings</li>
-                  <li>• First look at exclusive offers in Sussex Inlet</li>
-                  <li>• Help shape the app you&apos;ll use every week</li>
-                </ul>
-              </div>
-
-              {/* Businesses card */}
-              <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-4 sm:p-5">
-                <p className="text-xs font-semibold text-emerald-300 mb-1.5 uppercase tracking-[0.16em]">
-                  If you&apos;re a business
-                </p>
-                <ul className="space-y-1.5 text-xs sm:text-[13px] text-white/80">
-                  <li>• Post unlimited offers with zero platform fees</li>
-                  <li>• Attract new locals during quiet times</li>
-                  <li>• No commission, no ad spend, no risk</li>
-                  <li>• Partner with us as a founding venue</li>
-                </ul>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/5 px-4 py-3 text-xs text-emerald-50">
-              <p className="font-semibold mb-1">
-                Strictly limited Sussex Inlet beta
-              </p>
-              <p className="text-white/80">
-                To keep things high quality, we&apos;re only accepting a capped
-                number of consumers and businesses. When we&apos;re full,{" "}
-                <span className="font-semibold">
-                  the free Sussex Inlet offer closes.
-                </span>
-              </p>
-            </div>
+        {/* scroll indicator */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2">
+          <span className="text-[11px] uppercase tracking-[0.2em] text-white/40 font-bold">Learn more</span>
+          <div className="w-6 h-10 rounded-full border-2 border-white/30 flex items-start justify-center p-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-white/60 animate-bounce" />
           </div>
+        </div>
 
-          {/* Right column: simple step cards / social proof */}
-          <aside className="space-y-4">
-            <div className="rounded-2xl bg-[#0B1215] ring-1 ring-white/10 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.6)]">
-              <p className="text-xs uppercase tracking-[0.18em] text-emerald-300/80 mb-3">
-                How it works
-              </p>
-              <ol className="space-y-3 text-sm text-white/80">
-                <li>
-                  <span className="font-semibold text-emerald-300">1.</span>{" "}
-                  Choose whether you&apos;re a consumer or a business and
-                  register for free.
-                </li>
-                <li>
-                  <span className="font-semibold text-emerald-300">2.</span>{" "}
-                  We&apos;ll invite you into the beta with early Sussex Inlet
-                  offers and simple instructions.
-                </li>
-                <li>
-                  <span className="font-semibold text-emerald-300">3.</span>{" "}
-                  Use Today&apos;s Stash in your day-to-day life — and tell us
-                  what you love and what we can improve.
-                </li>
-              </ol>
-            </div>
+      </section>
 
-            <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-4">
-              <p className="text-xs font-semibold text-emerald-300 mb-1.5">
-                Why Sussex Inlet?
-              </p>
-              <p className="text-xs sm:text-[13px] text-white/75">
-                We&apos;ve helped local towns across Australia save for decades.
-                Sussex Inlet is the perfect community to showcase how modern
-                digital coupons can drive real foot traffic to local venues —
-                from cafés and takeaways to hair, beauty, recreation and more.
-              </p>
-            </div>
+      {/* ══════════════════════════════════════════════════
+          SPOT CARDS — street photo background
+          ══════════════════════════════════════════════════ */}
+      <section className="relative py-12 sm:py-16">
+        {/* background image */}
+        <div className="absolute inset-0">
+          <img
+            src="/Sussexinlet/Streetbirdseye.JPG"
+            alt="Sussex Inlet streets"
+            className="h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-white/85" />
+        </div>
+        <div className="relative z-10 mx-auto max-w-4xl px-4">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-center mb-3">
+            Claim your free spot
+          </h2>
+          <p className="text-sm text-gray-500 text-center mb-10 max-w-md mx-auto">
+            Limited spots available. Once they fill, standard pricing applies.
+          </p>
 
-            <div className="rounded-2xl bg-[#020712] ring-1 ring-white/10 p-4 flex flex-col gap-2">
-              <p className="text-[11px] text-white/60">
-                <span className="font-semibold text-emerald-300">
-                  Future areas:
-                </span>{" "}
-                Outside Sussex Inlet, the first 100 consumers to join the
-                waiting list for their town will receive{" "}
-                <span className="font-semibold text-white">
-                  6 months free membership
-                </span>{" "}
-                at launch.
-              </p>
+          <div className="grid gap-6 sm:grid-cols-2">
+
+            {/* Business card */}
+            <div className="rounded-2xl border border-gray-100 bg-white p-6 sm:p-8 shadow-lg hover:shadow-xl transition-shadow">
+              <div className="flex items-center justify-between mb-5">
+                <span className="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-[12px] font-bold text-emerald-700 uppercase tracking-wide">
+                  For Businesses
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-red-500 uppercase tracking-wide">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-500" />
+                  </span>
+                  Limited
+                </span>
+              </div>
+
+              <div className="text-center mb-5">
+                <span className="text-6xl sm:text-7xl font-extrabold text-gray-900">{businessSpots}</span>
+                <p className="text-base font-bold text-gray-500 mt-1">free spots remaining</p>
+                <p className="text-sm text-gray-400 mt-2">
+                  6 months free advertising. No fees, no commissions, no catch.
+                </p>
+              </div>
+
+              <ul className="space-y-2 mb-6">
+                {["Free advertising to locals", "Zero platform fees", "No commissions or risk", "Drive foot traffic", "Founding partner status"].map((t) => (
+                  <li key={t} className="flex items-center gap-2.5 text-sm text-gray-600">
+                    <svg className="w-4 h-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                    {t}
+                  </li>
+                ))}
+              </ul>
+
               <a
-                href="/waitlist"
-                className="inline-flex items-center justify-center self-start rounded-full bg-white/10 px-4 py-1.5 text-[11px] font-semibold text-white hover:bg-white/15 transition"
+                href="/merchant?area=sussex-inlet"
+                className="flex items-center justify-center w-full rounded-xl bg-emerald-500 hover:bg-emerald-400 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-500/25 transition-all hover:scale-[1.01] active:scale-[0.98]"
               >
-                Join the waiting list for your town
+                Claim My Free Business Spot
               </a>
             </div>
-          </aside>
-        </div>
 
-        {/* Bottom CTAs repeated */}
-        <div className="mt-12 border-t border-white/10 pt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-          <span className="text-xs text-white/60">
-            Ready to be part of the founding Sussex Inlet community?
-          </span>
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <button
-              type="button"
-              onClick={handleConsumerClick}
-              className="inline-flex items-center justify-center rounded-full bg-emerald-500 hover:bg-emerald-400 px-5 py-2.5 text-[13px] font-semibold text-white shadow-[0_0_16px_rgba(16,185,129,0.6)] transition-transform active:scale-[0.97]"
-            >
-              Join as consumer – FREE
-            </button>
-            <a
-              href="/merchant?area=sussex-inlet"
-              className="inline-flex items-center justify-center rounded-full border border-white/25 bg-white/5 px-5 py-2.5 text-[13px] font-semibold text-white hover:bg-white/10 transition"
-            >
-              Register your business – FREE
-            </a>
+            {/* Consumer card */}
+            <div className="rounded-2xl border border-gray-100 bg-white p-6 sm:p-8 shadow-lg hover:shadow-xl transition-shadow">
+              <div className="flex items-center justify-between mb-5">
+                <span className="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-[12px] font-bold text-blue-700 uppercase tracking-wide">
+                  For Consumers
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-red-500 uppercase tracking-wide">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-500" />
+                  </span>
+                  Limited
+                </span>
+              </div>
+
+              <div className="text-center mb-5">
+                <span className="text-6xl sm:text-7xl font-extrabold text-gray-900">{consumerSpots}</span>
+                <p className="text-base font-bold text-gray-500 mt-1">free spots remaining</p>
+                <p className="text-sm text-gray-400 mt-2">
+                  6 months of free coupons and deals from local businesses.
+                </p>
+              </div>
+
+              <ul className="space-y-2 mb-6">
+                {["Free coupons from local shops", "Save where you already visit", "6 months completely free", "Discover local businesses", "Early access to deals"].map((t) => (
+                  <li key={t} className="flex items-center gap-2.5 text-sm text-gray-600">
+                    <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                    {t}
+                  </li>
+                ))}
+              </ul>
+
+              <button
+                type="button"
+                onClick={handleConsumerClick}
+                className="flex items-center justify-center w-full rounded-xl bg-blue-500 hover:bg-blue-400 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-blue-500/25 transition-all hover:scale-[1.01] active:scale-[0.98]"
+              >
+                Claim My Free Consumer Spot
+              </button>
+            </div>
+
           </div>
         </div>
       </section>
+
+      {/* ══════════════════════════════════════════════════
+          THE CONSUMER EXPERIENCE
+          ══════════════════════════════════════════════════ */}
+      <section className="mx-auto max-w-4xl px-4 py-14 sm:py-16">
+        <h2 className="text-2xl sm:text-3xl font-extrabold text-center mb-3">
+          The consumer experience
+        </h2>
+        <p className="text-sm text-gray-500 text-center mb-12 max-w-md mx-auto">
+          Finding deals, redeeming them, and saving money. It only takes three steps.
+        </p>
+
+        <div className="grid gap-4 sm:grid-cols-[1fr_auto_1fr_auto_1fr] items-start">
+          {/* Step 1: Search */}
+          <div className="text-center">
+            <img src="/Sussexinlet/Search.png" alt="Search" className="w-28 h-28 mx-auto object-contain mb-4" />
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Search</h3>
+            <p className="text-sm text-gray-500">
+              Browse live deals from local businesses in Sussex Inlet. Find something you like and grab it.
+            </p>
+          </div>
+
+          {/* Arrow 1 */}
+          <div className="hidden sm:flex items-center justify-center pt-10">
+            <svg className="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+            </svg>
+          </div>
+
+          {/* Step 2: Scan */}
+          <div className="text-center">
+            <img src="/Sussexinlet/Scan.png" alt="Scan" className="w-28 h-28 mx-auto object-contain mb-4" />
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Scan</h3>
+            <p className="text-sm text-gray-500">
+              Visit the business and scan their QR flyer. The deal is verified and redeemed instantly.
+            </p>
+          </div>
+
+          {/* Arrow 2 */}
+          <div className="hidden sm:flex items-center justify-center pt-10">
+            <svg className="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+            </svg>
+          </div>
+
+          {/* Step 3: Save */}
+          <div className="text-center">
+            <img src="/Sussexinlet/Save.png" alt="Save" className="w-28 h-28 mx-auto object-contain mb-4" />
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Save</h3>
+            <p className="text-sm text-gray-500">
+              You save money on things you already buy. Businesses get real customers through the door. Everyone wins.
+            </p>
+          </div>
+        </div>
+
+        {/* Community message */}
+        <div className="mt-12 rounded-2xl bg-gradient-to-r from-emerald-50 to-blue-50 border border-emerald-100 p-6 sm:p-8 text-center">
+          <h3 className="text-lg font-bold text-gray-900 mb-2">Strengthening our community</h3>
+          <p className="text-sm text-gray-600 max-w-xl mx-auto leading-relaxed">
+            Today&apos;s Stash is more than just coupons. It is about bringing Sussex Inlet together.
+            When locals support local businesses, the whole community benefits. More foot traffic,
+            stronger shops, and a town that looks after its own.
+          </p>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════
+          EVERY TYPE OF BUSINESS
+          ══════════════════════════════════════════════════ */}
+      <section className="mx-auto max-w-4xl px-4 py-12 sm:py-14 text-center">
+        <h2 className="text-2xl sm:text-3xl font-extrabold mb-3">
+          For every local business
+        </h2>
+        <p className="text-sm text-gray-500 mb-8 max-w-lg mx-auto">
+          Not just cafes and restaurants. If you run a business in Sussex Inlet, this is for you.
+        </p>
+        <div className="flex flex-wrap justify-center gap-2.5">
+          {[
+            "Cafes", "Restaurants", "Barbers", "Hair Salons", "Beauty & Nails",
+            "Retail Shops", "Bars & Pubs", "Takeaway", "Bakeries", "Mechanics",
+            "Bait & Tackle", "Toy Stores", "Pet Shops", "Florists", "Gyms & Fitness",
+            "Day Spas", "Clothing Stores", "Gift Shops", "Surf Shops", "Pizza Shops",
+            "Fish & Chips", "Ice Cream", "Bottle Shops", "Newsagents", "Pharmacies",
+            "And more...",
+          ].map((cat) => (
+            <span
+              key={cat}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${cat === "And more..."
+                ? "bg-emerald-500 text-white"
+                : "bg-gray-100 text-gray-700 hover:bg-emerald-50 hover:text-emerald-700"
+                }`}
+            >
+              {cat}
+            </span>
+          ))}
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════
+          HOW IT WORKS
+          ══════════════════════════════════════════════════ */}
+      <section className="bg-gray-50 py-14">
+        <div className="mx-auto max-w-4xl px-4">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-center mb-10">
+            How it works
+          </h2>
+
+          <div className="grid gap-6 sm:grid-cols-3">
+            {[
+              { n: "1", title: "Choose your role", desc: "Business or consumer. Sign up for free in 60 seconds.", color: "bg-emerald-500" },
+              { n: "2", title: "Get instant access", desc: "Businesses post deals. Consumers start saving. Simple.", color: "bg-blue-500" },
+              { n: "3", title: "Enjoy 6 months free", desc: "Use Today's Stash across Sussex Inlet at zero cost.", color: "bg-purple-500" },
+            ].map((step) => (
+              <div key={step.n} className="rounded-2xl bg-white p-6 shadow-sm border border-gray-100 text-center">
+                <div className={`inline-flex items-center justify-center w-12 h-12 rounded-full ${step.color} text-white text-xl font-bold mb-4`}>
+                  {step.n}
+                </div>
+                <h3 className="text-lg font-bold mb-1">{step.title}</h3>
+                <p className="text-sm text-gray-500">{step.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════
+          ABOUT CARDS
+          ══════════════════════════════════════════════════ */}
+      <section className="mx-auto max-w-4xl px-4 py-14">
+        <div className="grid gap-6 sm:grid-cols-2">
+          <div className="rounded-2xl bg-emerald-50 border border-emerald-100 p-6">
+            <h3 className="text-lg font-bold text-emerald-700 mb-2">Why Sussex Inlet?</h3>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              A tight knit town full of local cafes, takeaways, salons, and
+              services. Exactly the kind of community that benefits most from
+              digital coupons. We want to prove the model here first, then take it
+              national.
+            </p>
+          </div>
+          <div className="rounded-2xl bg-blue-50 border border-blue-100 p-6">
+            <h3 className="text-lg font-bold text-blue-700 mb-2">Backed by experience</h3>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              Today&apos;s Stash is built by the team behind Urban Promotions, who
+              have helped Australian communities save for over 20 years. We know
+              what works for small towns and we are building the next generation
+              of it.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════
+          FINAL CTA
+          ══════════════════════════════════════════════════ */}
+      <section className="bg-emerald-500 py-14">
+        <div className="mx-auto max-w-3xl px-4 text-center text-white">
+          <h2 className="text-2xl sm:text-3xl font-extrabold mb-3">
+            Ready to claim your free spot?
+          </h2>
+          <p className="text-emerald-100 mb-8 max-w-lg mx-auto">
+            Once the spots fill, this offer closes and standard pricing begins.
+          </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <a
+              href="/merchant?area=sussex-inlet"
+              className="inline-flex items-center justify-center rounded-full bg-white hover:bg-gray-50 px-8 py-4 text-base font-bold text-emerald-600 shadow-xl transition-all hover:scale-[1.02] active:scale-[0.97]"
+            >
+              Claim My Free Business Spot
+            </a>
+            <button
+              type="button"
+              onClick={handleConsumerClick}
+              className="inline-flex items-center justify-center rounded-full border-2 border-white/40 bg-white/10 hover:bg-white/20 px-8 py-4 text-base font-bold text-white transition-all hover:scale-[1.02] active:scale-[0.97]"
+            >
+              Claim My Free Consumer Spot
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Not in Sussex Inlet? ───────────────────────── */}
+      <section className="bg-gray-50 py-10">
+        <div className="mx-auto max-w-3xl px-4 text-center">
+          <p className="text-sm text-gray-500 mb-3">
+            <span className="font-bold text-gray-700">Not in Sussex Inlet?</span>{" "}
+            Join the waiting list for your area. The first 100 consumers in each new town get 6 months free at launch.
+          </p>
+          <a
+            href="/waitlist"
+            className="inline-flex items-center justify-center rounded-full bg-gray-900 hover:bg-gray-800 px-6 py-2.5 text-sm font-bold text-white transition"
+          >
+            Join the waiting list
+          </a>
+        </div>
+      </section>
+
+      {/* ── footer ─────────────────────────────────────── */}
+      <footer className="py-6 text-center text-[12px] text-gray-400">
+        Today&apos;s Stash by Urban Promotions{" "}
+        <a href="/about" className="underline hover:text-gray-600 transition">About</a>{" "}
+        <a href="/support" className="underline hover:text-gray-600 transition">Support</a>
+      </footer>
     </main>
   );
 }

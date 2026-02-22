@@ -6,6 +6,7 @@ import { sb } from "@/lib/supabaseBrowser";
 import Link from "next/link";
 import { resolvePublicUrl } from "@/app/consumer/components/helpers";
 import { TimePicker } from "@/components/TimePicker";
+import { Checkbox } from "@/components/Checkbox";
 
 type DaySchedule = {
     isOpen: boolean;
@@ -498,7 +499,7 @@ function CreateDealContent() {
                                         </div>
                                     )}
                                     <label className="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" checked={todayFullDay} onChange={e => handleTodayFullDay(e.target.checked)} className="rounded border-white/20 bg-[#111821] text-emerald-500" />
+                                        <Checkbox checked={todayFullDay} onChange={(checked) => handleTodayFullDay(checked)} />
                                         <span className="text-sm text-gray-300">Run for full business hours today</span>
                                     </label>
                                 </div>
@@ -512,7 +513,7 @@ function CreateDealContent() {
                                             <div key={item.day} className={`flex flex-col gap-3 p-3 rounded-xl border transition-colors ${item.enabled ? "bg-[#0A0F13] border-emerald-500/30" : "bg-[#0A0F13]/50 border-white/5 opacity-60"}`}>
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-3">
-                                                        <input type="checkbox" checked={item.enabled} onChange={() => toggleRecurringDay(idx)} className="rounded border-white/20 bg-[#111821] text-emerald-500" />
+                                                        <Checkbox checked={item.enabled} onChange={() => toggleRecurringDay(idx)} />
                                                         <span className="capitalize text-sm font-medium">{item.day}</span>
                                                     </div>
 
@@ -525,7 +526,7 @@ function CreateDealContent() {
                                                     <div className="pl-7 space-y-2">
                                                         <div className="flex items-center gap-3 flex-wrap">
                                                             <label className="flex items-center gap-2 cursor-pointer">
-                                                                <input type="checkbox" checked={item.isFullDay} onChange={e => handleRecurringFullDay(idx, e.target.checked)} className="rounded border-white/20 bg-[#111821] text-emerald-500" disabled={!operatingHours} />
+                                                                <Checkbox checked={item.isFullDay} onChange={(checked) => handleRecurringFullDay(idx, checked)} disabled={!operatingHours} />
                                                                 <span className="text-xs text-gray-400">Full Business Day ({operatingHours[item.day].open} - {operatingHours[item.day].close})</span>
                                                             </label>
                                                         </div>
@@ -559,37 +560,61 @@ function CreateDealContent() {
                             )}
                         </div>
 
-                        {/* Image & Terms */}
+                        {/* Deal Image */}
                         <div className="space-y-4 pt-4 border-t border-white/10">
                             <div>
-                                <label className="block text-sm font-medium text-gray-400 mb-2">Deal Image</label>
+                                <label className="block text-sm font-medium text-gray-400 mb-3">Deal Image</label>
 
+                                {/* Option 1: Use default */}
                                 {bannerUrl && (
-                                    <label className="flex items-center gap-2 mb-3 cursor-pointer p-3 rounded-xl border border-white/10 bg-[#111821] hover:bg-[#161e29] transition-colors">
-                                        <input
-                                            type="checkbox"
-                                            checked={useBanner}
-                                            onChange={(e) => {
-                                                setUseBanner(e.target.checked);
-                                                if (e.target.checked) setImageFile(null); // Clear manual upload
-                                            }}
-                                            className="rounded border-white/20 bg-[#0A0F13] text-emerald-500 w-5 h-5"
-                                        />
-                                        <div className="flex-1">
-                                            <span className="block text-sm font-medium text-white">Use my business banner image</span>
-                                            <span className="block text-xs text-gray-400">Your existing banner will be used for this deal.</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setUseBanner(true); setImageFile(null); }}
+                                        className={`w-full flex items-center gap-3 mb-3 p-3 rounded-xl border transition-colors text-left ${useBanner
+                                                ? "border-emerald-500/50 bg-emerald-500/5"
+                                                : "border-white/10 bg-[#111821] hover:bg-[#161e29]"
+                                            }`}
+                                    >
+                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${useBanner ? "border-emerald-500" : "border-white/20"
+                                            }`}>
+                                            {useBanner && <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />}
                                         </div>
-                                        <img src={resolvePublicUrl(bannerUrl) || ""} alt="Banner" className="w-12 h-8 rounded object-cover ml-2 border border-white/10" />
-                                    </label>
+                                        <div className="flex-1 min-w-0">
+                                            <span className="block text-sm font-medium text-white">Use default image</span>
+                                            <span className="block text-xs text-gray-400">Uses your default deal banner image from venue settings</span>
+                                        </div>
+                                        <img src={resolvePublicUrl(bannerUrl) || ""} alt="Default" className="w-14 h-9 rounded object-cover ml-2 border border-white/10 shrink-0" />
+                                    </button>
                                 )}
 
+                                {/* Option 2: Upload custom */}
+                                <button
+                                    type="button"
+                                    onClick={() => setUseBanner(false)}
+                                    className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-colors text-left ${!useBanner
+                                            ? "border-emerald-500/50 bg-emerald-500/5"
+                                            : "border-white/10 bg-[#111821] hover:bg-[#161e29]"
+                                        }`}
+                                >
+                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${!useBanner ? "border-emerald-500" : "border-white/20"
+                                        }`}>
+                                        {!useBanner && <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />}
+                                    </div>
+                                    <div className="flex-1">
+                                        <span className="block text-sm font-medium text-white">Upload a banner image for this deal only</span>
+                                        <span className="block text-xs text-gray-400">Use a unique image just for this deal</span>
+                                    </div>
+                                </button>
+
                                 {!useBanner && (
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={e => setImageFile(e.target.files?.[0] || null)}
-                                        className="w-full bg-[#0A0F13] border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500/50 transition-colors text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-emerald-500/10 file:text-emerald-400 hover:file:bg-emerald-500/20"
-                                    />
+                                    <div className="mt-3">
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={e => setImageFile(e.target.files?.[0] || null)}
+                                            className="w-full bg-[#0A0F13] border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500/50 transition-colors text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-emerald-500/10 file:text-emerald-400 hover:file:bg-emerald-500/20"
+                                        />
+                                    </div>
                                 )}
                             </div>
                         </div>

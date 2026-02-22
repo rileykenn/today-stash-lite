@@ -874,7 +874,7 @@ export default function ConsumerDealsPage() {
         />
 
         {visibleDeals.length === 0 && (
-          <div className="py-20 text-center border-2 border-dashed border-white/5 rounded-3xl">
+          <div className="py-16 text-center border-2 border-dashed border-white/5 rounded-3xl">
             {filterTown === "subscribed" && subscribedTownSlugs.length === 0 ? (
               // Empty Subscriptions State
               <>
@@ -888,8 +888,47 @@ export default function ConsumerDealsPage() {
                   View Towns to Join
                 </Link>
               </>
+            ) : deals.length === 0 ? (
+              // EARLY LAUNCH — no deals exist at all
+              !userSession ? (
+                // Signed out
+                <div className="max-w-md mx-auto">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-500/10 mb-5">
+                    <svg className="w-8 h-8 text-emerald-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 11.25v8.25a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 109.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1114.625 7.5H12m0 0V21m-8.625-9.75h18c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125h-18c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-bold text-white mb-2">Deals are coming soon</h3>
+                  <p className="text-gray-400 mb-6 text-sm leading-relaxed">
+                    We are in the early stages of launch. Create a free account now and you will be the first to know when deals go live.
+                  </p>
+                  <Link
+                    href="/signup?role=consumer"
+                    className="px-8 py-3 rounded-full bg-emerald-500 text-white font-semibold hover:bg-emerald-400 transition-colors inline-block"
+                  >
+                    Create a Free Account
+                  </Link>
+                  <p className="text-gray-500 text-xs mt-4">
+                    Already have an account? <Link href="/signin" className="text-emerald-400 hover:underline">Sign in</Link>
+                  </p>
+                </div>
+              ) : (
+                // Signed in
+                <div className="max-w-md mx-auto">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-500/10 mb-5">
+                    <svg className="w-8 h-8 text-emerald-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-bold text-white mb-2">Welcome to Today&apos;s Stash</h3>
+                  <p className="text-gray-400 text-sm leading-relaxed">
+                    We are thrilled to have you on board. There are no deals just yet as we are in the early stages of launch.
+                    You will be the first to know when the first deal becomes available.
+                  </p>
+                </div>
+              )
             ) : (
-              // Generic Empty State
+              // Filters returned nothing
               <>
                 <p className="text-gray-500 mb-4">No deals found matching your criteria.</p>
                 <button onClick={() => { setFilterTown("all"); setFilterCategory("all"); setSearchQuery(""); }} className="text-emerald-400 text-sm font-medium hover:underline">
