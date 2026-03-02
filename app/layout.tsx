@@ -8,8 +8,44 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Today's Stash",
-  description: "Deals app",
+  metadataBase: new URL("https://todaysstash.com.au"),
+  title: {
+    default: "Today's Stash — Local Deals, Unlocked",
+    template: "%s | Today's Stash",
+  },
+  description:
+    "Save at the places you already love. Today's Stash connects locals with exclusive in-store deals across Australia — from the creators of Urban Promotions®.",
+  keywords: [
+    "today's stash",
+    "todays stash",
+    "local deals australia",
+    "in-store deals",
+    "local savings",
+    "coupon app australia",
+    "restaurant deals",
+    "cafe deals",
+    "urban promotions",
+    "local business deals",
+  ],
+  openGraph: {
+    title: "Today's Stash — Local Deals, Unlocked",
+    description:
+      "Save at the places you already love. Exclusive in-store deals from cafés, restaurants, gyms and more in your town.",
+    url: "https://todaysstash.com.au",
+    siteName: "Today's Stash",
+    locale: "en_AU",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Today's Stash — Local Deals, Unlocked",
+    description:
+      "Save at the places you already love. Exclusive in-store deals across Australia.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 function Footer() {
