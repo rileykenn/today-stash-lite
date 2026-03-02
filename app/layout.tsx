@@ -95,10 +95,16 @@ function Footer() {
           </nav>
         </div>
 
-        <div className="mt-6 space-y-1 text-[11px] text-white/45">
+        <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-[11px] text-white/45">
           <div>
-            © {new Date().getFullYear()} Today’s Stash. All rights reserved.
+            © {new Date().getFullYear()} Today&apos;s Stash. All rights reserved.
           </div>
+          <Link
+            href="/privacy-policy"
+            className="hover:text-white/70 transition"
+          >
+            Privacy Policy
+          </Link>
         </div>
       </div>
     </footer>
