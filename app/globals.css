@@ -1,261 +1,41 @@
-/* =========================
-   Tailwind v4 import
-   ========================= */
 @import "tailwindcss";
 
-/* Bebas Neue Pro Expanded ExtraBold Italic */
-@font-face {
-  font-family: "BebasNeueExpandedPro";
-  src:
-    url("/fonts/bebas/BebasNeueProExpandedExtraBoldIt.woff2") format("woff2"),
-    url("/fonts/bebas/Bebas-Neue-Pro-Expanded-ExtraBold-Italic-BF66cf3d7962375.ttf") format("truetype");
-  font-weight: 900;
-  /* matches font-black */
-  font-style: italic;
-  /* file is italic */
-  font-display: swap;
-}
-
-/* Map your utility alias to that face */
-.font-bada {
-  font-family: "BebasNeueExpandedPro", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif !important;
-  font-weight: 900;
-  font-style: italic;
-}
-
-
-/* =========================
-   2) Base color tokens (light)
-   ========================= */
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-/* =========================
-   3) Tailwind inline theme tokens
-   ========================= */
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-
-  /* Gold palette */
-  --color-gold-50: #ffe259;
-  --color-gold-400: #ffc233;
-  --color-gold-700: #ff7b00;
-  --color-gold-900: #6b2a00;
-
-  /* Brand accents */
-  --color-brand-neon: #82ed58;
-
-  /* Brand Identity Controls */
-  --color-brand-lime: #7de759;
-  --color-brand-green: #6ed169;
-  --color-brand-gray: #8F908E;
-  --color-brand-dark: #292929;
-
-  /* Coupon Card Specifics */
-  --color-coupon-dashed: #818281;
-  --color-coupon-redeem: #b4b5b3;
-  --color-coupon-price: #9afc5d;
-  --color-coupon-title: #ffffff;
-  --color-coupon-stock: #F0344C;
-  --color-coupon-expiry: #77c769;
-
-  /* Texture Controls */
-  --coupon-texture-opacity: 1;
-  --coupon-texture-size: cover;
-
-  /* Fonts */
+@theme {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --font-bada: "BebasNeueExpandedProBoldItalic", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 }
 
-/* Ensure class exists */
-.font-bada {
-  font-family: var(--font-bada) !important;
+/* Force hide Next.js Dev Tool indicators */
+div[data-nextjs-toast], div[data-nextjs-indicator], nextjs-portal {
+    display: none !important;
 }
 
-/* =========================
-   4) Dark mode overrides
-   ========================= */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Smooth scrolling for pitch deck */
+html {
+  scroll-behavior: smooth;
 }
 
-/* =========================
-   5) Base styles
-   ========================= */
-html,
-body {
-  height: 100%;
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.15);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.25);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  font-family: var(--font-sans);
+/* Number input spinners removal */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
-
-.visually-hidden {
-  position: absolute !important;
-  height: 1px;
-  width: 1px;
-  overflow: hidden;
-  clip: rect(1px, 1px, 1px, 1px);
-  white-space: nowrap;
-  border: 0;
-  padding: 0;
-  margin: -1px;
-}
-
-/* =========================
-   6) Gold headline helpers
-   ========================= */
-.gold-hero {
-  font-family: var(--font-bada);
-  background-image: linear-gradient(180deg,
-      var(--color-gold-50) 0%,
-      var(--color-gold-400) 55%,
-      var(--color-gold-700) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-
-  text-shadow:
-    0 0 1px rgba(255, 255, 255, 0.95),
-    0 1px 0 rgba(255, 255, 255, 0.9);
-
-  filter:
-    drop-shadow(0 0 0 var(--color-gold-900)) drop-shadow(2px 0 0 var(--color-gold-900)) drop-shadow(-2px 0 0 var(--color-gold-900)) drop-shadow(0 2px 0 var(--color-gold-900)) drop-shadow(0 10px 14px rgba(197, 90, 0, 0.6));
-}
-
-.gold-glow {
-  filter:
-    drop-shadow(0 0 20px rgba(255, 190, 60, 0.25)) drop-shadow(0 6px 14px rgba(197, 90, 0, 0.45));
-}
-
-/* =========================
-   7) Single 45° shine — LEFT → RIGHT, stable width
-   ========================= */
-.shine-clip {
-  pointer-events: none;
-  /* very narrow bright band = one beam only */
-  background: linear-gradient(45deg,
-      rgba(255, 255, 255, 0) 48%,
-      rgba(255, 255, 255, 0.95) 50%,
-      rgba(255, 255, 255, 0) 52%);
-  /* Stretch only on X to keep the stripe width stable */
-  background-size: 260% 100%;
-  background-repeat: no-repeat;
-  /* start well off the LEFT */
-  background-position: -160% 0;
-
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-
-  /* keep it clean; remove extra blending that can “bloom” */
-  /* mix-blend-mode: screen;  <-- optional; comment out if you saw glow issues */
-
-  animation: shineL2R 3.2s linear infinite;
-  will-change: background-position;
-}
-
-@keyframes shineL2R {
-  0% {
-    background-position: 160% 0;
-  }
-
-  100% {
-    background-position: -160% 0;
-  }
-}
-
-
-/* =========================
-   8) Breathe (scale pulse)
-   ========================= */
-.breathe {
-  animation: breathe 5s ease-in-out infinite;
-  transform-origin: center;
-}
-
-@keyframes breathe {
-
-  0%,
-  100% {
-    transform: scale(1.18);
-  }
-
-  50% {
-    transform: scale(1.05);
-  }
-}
-
-/* ==== Google Places Autocomplete – Dark Theme ==== */
-
-.pac-container {
-  background-color: #05080c !important;
-  border-radius: 12px !important;
-  border: 1px solid rgba(20, 241, 149, 0.35) !important;
-  color: #e8fff3 !important;
-  font-family: system-ui, -apple-system, "SF Pro Text", sans-serif !important;
-  box-shadow: none !important;
-  /* ← removed the glow */
-  z-index: 99999 !important;
-}
-
-
-.pac-item {
-  padding: 10px 14px !important;
-  cursor: pointer;
-  border-top: 1px solid rgba(255, 255, 255, 0.03) !important;
-  background-color: transparent !important;
-}
-
-.pac-item:first-child {
-  border-top: none !important;
-}
-
-.pac-item:hover {
-  background-color: rgba(20, 241, 149, 0.12) !important;
-}
-
-.pac-item-query {
-  color: #ffffff !important;
-  font-weight: 600 !important;
-}
-
-.pac-matched {
-  color: #14f195 !important;
-  /* highlight matching part */
-}
-
-/* "powered by Google" bar – keep visible but on dark bg */
-.pac-container:after {
-  /* Google injects its own attribution element; this keeps area consistent */
-  background-color: #05080c !important;
-}
-
-/* Optionally shrink fonts a bit */
-.pac-item,
-.pac-item-query {
-  font-size: 13px !important;
-}
-
-/* ===== Native <select> dropdown fixes (Windows) ===== */
-
-/* Closed select still uses your Tailwind classes (text-white etc),
-   this just gives the *dropdown list* readable colors on Windows. */
-select option {
-  color: #020617;
-  /* dark text */
-  background-color: #ffffff;
+input[type="number"] {
+  -moz-appearance: textfield;
 }

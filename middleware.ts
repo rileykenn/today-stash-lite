@@ -1,13 +1,9 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 
-const VERIFY_PATH = '/auth/verify-email';
-
 export async function middleware(req: NextRequest) {
   let res = NextResponse.next({
-    request: {
-      headers: req.headers,
-    },
+    request: { headers: req.headers },
   });
 
   const supabase = createServerClient(
@@ -19,12 +15,8 @@ export async function middleware(req: NextRequest) {
           return req.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => req.cookies.set(name, value));
-          res = NextResponse.next({
-            request: {
-              headers: req.headers,
-            },
-          });
+          cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value));
+          res = NextResponse.next({ request: { headers: req.headers } });
           cookiesToSet.forEach(({ name, value, options }) =>
             res.cookies.set(name, value, options)
           );
@@ -34,22 +26,23 @@ export async function middleware(req: NextRequest) {
   );
 
   const { data: { user } } = await supabase.auth.getUser();
-
-  // If no user, let through (auth pages handle the rest)
-  if (!user) return res;
-
-  // ✅ Consider phone-confirmed users as verified too
-  const confirmed =
-    Boolean(user.email_confirmed_at) ||
-    Boolean((user as any).phone_confirmed_at) || // present on Supabase user
-    Boolean(user.phone); // if they have a phone login, they had to verify via Twilio first
-
   const path = req.nextUrl.pathname;
 
-  // If not confirmed by either channel, force redirect (but allow auth routes)
-  if (!confirmed && !path.startsWith('/auth')) {
+  // Allow login page and auth callback
+  if (path === '/login' || path.startsWith('/auth')) {
+    // If already logged in and on login page, redirect to dashboard
+    if (user && path === '/login') {
+      const url = req.nextUrl.clone();
+      url.pathname = '/dashboard';
+      return NextResponse.redirect(url);
+    }
+    return res;
+  }
+
+  // Protect everything else — require auth
+  if (!user) {
     const url = req.nextUrl.clone();
-    url.pathname = VERIFY_PATH;
+    url.pathname = '/login';
     return NextResponse.redirect(url);
   }
 
@@ -58,6 +51,6 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|api).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api|loader_60fps.webp).*)',
   ],
 };
