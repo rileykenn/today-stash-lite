@@ -24,7 +24,7 @@ export async function POST(req: Request) {
         const codeHash = crypto.createHash('sha256').update(code).digest('hex');
 
         // Check if code exists, is valid, not expired, not used
-        const { data, error } = await admin
+        const { data, error } = await getAdmin()
             .from('verification_codes')
             .select('*')
             .ilike('target', email) // Use ilike

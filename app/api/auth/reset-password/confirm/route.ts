@@ -30,7 +30,7 @@ export async function POST(req: Request) {
 
         // 1. Verify Code again (double check security)
         // Use ilike for target to handle potential case mismatches in stored codes
-        const { data: codeRecord, error: codeError } = await admin
+        const { data: codeRecord, error: codeError } = await getAdmin()
             .from('verification_codes')
             .select('*')
             .ilike('target', email)
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
         // Try profiles first
         let userId: string | null = null;
 
-        const { data: profile } = await admin
+        const { data: profile } = await getAdmin()
             .from('profiles')
             .select('user_id')
             .ilike('email', email)
@@ -91,7 +91,7 @@ export async function POST(req: Request) {
         }
 
         // 4. Mark code as used
-        await admin
+        await getAdmin()
             .from('verification_codes')
             .update({ used: true, used_at: new Date().toISOString() })
             .eq('id', codeRecord.id);
