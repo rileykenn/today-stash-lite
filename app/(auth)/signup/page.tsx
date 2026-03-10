@@ -74,6 +74,7 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const resetAlerts = () => { setError(null); setNotice(null); };
 
   // resend cooldown tickers
@@ -126,6 +127,7 @@ export default function SignupPage() {
     firstName.trim().length > 0 &&
     identifier.trim().length > 0 &&
     strongPassword &&
+    agreedToTerms &&
     !loading;
 
   const canVerifyPhone =
@@ -434,6 +436,42 @@ export default function SignupPage() {
             {confirm && password !== confirm && (
               <p className="text-xs text-[rgb(248_113_113)] ml-1">Passwords don’t match.</p>
             )}
+
+            {/* Terms & Conditions checkbox */}
+            <label className="group flex items-start gap-3 cursor-pointer mt-3 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] transition-colors">
+              <div className="relative mt-0.5 shrink-0">
+                <input
+                  type="checkbox"
+                  checked={agreedToTerms}
+                  onChange={(e) => setAgreedToTerms(e.target.checked)}
+                  className="sr-only"
+                />
+                <div className={`h-5 w-5 rounded-md border-2 transition-all duration-200 flex items-center justify-center ${agreedToTerms ? 'border-[var(--color-brand-600)] bg-[var(--color-brand-600)]' : 'border-white/20 bg-black/30'}`}>
+                  <svg
+                    className={`h-3 w-3 text-white transition-opacity duration-200 ${agreedToTerms ? 'opacity-100' : 'opacity-0'}`}
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M2 6l3 3 5-5" />
+                  </svg>
+                </div>
+              </div>
+              <span className="text-sm text-white/60 leading-snug group-hover:text-white/70 transition-colors">
+                I have read and agree to the{' '}
+                <Link
+                  href="/terms-and-conditions"
+                  target="_blank"
+                  className="text-[var(--color-brand-600)] font-semibold underline decoration-1 underline-offset-[3px] hover:decoration-2 hover:brightness-110 transition-all"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Terms and Conditions
+                </Link>
+              </span>
+            </label>
 
             {error && (
               <div className="rounded-xl p-4 bg-red-500/10 border border-red-500/20 text-red-200 text-sm text-center">

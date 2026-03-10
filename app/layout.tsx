@@ -68,6 +68,9 @@ function Footer() {
             <p className="text-xs text-white/60">
               Local deals, verified in-store with secure time-limited QR codes.
             </p>
+            <p className="text-xs text-white/40 mt-1">
+              Level 19, 263 William St, Melbourne, Australia
+            </p>
           </div>
 
           {/* Links */}
@@ -99,12 +102,21 @@ function Footer() {
           <div>
             © {new Date().getFullYear()} Today&apos;s Stash. All rights reserved.
           </div>
-          <Link
-            href="/privacy-policy"
-            className="hover:text-white/70 transition"
-          >
-            Privacy Policy
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/privacy-policy"
+              className="hover:text-white/70 transition"
+            >
+              Privacy Policy
+            </Link>
+            <span className="text-white/25">·</span>
+            <Link
+              href="/terms-and-conditions"
+              className="hover:text-white/70 transition"
+            >
+              Terms &amp; Conditions
+            </Link>
+          </div>
         </div>
       </div>
     </footer>
