@@ -1,13 +1,17 @@
-// /app/api/auth/check-availability/route.ts
 import { NextResponse } from 'next/server';
-import { createClient, type User } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 
-const SUPABASE_URL = process.env.SUPABASE_URL!;
-const SERVICE_ROLE = process.env.SUPABASE_SERVICE_KEY!;
-
-const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
-  auth: { persistSession: false, autoRefreshToken: false },
-});
+let _admin: SupabaseClient | null = null;
+function getAdmin() {
+  if (!_admin) {
+    _admin = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_KEY!,
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
+  }
+  return _admin;
+}
 
 // ---------- helpers ----------
 function normalizePhoneAU(input?: string | null): string | null {
@@ -33,7 +37,7 @@ const samePhone = (a?: string | null, b?: string | null) => {
 async function findUserByEmail(email: string): Promise<User | null> {
   const perPage = 200;
   for (let page = 1; page <= 10; page += 1) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
+    const { data, error } = await getAdmin().auth.admin.listUsers({ page, perPage });
     if (error) throw error;
     const list = (data?.users ?? []) as User[];
     const match = list.find((u) => sameEmail(u.email, email));
@@ -48,7 +52,7 @@ async function findUserByPhone(phone: string): Promise<User | null> {
   if (!target) return null;
   const perPage = 200;
   for (let page = 1; page <= 10; page += 1) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
+    const { data, error } = await getAdmin().auth.admin.listUsers({ page, perPage });
     if (error) throw error;
     const list = (data?.users ?? []) as User[];
     const match = list.find((u) => samePhone(u.phone, target));
