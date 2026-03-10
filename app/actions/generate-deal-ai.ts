@@ -27,7 +27,7 @@ export async function generateDealSuggestions(businessDescription: string): Prom
     Please generate 3 distinct deal ideas that would be attractive to customers.
     For each deal, provide:
     1. A catchy title (short, e.g., "50% Off Pizza").
-    2. A brief description (1-2 sentences).
+    2. A brief description (1 to 2 sentences).
     3. An array of days this deal applies to, based on the description (e.g. if it says "Taco Tuesday", return ["tuesday"]). If no specific days are mentioned, return an empty array [].
     4. A time strategy if a time of day is mentioned (e.g. "mornings", "happy hour", "afternoon").
        - "Mornings" -> start: "open", end: "11:00"

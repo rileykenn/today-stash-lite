@@ -175,10 +175,10 @@ export default function CreatePitchDeckPage() {
                         <button
                             onClick={() => s.num < step && setStep(s.num)}
                             className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition ${step === s.num
-                                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                                    : step > s.num
-                                        ? 'bg-emerald-500/10 text-emerald-400/60 cursor-pointer'
-                                        : 'bg-white/5 text-white/30'
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                : step > s.num
+                                    ? 'bg-emerald-500/10 text-emerald-400/60 cursor-pointer'
+                                    : 'bg-white/5 text-white/30'
                                 }`}
                         >
                             {step > s.num ? (
@@ -223,8 +223,8 @@ export default function CreatePitchDeckPage() {
                                         key={type}
                                         onClick={() => setBusinessType(type)}
                                         className={`px-3 py-2 rounded-lg text-xs font-medium border transition text-left ${businessType === type
-                                                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400'
-                                                : 'bg-white/3 border-white/8 text-white/60 hover:border-white/20'
+                                            ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400'
+                                            : 'bg-white/3 border-white/8 text-white/60 hover:border-white/20'
                                             }`}
                                     >
                                         {type}
@@ -250,7 +250,7 @@ export default function CreatePitchDeckPage() {
                                 value={whatTheySell}
                                 onChange={(e) => setWhatTheySell(e.target.value)}
                                 className="w-full bg-[#0A0F13] rounded-xl px-4 py-3 border border-white/10 focus:border-emerald-500/50 outline-none text-white placeholder-white/20 transition min-h-[80px]"
-                                placeholder="e.g. Wood-fired pizzas, craft beer, dine-in and takeaway..."
+                                placeholder="e.g. Wood fired pizzas, craft beer, dine in and takeaway..."
                             />
                         </div>
 
@@ -301,7 +301,7 @@ export default function CreatePitchDeckPage() {
                                 value={dealIdeas}
                                 onChange={(e) => setDealIdeas(e.target.value)}
                                 className="w-full bg-[#0A0F13] rounded-xl px-4 py-3 border border-white/10 focus:border-emerald-500/50 outline-none text-white placeholder-white/20 transition min-h-[120px]"
-                                placeholder={`e.g. "Business could really benefit from coupon cards to fill quiet Tuesday lunches"\n\n"They mentioned they want more foot traffic from nearby Berry/Shoalhaven"\n\n"Owner likes the idea of a 2-for-1 weekday special"`}
+                                placeholder={`e.g. "Business could really benefit from coupon cards to fill quiet Tuesday lunches"\n\n"They mentioned they want more foot traffic from nearby Berry/Shoalhaven"\n\n"Owner likes the idea of a 2 for 1 weekday special"`}
                             />
                             <p className="text-xs text-white/30 mt-2">
                                 These notes help AI craft a more personalised pitch

@@ -74,7 +74,7 @@ Generate the following JSON (return ONLY valid JSON, no markdown):
   ],
   "suggestedDeals": [
     {
-      "title": "Catchy deal title like '2-for-1 Tuesday Pizza'",
+      "title": "Catchy deal title like '2 for 1 Tuesday Pizza'",
       "description": "Brief deal description (10-20 words)",
       "originalPrice": 25,
       "dealPrice": 15

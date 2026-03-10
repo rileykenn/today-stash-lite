@@ -7,7 +7,7 @@ import { SparklesIcon } from '@heroicons/react/24/outline';
 
 export default function LoginPage() {
     const router = useRouter();
-    const [email, setEmail] = useState('');
+    const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -17,6 +17,7 @@ export default function LoginPage() {
         setLoading(true);
         setError(null);
 
+        const email = `${username.trim().toLowerCase()}@sales.todaysstash.com`;
         const { error: authError } = await sb.auth.signInWithPassword({
             email,
             password,
@@ -59,14 +60,14 @@ export default function LoginPage() {
                 >
                     <div>
                         <label className="block text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">
-                            Email
+                            Username
                         </label>
                         <input
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
+                            type="text"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
                             className="w-full bg-[#0A0F13] rounded-xl px-4 py-3 border border-white/10 focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 outline-none text-white placeholder-white/20 transition"
-                            placeholder="you@todaysstash.com.au"
+                            placeholder="e.g. Adrian"
                             required
                         />
                     </div>

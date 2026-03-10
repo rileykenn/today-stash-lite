@@ -197,7 +197,7 @@ function InteractiveDealGenerator({ businessName, businessType }: { businessName
             {step === 'results' && (
                 <div className="space-y-4">
                     <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-lg font-bold text-white">AI-Generated Deals</h3>
+                        <h3 className="text-lg font-bold text-white">AI Generated Deals</h3>
                         <button onClick={() => { setStep('input'); setSuggestions([]); setDescription(''); }}
                             className="text-xs text-white/40 hover:text-white flex items-center gap-1 transition">
                             <ArrowPathIcon className="w-3 h-3" /> Try Again
@@ -506,7 +506,7 @@ export default function PitchDeckPage() {
                         label="Est. Revenue"
                         value={formatMoney(gc.dashboardStats.estimatedRevenue * 100)}
                         icon={<CurrencyDollarIcon className="w-5 h-5 text-emerald-400" />}
-                        trend="From deal-driven foot traffic"
+                        trend="From deal driven foot traffic"
                     />
                 </div>
 
@@ -641,31 +641,10 @@ export default function PitchDeckPage() {
             </PitchSection>
 
             {/* ============================
-          SECTION 9: TALKING POINTS (for salesperson)
+          SECTION 9: BOOK A MEETING / CTA
          ============================ */}
-            <PitchSection id="talking-points" className="bg-[#0A0F13]/50">
-                <SectionLabel>Your Talking Points</SectionLabel>
-                <h2 className="text-2xl sm:text-3xl font-bold mb-6">
-                    Key points to <span className="text-emerald-400">mention during the call</span>
-                </h2>
-
-                <div className="space-y-3 max-w-2xl">
-                    {gc.talkingPoints.map((point, idx) => (
-                        <div key={idx} className="flex items-start gap-3 bg-[#111821] rounded-xl p-4 border border-white/8">
-                            <div className="w-6 h-6 rounded-full bg-emerald-500/15 text-emerald-400 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
-                                {idx + 1}
-                            </div>
-                            <p className="text-sm text-white/80">{point}</p>
-                        </div>
-                    ))}
-                </div>
-            </PitchSection>
-
-            {/* ============================
-          SECTION 10: NEXT STEPS / CTA
-         ============================ */}
-            <PitchSection id="next-steps">
-                <div className="text-center max-w-2xl mx-auto">
+            <PitchSection id="book-meeting">
+                <div className="text-center max-w-3xl mx-auto">
                     <div className="inline-flex items-center gap-2 mb-6">
                         <StarIcon className="w-6 h-6 text-emerald-400" />
                     </div>
@@ -674,27 +653,29 @@ export default function PitchDeckPage() {
                     </h2>
                     <p className="text-base text-white/60 mb-8">
                         Join businesses across Australia who are already using Today&apos;s Stash to fill their tables,
-                        chairs, and appointment books with local customers.
+                        chairs, and appointment books with local customers. Book a quick chat below.
                     </p>
 
-                    <div className="bg-[#111821] rounded-2xl p-6 border border-white/10 text-left space-y-4">
-                        <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                            <ClockIcon className="w-5 h-5 text-emerald-400" />
-                            Next Steps
-                        </h3>
-                        {[
-                            "Set up your Merchant Account (takes 5 minutes)",
-                            "Create your first deal using the AI Deal Creator",
-                            "Print your QR poster and place it on the counter",
-                            "Watch the redemptions come in from day one",
-                        ].map((step, idx) => (
-                            <div key={idx} className="flex items-center gap-3 text-sm text-white/70">
-                                <div className="w-6 h-6 rounded-full bg-emerald-500/15 text-emerald-400 text-xs font-bold flex items-center justify-center shrink-0">
-                                    {idx + 1}
-                                </div>
-                                <span>{step}</span>
-                            </div>
-                        ))}
+                    {/* Calendly Inline Widget */}
+                    <div className="bg-[#111821] rounded-2xl border border-white/10 overflow-hidden shadow-2xl shadow-black/30">
+                        <div
+                            className="calendly-inline-widget"
+                            data-url="https://calendly.com/todaysstash-marketing/new-meeting?hide_gdpr_banner=1&background_color=111821&text_color=ffffff&primary_color=10b981"
+                            style={{ minWidth: '320px', height: '700px' }}
+                        />
+                        <script
+                            dangerouslySetInnerHTML={{
+                                __html: `
+                                    (function() {
+                                        if (document.querySelector('script[src="https://assets.calendly.com/assets/external/widget.js"]')) return;
+                                        var s = document.createElement('script');
+                                        s.src = 'https://assets.calendly.com/assets/external/widget.js';
+                                        s.async = true;
+                                        document.head.appendChild(s);
+                                    })();
+                                `,
+                            }}
+                        />
                     </div>
 
                     <p className="mt-8 text-xs text-white/30">
