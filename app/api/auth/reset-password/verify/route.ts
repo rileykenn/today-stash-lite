@@ -1,13 +1,16 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
-const SUPABASE_URL = process.env.SUPABASE_URL!;
-const SERVICE_ROLE = process.env.SUPABASE_SERVICE_KEY!;
-
-const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
-    auth: { persistSession: false, autoRefreshToken: false },
-});
+let _admin: SupabaseClient | null = null;
+function getAdmin() {
+    if (!_admin) {
+        _admin = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!, {
+            auth: { persistSession: false, autoRefreshToken: false },
+        });
+    }
+    return _admin;
+}
 
 export async function POST(req: Request) {
     try {

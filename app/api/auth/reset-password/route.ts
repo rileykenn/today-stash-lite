@@ -1,14 +1,16 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
-// Admin client to bypass RLS and insert into verification_codes
-const SUPABASE_URL = process.env.SUPABASE_URL!;
-const SERVICE_ROLE = process.env.SUPABASE_SERVICE_KEY!;
-
-const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
-    auth: { persistSession: false, autoRefreshToken: false },
-});
+let _admin: SupabaseClient | null = null;
+function getAdmin() {
+    if (!_admin) {
+        _admin = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!, {
+            auth: { persistSession: false, autoRefreshToken: false },
+        });
+    }
+    return _admin;
+}
 
 export async function POST(req: Request) {
     try {
@@ -21,7 +23,7 @@ export async function POST(req: Request) {
 
         // 1. Check if user exists (optional, but good practice to avoid leaking info? 
         // OR we just pretend sent. Let's send only if user exists to save Resend quota)
-        const { data: { users }, error: userError } = await admin.auth.admin.listUsers();
+        const { data: { users }, error: userError } = await getAdmin().auth.admin.listUsers();
         // listing all users is inefficient for large bases, but fine for lite. 
         // Better: try to get user by email if possible? 
         // admin.auth.admin.getUserByEmail doesn't exist? it does: listUsers({ filters: ... })? 
@@ -37,9 +39,9 @@ export async function POST(req: Request) {
         const codeHash = crypto.createHash('sha256').update(code).digest('hex');
 
         // delete old codes for this target to prevent clutter
-        await admin.from('verification_codes').delete().eq('target', email).eq('kind', 'password_reset');
+        await getAdmin().from('verification_codes').delete().eq('target', email).eq('kind', 'password_reset');
 
-        const { error: insertError } = await admin.from('verification_codes').insert({
+        const { error: insertError } = await getAdmin().from('verification_codes').insert({
             target: email,
             created_at: new Date().toISOString(),
             expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(), // 15 mins

@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = process.env.SUPABASE_URL!;
-const SERVICE_ROLE = process.env.SUPABASE_SERVICE_KEY!;
-
-const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
-  auth: { persistSession: false, autoRefreshToken: false },
-});
+let _admin: SupabaseClient | null = null;
+function getAdmin() {
+  if (!_admin) {
+    _admin = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+  }
+  return _admin;
+}
 
 function normalizePhoneAU(input?: string | null): string | null {
   if (!input) return null;
@@ -38,7 +41,7 @@ export async function POST(req: Request) {
 
     console.log('👤 creating user', { email, phone, firstName });
 
-    const { data, error } = await admin.auth.admin.createUser({
+    const { data, error } = await getAdmin().auth.admin.createUser({
       email: email ?? undefined,
       phone: phone ?? undefined,
       password,
@@ -57,7 +60,7 @@ export async function POST(req: Request) {
 
     // Generate Verification Link
     if (email) {
-      const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+      const { data: linkData, error: linkError } = await getAdmin().auth.admin.generateLink({
         type: 'signup',
         email: email,
         password: password
