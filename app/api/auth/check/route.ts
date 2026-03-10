@@ -1,9 +1,5 @@
 import { NextResponse } from 'next/server';
 
-const TWILIO_SID = process.env.TWILIO_ACCOUNT_SID!;
-const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN!;
-const VERIFY_SID = process.env.TWILIO_VERIFY_SID!;
-
 function normalizePhoneAU(input: string): string {
   let raw = input.replace(/\s+/g, '');
   raw = raw.replace(/^0+/, '');
@@ -16,6 +12,10 @@ function normalizePhoneAU(input: string): string {
 
 export async function POST(req: Request) {
   try {
+    const TWILIO_SID = process.env.TWILIO_ACCOUNT_SID!;
+    const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN!;
+    const VERIFY_SID = process.env.TWILIO_VERIFY_SID!;
+
     const { phone, code } = (await req.json()) as { phone: string; code: string };
     const to = normalizePhoneAU(phone);
     console.log('🔎 Twilio check for', to);

@@ -3,13 +3,6 @@ import twilio from 'twilio';
 
 export const runtime = 'nodejs';
 
-const accountSid = process.env.TWILIO_ACCOUNT_SID!;
-const authToken = process.env.TWILIO_AUTH_TOKEN!;
-const verifySid = process.env.TWILIO_VERIFY_SID!;
-const DEBUG = process.env.DEBUG_VERIFY === '1';
-
-const client = twilio(accountSid, authToken);
-
 function normalizePhoneAU(input?: string | null): string | null {
   if (!input) return null;
   const raw = String(input).trim().replace(/\s+/g, '').replace(/^0+/, '');
@@ -29,6 +22,12 @@ export async function POST(req: Request) {
     console.error('[verify.start] missing env', missing);
     return NextResponse.json({ error: `server misconfigured: ${missing.join(', ')}` }, { status: 500 });
   }
+
+  const accountSid = process.env.TWILIO_ACCOUNT_SID!;
+  const authToken = process.env.TWILIO_AUTH_TOKEN!;
+  const verifySid = process.env.TWILIO_VERIFY_SID!;
+  const DEBUG = process.env.DEBUG_VERIFY === '1';
+  const client = twilio(accountSid, authToken);
 
   const body = await req.json().catch(() => ({} as Record<string, unknown>));
   const phone = normalizePhoneAU((body['phone'] ?? body['target']) as string | undefined);

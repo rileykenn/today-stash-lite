@@ -2,10 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export async function POST(req: NextRequest) {
     try {
         const { email } = await req.json();
@@ -20,7 +16,11 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const supabase = createClient(supabaseUrl, supabaseServiceKey);
+        const supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
+        const resend = new Resend(process.env.RESEND_API_KEY);
 
         // Verify user session
         const token = authHeader.replace('Bearer ', '');
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
         // Generate 6-digit verification code
         const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
 
-        // One-time code expires in 15 minutes (usually standard for OTPs, but keeping 24h as per previous logic if preferred, though 15m is safer. sticking to 24h for now to minimize friction unless requested otherwise, actually let's stick to 24hours to be safe with existing column usage)
+        // One-time code expires in 24 hours
         const expiresAt = new Date();
         expiresAt.setHours(expiresAt.getHours() + 24);
 
