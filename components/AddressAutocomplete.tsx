@@ -20,6 +20,7 @@ interface AddressAutocompleteProps {
   onSelect: (value: SelectedAddress | null) => void;
   onTextChange?: (text: string) => void;
   placeholder?: string;
+  variant?: "dark" | "light";
 }
 
 // Let TypeScript know google exists at runtime
@@ -32,6 +33,7 @@ export default function AddressAutocomplete({
   onSelect,
   onTextChange,
   placeholder = "Start typing your address…",
+  variant = "dark",
 }: AddressAutocompleteProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [value, setValue] = useState(initialValue);
@@ -191,9 +193,11 @@ export default function AddressAutocomplete({
   return (
     <div className="w-full">
       {label && (
-        <label className="mb-1 block text-sm font-medium text-slate-200">
+        <label className={`mb-1 block text-sm font-medium ${
+          variant === "light" ? "text-slate-700" : "text-slate-200"
+        }`}>
           {label}{" "}
-          {required && <span className="text-red-400 align-middle">*</span>}
+          {required && <span className="text-red-500 align-middle">*</span>}
         </label>
       )}
 
@@ -210,15 +214,14 @@ export default function AddressAutocomplete({
         }}
         placeholder={placeholder}
         autoComplete="off"
-        className="
-          w-full rounded-xl border border-slate-700
-          bg-[#05080C] px-3 py-2 text-sm text-white outline-none
-          ring-emerald-500/40 focus:border-emerald-400 focus:ring
-        "
+        className={variant === "light"
+          ? "w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none ring-emerald-500/40 focus:border-emerald-500 focus:ring placeholder:text-slate-400"
+          : "w-full rounded-xl border border-slate-700 bg-[#05080C] px-3 py-2 text-sm text-white outline-none ring-emerald-500/40 focus:border-emerald-400 focus:ring"
+        }
       />
 
       {!ready && (
-        <p className="mt-1 text-[11px] text-white/45">
+        <p className={`mt-1 text-[11px] ${variant === "light" ? "text-slate-400" : "text-white/45"}`}>
           Loading address search…
         </p>
       )}
