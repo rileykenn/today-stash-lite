@@ -18,6 +18,7 @@ export const metadata: Metadata = {
   keywords: [
     "today's stash",
     "todays stash",
+    "todaysstash",
     "local deals australia",
     "in-store deals",
     "local savings",
@@ -26,7 +27,14 @@ export const metadata: Metadata = {
     "cafe deals",
     "urban promotions",
     "local business deals",
+    "deals near me",
+    "local deals app",
+    "local coupons australia",
+    "QR code deals",
   ],
+  alternates: {
+    canonical: "https://todaysstash.com.au",
+  },
   openGraph: {
     title: "Today's Stash — Local Deals, Unlocked",
     description:
@@ -35,17 +43,74 @@ export const metadata: Metadata = {
     siteName: "Today's Stash",
     locale: "en_AU",
     type: "website",
+    images: [
+      {
+        url: "/opengraph-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Today's Stash — Local Deals, Unlocked",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Today's Stash — Local Deals, Unlocked",
     description:
       "Save at the places you already love. Exclusive in-store deals across Australia.",
+    images: ["/opengraph-image.png"],
   },
   robots: {
     index: true,
     follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
   },
+};
+
+// JSON-LD Structured Data for rich Google results
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://todaysstash.com.au/#organization",
+      name: "Today's Stash",
+      url: "https://todaysstash.com.au",
+      logo: "https://todaysstash.com.au/opengraph-image.png",
+      description:
+        "Today's Stash connects locals with exclusive in-store deals across Australia. From the creators of Urban Promotions®.",
+      address: {
+        "@type": "PostalAddress",
+        streetAddress: "Level 19, 263 William St",
+        addressLocality: "Melbourne",
+        addressRegion: "VIC",
+        addressCountry: "AU",
+      },
+      sameAs: [],
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://todaysstash.com.au/#website",
+      url: "https://todaysstash.com.au",
+      name: "Today's Stash",
+      description:
+        "Local deals, unlocked. Exclusive in-store deals from cafés, restaurants, gyms and more in your town.",
+      publisher: { "@id": "https://todaysstash.com.au/#organization" },
+      potentialAction: {
+        "@type": "SearchAction",
+        target: {
+          "@type": "EntryPoint",
+          urlTemplate: "https://todaysstash.com.au/consumer?q={search_term_string}",
+        },
+        "query-input": "required name=search_term_string",
+      },
+    },
+  ],
 };
 
 function Footer() {
@@ -133,6 +198,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="/fonts/bebas/BebasNeueProExpandedExtraBoldIt.woff2"
           type="font/woff2"
           crossOrigin="anonymous"
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       </head>
 

@@ -16,9 +16,12 @@ const URBAN_CARD_URL =
   "https://ufxmucwtywfavsmorkpr.supabase.co/storage/v1/object/public/LOGO/Urban%20promotion%20card.png";
 
 export const metadata: Metadata = {
-  title: "Today’s Stash — Local deals, unlocked.",
+  title: "About Today’s Stash — Our Story & How It Works",
   description:
-    "Save at the places you already love. Today’s Stash connects locals with exclusive in-store deals, from the creators of Urban Promotions®.",
+    "Built by the team behind Urban Promotions®, Today’s Stash is the digital evolution of Australia’s most successful local coupon program. Learn how we help locals save and businesses grow.",
+  alternates: {
+    canonical: "https://todaysstash.com.au/about",
+  },
 };
 
 export default function AboutPage() {

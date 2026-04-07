@@ -30,22 +30,16 @@ export default function sitemap(): MetadataRoute.Sitemap {
             priority: 0.8,
         },
         {
+            url: `${baseUrl}/areas`,
+            lastModified: now,
+            changeFrequency: "weekly",
+            priority: 0.8,
+        },
+        {
             url: `${baseUrl}/waitlist`,
             lastModified: now,
             changeFrequency: "monthly",
             priority: 0.7,
-        },
-        {
-            url: `${baseUrl}/contactsupport`,
-            lastModified: now,
-            changeFrequency: "monthly",
-            priority: 0.5,
-        },
-        {
-            url: `${baseUrl}/success-stories`,
-            lastModified: now,
-            changeFrequency: "monthly",
-            priority: 0.6,
         },
         {
             url: `${baseUrl}/venue-register`,
@@ -54,7 +48,25 @@ export default function sitemap(): MetadataRoute.Sitemap {
             priority: 0.7,
         },
         {
+            url: `${baseUrl}/success-stories`,
+            lastModified: now,
+            changeFrequency: "monthly",
+            priority: 0.6,
+        },
+        {
+            url: `${baseUrl}/contactsupport`,
+            lastModified: now,
+            changeFrequency: "monthly",
+            priority: 0.5,
+        },
+        {
             url: `${baseUrl}/privacy-policy`,
+            lastModified: now,
+            changeFrequency: "yearly",
+            priority: 0.3,
+        },
+        {
+            url: `${baseUrl}/terms-and-conditions`,
             lastModified: now,
             changeFrequency: "yearly",
             priority: 0.3,
