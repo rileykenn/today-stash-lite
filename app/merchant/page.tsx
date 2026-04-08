@@ -6,14 +6,82 @@ import LogoBannerDynamic from "@/components/LogoBannerDynamic";
 import CouponVisualizer from "@/components/CouponVisualizer";
 
 export const metadata: Metadata = {
-  title: "For Businesses — Today’s Stash",
+  title: "For Businesses — Today's Stash | Local Deals Platform Australia",
   description:
-    "Turn quiet times into loyal customers with Today’s Stash — a QR-based local offers platform for cafés, salons, gyms, retail and more.",
+    "Turn quiet times into loyal customers with Today's Stash — a QR-based local offers platform for cafés, salons, gyms, retail and more. No lock-in contracts, real-time reporting.",
+  keywords: [
+    "local business promotion platform",
+    "restaurant promotion australia",
+    "cafe marketing australia",
+    "QR code deals for business",
+    "in-store promotion platform",
+    "fill quiet times restaurant",
+    "local deal platform australia",
+  ],
+  alternates: {
+    canonical: "https://todaysstash.com.au/merchant",
+  },
+  openGraph: {
+    title: "For Businesses — Today's Stash",
+    description:
+      "Turn quiet times into loyal customers. QR-based local offers for cafés, salons, gyms, retail and more.",
+    url: "https://todaysstash.com.au/merchant",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "For Businesses — Today's Stash",
+    description:
+      "Turn quiet times into loyal customers. QR-based local offers for Australian businesses.",
+  },
+};
+
+// FAQ structured data for Google rich results
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: [
+    {
+      "@type": "Question",
+      name: "How long does it take to get started with Today's Stash?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Most businesses can be listed with their first offer in under a week. We'll help you structure your offers and settings during your free consult so you're not guessing.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Do I need any special hardware or software to use Today's Stash?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "No. Customers redeem their offers using a secure QR code from their phone. Your staff simply check the code and process the sale through your existing POS.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Will Today's Stash just attract bargain hunters to my business?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Our goal isn't to race to the bottom on price. Offers are designed to introduce you to new locals and give existing customers a reason to visit more often — not to attract people who only come once and never return.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Is there a lock-in contract with Today's Stash?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "No lock-in contracts. You stay in control. If Today's Stash isn't delivering value for your business, you can change your offers or step away.",
+      },
+    },
+  ],
 };
 
 export default function MerchantPage() {
   return (
     <div className="relative isolate overflow-hidden bg-[#0A0F13] text-white">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
       {/* Background gradients */}
       <div
         aria-hidden="true"

@@ -1,0 +1,137 @@
+Show me example of Add LocalBusiness + Organization schema markup
+Here are both schema types, pre-filled with Today's Stash's actual details:
+1. Organization Schema
+This goes on every page of the site (typically in the <head> or a global layout component):
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "Today's Stash",
+  "alternateName": "TodaysStash",
+  "url": "https://www.todaysstash.com.au",
+  "logo": "https://www.todaysstash.com.au/logo6.png",
+  "description": "Today's Stash connects locals with real, in-store deals from local businesses across Australia — redeemed via QR code, no app download needed.",
+  "foundingDate": "2024",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "Level 19, 263 William Street",
+    "addressLocality": "Melbourne",
+    "addressRegion": "VIC",
+    "addressCountry": "AU"
+  },
+  "contactPoint": {
+    "@type": "ContactPoint",
+    "email": "adrian@todaysstash.com.au",
+    "contactType": "customer support"
+  },
+  "sameAs": [
+    "https://www.facebook.com/todaysstash",
+    "https://www.instagram.com/todaysstash"
+  ]
+}
+</script>
+
+2. LocalBusiness Schema
+This is more specific and signals to Google what type of local service you are. Use this on the homepage and any location landing pages:
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "LocalBusiness",
+  "name": "Today's Stash",
+  "image": "https://www.todaysstash.com.au/logo6.png",
+  "url": "https://www.todaysstash.com.au",
+  "description": "Local in-store deals and discounts from verified Australian businesses. Redeem with a simple QR code scan — no app required.",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "Level 19, 263 William Street",
+    "addressLocality": "Melbourne",
+    "addressRegion": "VIC",
+    "postalCode": "3000",
+    "addressCountry": "AU"
+  },
+  "geo": {
+    "@type": "GeoCoordinates",
+    "latitude": -37.8136,
+    "longitude": 144.9631
+  },
+  "areaServed": {
+    "@type": "Country",
+    "name": "Australia"
+  },
+  "priceRange": "Free for consumers",
+  "email": "adrian@todaysstash.com.au",
+  "openingHoursSpecification": {
+    "@type": "OpeningHoursSpecification",
+    "dayOfWeek": [
+      "Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"
+    ],
+    "opens": "00:00",
+    "closes": "23:59"
+  }
+}
+</script>
+
+3. Bonus — WebSite Schema (adds a Google Sitelinks Search Box)
+Worth adding to the homepage too:
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "Today's Stash",
+  "url": "https://www.todaysstash.com.au",
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": {
+      "@type": "EntryPoint",
+      "urlTemplate": "https://www.todaysstash.com.au/consumer?q={search_term_string}"
+    },
+    "query-input": "required name=search_term_string"
+  }
+}
+</script>
+(Update the urlTemplate to match however your deal search URL actually works.)
+
+How to implement in Next.js
+Since you're on Next.js, the cleanest way is to drop these into your layout or page components using a <Script> tag or directly in <Head>:
+// In your _app.js or layout.js
+import Head from 'next/head'
+
+export default function Layout({ children }) {
+  const orgSchema = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "Today's Stash",
+    // ... rest of object
+  }
+
+  return (
+    <>
+      <Head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }}
+        />
+      </Head>
+      {children}
+    </>
+  )
+}
+
+Validate before going live
+Once you've added these, test them at schema.org/validator or Google's Rich Results Test. Google will show you any errors and confirm what rich result features you're eligible for.
+For your location landing pages (e.g. /deals/ballarat), you'd duplicate the LocalBusiness block but swap in the specific town's name, geo coordinates, and areaServed — that's where the local SEO really compounds. Want me to build a template for those?
+
+Here's a complete reusable template — schema, meta tags, and page structure all in one:Here's a complete, copy-paste-ready Next.js location page template. You'd duplicate this file for every new town:Here's what the template gives you and how to use it:
+3 schema blocks auto-generated per page:
+	•	LocalBusiness — geo-tagged to the specific town with coordinates, postcode, and areaServed scoped to that city
+	•	BreadcrumbList — tells Google the page hierarchy (Home → Deals → Ballarat)
+	•	FAQPage — 4 FAQs auto-populated with the town name, eligible for Google's rich result FAQ snippets in search
+How to deploy a new town in 2 minutes: Just change the LOCATION_CONFIG object at the top — every schema block, meta tag, title, heading, and body copy updates automatically.
+Scaling tip — dynamic route: Once you have 5+ towns, move all the configs into a single towns.js data file and use a [town].jsx dynamic route with getStaticPaths. Next.js will pre-generate all pages at build time. The commented-out code at the bottom of the file shows exactly how to do this.
+What each town page will rank for:
+	•	"local deals in [town]"
+	•	"deals [town] VIC"
+	•	"[town] café discounts"
+	•	"in-store vouchers [town]"
+	•	"[town] local business offers"
+

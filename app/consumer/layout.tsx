@@ -22,6 +22,12 @@ export const metadata: Metadata = {
       "Exclusive in-store deals from local businesses near you. Browse, redeem, save.",
     url: "https://todaysstash.com.au/consumer",
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "Browse Local Deals — Today's Stash",
+    description:
+      "Exclusive in-store deals from local businesses near you. Browse, redeem, save.",
+  },
 };
 
 export default function ConsumerLayout({

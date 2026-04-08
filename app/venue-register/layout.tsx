@@ -20,6 +20,12 @@ export const metadata: Metadata = {
       "Join 10,000+ businesses that have used our platform to fill quiet times and grow local trade.",
     url: "https://todaysstash.com.au/venue-register",
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "Register Your Business — Today's Stash",
+    description:
+      "Join 10,000+ businesses that have used our platform to fill quiet times and grow local trade.",
+  },
 };
 
 export default function VenueRegisterLayout({

@@ -19,6 +19,12 @@ export const metadata: Metadata = {
       "Browse towns where Today's Stash is live. Subscribe to unlock exclusive local deals.",
     url: "https://todaysstash.com.au/areas",
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "Areas We're Promoting — Today's Stash",
+    description:
+      "Browse towns where Today's Stash is live. Subscribe to unlock exclusive local deals.",
+  },
 };
 
 export default function AreasLayout({

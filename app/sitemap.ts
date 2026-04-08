@@ -2,74 +2,104 @@ import type { MetadataRoute } from "next";
 
 export default function sitemap(): MetadataRoute.Sitemap {
     const baseUrl = "https://todaysstash.com.au";
-    const now = new Date();
 
     return [
         {
             url: baseUrl,
-            lastModified: now,
+            lastModified: new Date("2026-04-08"),
             changeFrequency: "weekly",
             priority: 1.0,
         },
         {
             url: `${baseUrl}/about`,
-            lastModified: now,
+            lastModified: new Date("2026-04-08"),
             changeFrequency: "monthly",
             priority: 0.9,
         },
         {
             url: `${baseUrl}/consumer`,
-            lastModified: now,
+            lastModified: new Date("2026-04-08"),
             changeFrequency: "daily",
             priority: 0.9,
         },
         {
             url: `${baseUrl}/merchant`,
-            lastModified: now,
+            lastModified: new Date("2026-04-08"),
             changeFrequency: "monthly",
             priority: 0.8,
         },
         {
             url: `${baseUrl}/areas`,
-            lastModified: now,
+            lastModified: new Date("2026-04-08"),
             changeFrequency: "weekly",
             priority: 0.8,
         },
         {
+            url: `${baseUrl}/blog`,
+            lastModified: new Date("2026-04-08"),
+            changeFrequency: "weekly",
+            priority: 0.8,
+        },
+        {
+            url: `${baseUrl}/blog/local-business-promotions-australia`,
+            lastModified: new Date("2026-04-08"),
+            changeFrequency: "monthly",
+            priority: 0.7,
+        },
+        {
+            url: `${baseUrl}/blog/local-deals-near-me-australia`,
+            lastModified: new Date("2026-04-07"),
+            changeFrequency: "monthly",
+            priority: 0.7,
+        },
+        {
+            url: `${baseUrl}/blog/how-to-increase-foot-traffic-restaurant-australia`,
+            lastModified: new Date("2026-04-08"),
+            changeFrequency: "monthly",
+            priority: 0.7,
+        },
+        {
+            url: `${baseUrl}/blog/increase-cafe-foot-traffic-australia`,
+            lastModified: new Date("2026-04-08"),
+            changeFrequency: "monthly",
+            priority: 0.7,
+        },
+        {
             url: `${baseUrl}/waitlist`,
-            lastModified: now,
+            lastModified: new Date("2026-04-08"),
             changeFrequency: "monthly",
             priority: 0.7,
         },
         {
             url: `${baseUrl}/venue-register`,
-            lastModified: now,
+            lastModified: new Date("2026-04-08"),
             changeFrequency: "monthly",
             priority: 0.7,
         },
         {
             url: `${baseUrl}/success-stories`,
-            lastModified: now,
+            lastModified: new Date("2026-04-08"),
             changeFrequency: "monthly",
             priority: 0.6,
         },
         {
             url: `${baseUrl}/contactsupport`,
-            lastModified: now,
+            lastModified: new Date("2026-04-08"),
             changeFrequency: "monthly",
-            priority: 0.5,
+            priority: 0.4,
         },
         {
             url: `${baseUrl}/privacy-policy`,
-            lastModified: now,
+            lastModified: new Date("2026-04-08"),
             changeFrequency: "yearly",
             priority: 0.3,
         },
         {
             url: `${baseUrl}/terms-and-conditions`,
-            lastModified: now,
+            lastModified: new Date("2026-04-08"),
             changeFrequency: "yearly",
             priority: 0.3,
         },
     ];
 }
+

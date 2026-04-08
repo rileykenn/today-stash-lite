@@ -19,8 +19,27 @@ export const metadata: Metadata = {
   title: "About Today’s Stash — Our Story & How It Works",
   description:
     "Built by the team behind Urban Promotions®, Today’s Stash is the digital evolution of Australia’s most successful local coupon program. Learn how we help locals save and businesses grow.",
+  keywords: [
+    "about today's stash",
+    "urban promotions australia",
+    "local coupon program australia",
+    "QR code deals platform",
+    "australian deal platform",
+  ],
   alternates: {
     canonical: "https://todaysstash.com.au/about",
+  },
+  openGraph: {
+    title: "About Today's Stash — Our Story & How It Works",
+    description:
+      "The digital evolution of Urban Promotions®. 20+ years helping Australians save at local businesses.",
+    url: "https://todaysstash.com.au/about",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "About Today's Stash — Our Story & How It Works",
+    description:
+      "The digital evolution of Urban Promotions®. 20+ years helping Australians save at local businesses.",
   },
 };
 

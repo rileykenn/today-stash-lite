@@ -19,6 +19,12 @@ export const metadata: Metadata = {
       "Real results from real local businesses using Today's Stash to fill quiet times.",
     url: "https://todaysstash.com.au/success-stories",
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "Success Stories — Today's Stash",
+    description:
+      "Real results from real local businesses using Today's Stash to fill quiet times.",
+  },
 };
 
 export default function SuccessStoriesLayout({

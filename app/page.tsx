@@ -16,11 +16,34 @@ const URBAN_CARD_URL =
   "https://ufxmucwtywfavsmorkpr.supabase.co/storage/v1/object/public/LOGO/Urban%20promotion%20card.png";
 
 export const metadata: Metadata = {
-  title: "Today’s Stash — Save at the Places You Already Love | Local Deals Australia",
+  title: "Today's Stash — Local Deals & In-Store Savings Australia",
   description:
-    "Today’s Stash connects you with exclusive in-store deals from local cafés, restaurants, gyms and more. Redeem with QR codes at the counter — from the creators of Urban Promotions®. 20+ years helping Australians save locally.",
+    "Exclusive in-store deals from local cafés, restaurants, gyms and more across Australia. Redeem with QR codes at the counter — no app needed. From the creators of Urban Promotions®, 20+ years helping Australians save locally.",
+  keywords: [
+    "today's stash",
+    "todays stash",
+    "local deals australia",
+    "in-store deals",
+    "local savings",
+    "coupon app australia",
+    "deals near me",
+    "QR code deals",
+    "local business deals australia",
+  ],
   alternates: {
     canonical: "https://todaysstash.com.au",
+  },
+  openGraph: {
+    title: "Today's Stash — Local Deals & In-Store Savings Australia",
+    description:
+      "Save at the places you already love. Exclusive in-store deals from cafés, restaurants, gyms and more in your town.",
+    url: "https://todaysstash.com.au",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Today's Stash — Local Deals & In-Store Savings Australia",
+    description:
+      "Exclusive in-store deals from local businesses across Australia. Redeem with QR codes — no app needed.",
   },
 };
 
