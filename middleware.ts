@@ -4,13 +4,6 @@ import { createServerClient } from '@supabase/ssr';
 const VERIFY_PATH = '/auth/verify-email';
 
 export async function middleware(req: NextRequest) {
-  // ── www → non-www 301 redirect ──
-  const host = req.headers.get('host') || '';
-  if (host.startsWith('www.')) {
-    const nonWwwUrl = new URL(req.url);
-    nonWwwUrl.host = host.replace(/^www\./, '');
-    return NextResponse.redirect(nonWwwUrl, 301);
-  }
 
   let res = NextResponse.next({
     request: {
