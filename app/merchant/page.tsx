@@ -53,7 +53,7 @@ const faqJsonLd = {
       name: "Do I need any special hardware or software to use Today's Stash?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "No. Customers redeem their offers using a secure QR code from their phone. Your staff simply check the code and process the sale through your existing POS.",
+        text: "No. Customers redeem their offers using a secure QR code from their phone. Your staff simply check the code and process the sale through your existing POS. We track that an offer was redeemed — not who the customer is or what else they bought.",
       },
     },
     {
@@ -104,6 +104,10 @@ export default function MerchantPage() {
         {/* HERO: More customers, more often */}
         <section className="grid gap-10 md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)] md:items-center">
           <div>
+            <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-400/40 mb-3">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Free during beta — no credit card needed
+            </div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300">
               For businesses
             </p>
@@ -126,7 +130,7 @@ export default function MerchantPage() {
                 href="/venue-register"
                 className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-emerald-500 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-[0_0_24px_rgba(16,185,129,0.35)] transition hover:from-emerald-400 hover:to-blue-500 hover:shadow-[0_0_32px_rgba(16,185,129,0.5)]"
               >
-                Register as a business
+                Register your business
               </Link>
             </div>
 
@@ -400,11 +404,11 @@ export default function MerchantPage() {
           <div className="space-y-3 text-xs text-white/78">
             <div className="rounded-2xl bg-black/60 p-4 ring-1 ring-white/10">
               <p>
-                “By the end of the first month, I had already made my money back
-                by using the vouchers. From that point on, the savings were
-                enormous!”
+                “We started running Tuesday night offers and within three weeks
+                we had regulars coming back. The quiet nights aren’t so quiet
+                anymore.”
               </p>
-              <p className="mt-2 text-white/50">— Rita, Mortlake VIC</p>
+              <p className="mt-2 text-white/50">— Café owner, Regional VIC</p>
             </div>
             <div className="rounded-2xl bg-black/60 p-4 ring-1 ring-white/10">
               <p>
@@ -489,7 +493,7 @@ export default function MerchantPage() {
               },
               {
                 q: "Do I need any special hardware or software?",
-                a: "No. Customers redeem their offers using a secure QR code from their phone. Your staff simply check the code and process the sale through your existing POS.",
+                a: "No. Customers redeem their offers using a secure QR code from their phone. Your staff simply check the code and process the sale through your existing POS. We track that an offer was redeemed — not who the customer is or what else they bought.",
               },
               {
                 q: "Will I just attract bargain hunters?",

@@ -17,8 +17,8 @@ const consumerLinks = [
 
 // 2. Merchant / Partner Links (Separated)
 const merchantLinks = [
-  { href: "/success-stories", label: "Success Stories" },
-  { href: "/merchant-dashboard", label: "Dashboard" },
+  { href: "/success-stories", label: "Success Stories", authOnly: false },
+  { href: "/merchant-dashboard", label: "Dashboard", authOnly: true },
 ];
 
 export default function Header() {
@@ -141,7 +141,7 @@ export default function Header() {
           <div className="hidden md:flex items-center gap-5 z-20 shrink-0">
             {/* Merchant Group */}
             <div className="flex items-center gap-3 pr-4 border-r border-white/10">
-              {merchantLinks.map((link) => (
+              {merchantLinks.filter(l => !l.authOnly || signedIn).map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
@@ -270,7 +270,7 @@ export default function Header() {
                   Account & Business
                 </p>
                 <div className="grid grid-cols-2 gap-3">
-                  {merchantLinks.map((link) => (
+                  {merchantLinks.filter(l => !l.authOnly || signedIn).map((link) => (
                     <Link
                       key={link.href}
                       href={link.href}

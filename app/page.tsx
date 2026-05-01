@@ -77,9 +77,13 @@ export default function AboutPage() {
               Today’s Stash is your local shortcut to real, in-store savings –
               built by the team behind{" "}
               <span className="font-semibold text-white">
-                Urban Promotions®
+                Urban Promotions® (1996–2017)
               </span>
-              , one of Australia’s most successful local coupon programs.
+              , which supported over 10,000 Australian businesses.
+            </p>
+
+            <p className="mt-2 text-xs font-medium text-emerald-300/90">
+              Free for shoppers. No app download, no signup wall, no spam.
             </p>
 
             <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -107,16 +111,16 @@ export default function AboutPage() {
 
             <dl className="mt-7 grid max-w-md grid-cols-3 gap-4 text-[11px] text-white/65 sm:text-xs">
               <div>
-                <dt className="font-semibold text-white">20+ years</dt>
-                <dd>Helping Aussies save locally.</dd>
+                <dt className="font-semibold text-white">3 towns live</dt>
+                <dd>Sussex Inlet, Melbourne & Greater Jervis Bay.</dd>
               </div>
               <div>
-                <dt className="font-semibold text-white">10,000+</dt>
-                <dd>Businesses supported with promotions.</dd>
+                <dt className="font-semibold text-white">No app needed</dt>
+                <dd>Works from your browser. Just scan & save.</dd>
               </div>
               <div>
-                <dt className="font-semibold text-white">Millions</dt>
-                <dd>In coupon value distributed nationwide.</dd>
+                <dt className="font-semibold text-white">QR redemption</dt>
+                <dd>Verified at the counter — your data stays private.</dd>
               </div>
             </dl>
           </div>
@@ -333,8 +337,8 @@ export default function AboutPage() {
             </div>
             <p className="max-w-md text-xs leading-relaxed text-white/65">
               The product is intentionally simple on the surface and engineered
-              for scale underneath — so it feels effortless to use, but
-              credible in a boardroom or investor deck.
+              underneath — so it feels effortless for you to use and
+              trustworthy for the businesses you support.
             </p>
           </div>
 
@@ -385,26 +389,27 @@ export default function AboutPage() {
                 href="/merchant"
                 className="mt-4 inline-flex items-center justify-center rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-white shadow-[0_0_14px_rgba(16,185,129,0.45)] transition hover:bg-emerald-400"
               >
-                Register as a business
+                Register your business
               </Link>
             </div>
 
             {/* Councils / Partners / Investors */}
             <div className="flex flex-col rounded-3xl bg-[#0D1620]/95 p-5 ring-1 ring-white/10 backdrop-blur">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-200">
-                COUNCILS & PARTNERS
+                COMMUNITY PARTNERS
               </p>
               <h4 className="mt-3 text-base font-semibold">
-                A structured, town-level program.
+                Supporting local communities.
               </h4>
               <p className="mt-2 text-sm leading-relaxed text-white/80">
-                Today’s Stash can be rolled out town by town, giving regions a
-                clear, trackable way to support local business ecosystems.
+                Today’s Stash partners with local councils and community groups
+                to bring curated deals to your town — supporting the
+                businesses you already walk past every day.
               </p>
               <ul className="mt-3 space-y-1.5 text-xs text-white/70">
-                <li>• Clean data on participation and customer behaviour.</li>
-                <li>• Simple narrative for funding bodies and stakeholders.</li>
-                <li>• Scalable blueprint that can extend beyond one town.</li>
+                <li>• Deals curated for your local area.</li>
+                <li>• Partnered with businesses your community trusts.</li>
+                <li>• Growing town by town across Australia.</li>
               </ul>
               <p className="mt-4 text-[11px] text-white/60">
                 To discuss pilots, partnerships or investment, reach us at{" "}

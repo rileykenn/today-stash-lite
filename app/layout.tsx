@@ -178,7 +178,7 @@ function Footer() {
           {/* Brand blurb */}
           <div className="min-w-0">
             <p className="text-base font-semibold">
-              Today’s Stash <span className="opacity-60">Lite</span>
+              Today’s Stash
             </p>
             <p className="text-xs text-white/60">
               Local deals, verified in-store with secure time-limited QR codes.
