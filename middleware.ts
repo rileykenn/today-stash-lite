@@ -5,6 +5,14 @@ const VERIFY_PATH = '/auth/verify-email';
 
 export async function middleware(req: NextRequest) {
 
+  // ── SEO: Force www → non-www canonical redirect ──
+  const host = req.headers.get('host') || '';
+  if (host.startsWith('www.')) {
+    const url = req.nextUrl.clone();
+    url.host = host.replace(/^www\./, '');
+    return NextResponse.redirect(url, 301);
+  }
+
   let res = NextResponse.next({
     request: {
       headers: req.headers,

@@ -16,34 +16,37 @@ const URBAN_CARD_URL =
   "https://ufxmucwtywfavsmorkpr.supabase.co/storage/v1/object/public/LOGO/Urban%20promotion%20card.png";
 
 export const metadata: Metadata = {
-  title: "Today's Stash — Local Deals & In-Store Savings Australia",
+  title: "Find Local Deals at Cafés, Restaurants, Gyms & More Near You | Today's Stash",
   description:
-    "Exclusive in-store deals from local cafés, restaurants, gyms and more across Australia. Redeem with QR codes at the counter — no app needed. From the creators of Urban Promotions®, 20+ years helping Australians save locally.",
+    "Find and redeem local in-store deals at cafés, restaurants, gyms and more near you across Australia. QR code redemption at the counter — no app needed. From the creators of Urban Promotions®, 20+ years helping Australians save locally.",
   keywords: [
     "today's stash",
     "todays stash",
     "local deals australia",
+    "local deals near me",
     "in-store deals",
     "local savings",
     "coupon app australia",
     "deals near me",
     "QR code deals",
     "local business deals australia",
+    "restaurant deals near me",
+    "cafe deals australia",
   ],
   alternates: {
     canonical: "https://todaysstash.com.au",
   },
   openGraph: {
-    title: "Today's Stash — Local Deals & In-Store Savings Australia",
+    title: "Find Local Deals at Cafés, Restaurants, Gyms & More Near You | Today's Stash",
     description:
-      "Save at the places you already love. Exclusive in-store deals from cafés, restaurants, gyms and more in your town.",
+      "Find and redeem local in-store deals at cafés, restaurants, gyms and more near you. QR code redemption — no app needed.",
     url: "https://todaysstash.com.au",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Today's Stash — Local Deals & In-Store Savings Australia",
+    title: "Find Local Deals at Cafés, Restaurants, Gyms & More Near You | Today's Stash",
     description:
-      "Exclusive in-store deals from local businesses across Australia. Redeem with QR codes — no app needed.",
+      "Find and redeem local in-store deals at cafés, restaurants, gyms and more near you across Australia. No app needed.",
   },
 };
 
@@ -66,8 +69,8 @@ export default function AboutPage() {
             </div>
 
             <h1 className="mt-5 text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl">
-              Save more at the places{" "}
-              <span className="text-emerald-400">you already love.</span>
+              Find and Redeem Local Deals at Cafés, Restaurants, Gyms and More{" "}
+              <span className="text-emerald-400">Near You</span>
             </h1>
 
             <p className="mt-4 max-w-xl text-sm leading-relaxed text-brand-gray sm:text-base">
@@ -121,7 +124,7 @@ export default function AboutPage() {
           <div className="relative flex justify-center md:items-end md:justify-end">
             <img
               src="/girlphone.png"
-              alt="App experience"
+              alt="Woman browsing local in-store deals on the Today's Stash mobile platform"
               className="relative z-10 w-[85%] max-w-[400px] mx-auto mt-10 drop-shadow-2xl md:mt-0 md:max-w-none md:w-[150%] md:translate-x-40 md:scale-125 origin-bottom"
             />
           </div>
