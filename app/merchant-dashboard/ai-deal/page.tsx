@@ -8,9 +8,7 @@ import { SparklesIcon, ArrowLeftIcon, CheckIcon } from '@heroicons/react/24/outl
 import Link from 'next/link';
 import { TimePicker } from '@/components/TimePicker';
 
-/* =======================
-   Types
-   ======================= */
+
 type DaySchedule = {
     isOpen: boolean;
     open: string;
@@ -31,9 +29,7 @@ type ScheduleItem = {
 
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 
-/* =======================
-   Preview Component (Consumer Style)
-   ======================= */
+
 function CouponPreview({
     title,
     merchantName,
@@ -49,7 +45,6 @@ function CouponPreview({
     imageUrl?: string;
     description?: string;
 }) {
-    // Formatting helpers
     const fmt = (val: string | undefined) => {
         if (!val) return '$--';
         const num = parseFloat(val);
@@ -133,9 +128,6 @@ function CouponPreview({
 }
 
 
-/* =======================
-   Main Page
-   ======================= */
 
 export default function AIDealPage() {
     const router = useRouter();
@@ -144,7 +136,6 @@ export default function AIDealPage() {
     const [merchantBanner, setMerchantBanner] = useState<string | undefined>(undefined);
     const [operatingHours, setOperatingHours] = useState<WeeklyHours | null>(null);
 
-    // States: 'input' -> 'generating' -> 'selection' -> 'editing' -> 'saving'
     const [step, setStep] = useState<'input' | 'generating' | 'selection' | 'editing' | 'saving'>('input');
 
     const [description, setDescription] = useState('');
@@ -155,7 +146,7 @@ export default function AIDealPage() {
     const [finalDesc, setFinalDesc] = useState('');
     const [originalPrice, setOriginalPrice] = useState('');
     const [dealPrice, setDealPrice] = useState('');
-    const [totalLimit, setTotalLimit] = useState('10'); // Default to 10 for scarcity
+    const [totalLimit, setTotalLimit] = useState('10');
 
     // Scheduling State
     const [scheduleMode, setScheduleMode] = useState<"today" | "recurring">("today");
@@ -164,7 +155,6 @@ export default function AIDealPage() {
     const [todayEnd, setTodayEnd] = useState("");
     const [todayFullDay, setTodayFullDay] = useState(false);
     // Recurring Mode
-    // Default all items effectively "blank", will be populated by AI
     const [recurringSchedule, setRecurringSchedule] = useState<ScheduleItem[]>(
         DAYS.map(d => ({ day: d, start: "", end: "", isFullDay: true, enabled: false }))
     );
@@ -186,7 +176,6 @@ export default function AIDealPage() {
 
             if (profile?.merchant_id) {
                 setMerchantId(profile.merchant_id);
-                // Fetch basic merchant info for preview & hours
                 const { data: m } = await sb
                     .from('merchants')
                     .select('name, banner_url, operating_hours')
@@ -209,7 +198,6 @@ export default function AIDealPage() {
         checkMerchant();
     }, [router]);
 
-    // Set today defaults when operating hours load
     useEffect(() => {
         if (operatingHours && scheduleMode === "today" && !todayStart) {
             const now = new Date();
@@ -240,7 +228,6 @@ export default function AIDealPage() {
     };
 
     const handleSelect = (deal: GeneratedDeal) => {
-        // Populate form with AI Data
         setFinalTitle(deal.title);
         setFinalDesc(deal.description);
         // Reset prices for manual entry
@@ -248,10 +235,8 @@ export default function AIDealPage() {
         setDealPrice('');
         setTotalLimit('10');
 
-        // Handle Schedule Logic
         if (deal.scheduleDays && deal.scheduleDays.length > 0) {
             setScheduleMode('recurring');
-            // Auto-populate recurring schedule
             const newSchedule = recurringSchedule.map(item => {
                 const shouldEnable = deal.scheduleDays.map(d => d.toLowerCase()).includes(item.day);
 
@@ -278,7 +263,6 @@ export default function AIDealPage() {
                         isFullDay = false;
                     }
                 } else if (shouldEnable && operatingHours && operatingHours[item.day]?.isOpen) {
-                    // Default to full day if no strategy
                     start = operatingHours[item.day].open;
                     end = operatingHours[item.day].close;
                     isFullDay = true;
@@ -294,7 +278,6 @@ export default function AIDealPage() {
             });
             setRecurringSchedule(newSchedule);
         } else {
-            // Default to 'Recurring' (All Days) if no specific days mentioned
             setScheduleMode('recurring');
             const newSchedule = recurringSchedule.map(item => {
                 let start = item.start;
@@ -440,7 +423,6 @@ export default function AIDealPage() {
                 validFrom = start.toISOString();
                 validUntil = end.toISOString();
             } else {
-                // Indefinite Recurring
                 const start = new Date();
                 start.setHours(0, 0, 0, 0);
                 validFrom = start.toISOString();
@@ -477,12 +459,10 @@ export default function AIDealPage() {
                     is_active: true,
                     area_key: areaKey,
                     area_name: areaName,
-                    // Schedule
                     valid_from: validFrom,
                     valid_until: validUntil,
                     recurring_schedule: schedulePayload,
                     exp_date: validUntil,
-                    // Defaults
                     total_limit: totalLimit ? parseInt(totalLimit) : 10,
                     image_url: null
                 });
@@ -503,7 +483,6 @@ export default function AIDealPage() {
 
     return (
         <main className="min-h-screen bg-[#05070A] text-white px-4 py-8">
-            {/* UPDATED: Increased max-width to fix desktop layout cutting off cards */}
             <div className="w-full max-w-[1700px] mx-auto">
                 {/* Header */}
                 <div className="flex items-center gap-4 mb-8">
@@ -571,7 +550,7 @@ export default function AIDealPage() {
                         </div>
                         <div className="space-y-1">
                             <h3 className="text-xl font-semibold text-white">Drafting your deals...</h3>
-                            <p className="text-white/40 text-sm">Our AI is analyzing your request.</p>
+                            <p className="text-white/40 text-sm">Analyzing your request...</p>
                         </div>
                     </div>
                 )}
@@ -598,7 +577,6 @@ export default function AIDealPage() {
                                             description={deal.description}
                                             merchantName={merchantName}
                                             imageUrl={merchantBanner}
-                                            // Mock prices for visual selection
                                             originalPrice="20"
                                             dealPrice="10"
                                         />

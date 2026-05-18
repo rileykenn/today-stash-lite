@@ -22,8 +22,8 @@ type ScheduleItem = {
     day: string;
     start: string;
     end: string;
-    isFullDay: boolean; // Helper UI state
-    enabled: boolean;   // Helper UI state
+    isFullDay: boolean;
+    enabled: boolean;
 };
 
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
@@ -61,7 +61,6 @@ function CreateDealContent() {
     const [todayFullDay, setTodayFullDay] = useState(false);
 
     // Recurring Mode
-    // Removed start/end dates as requested. Will use now -> far future.
     const [recurringSchedule, setRecurringSchedule] = useState<ScheduleItem[]>(
         DAYS.map(d => ({ day: d, start: "", end: "", isFullDay: true, enabled: false }))
     );
@@ -130,33 +129,20 @@ function CreateDealContent() {
                     }
                 }
 
-                // Schedule Logic Reverse Engineering
                 if (deal.recurring_schedule && Array.isArray(deal.recurring_schedule) && deal.recurring_schedule.length > 0) {
                     setScheduleMode("recurring");
 
-                    // Map schedule items
-                    const newSched = DAYS.map(d => ({ day: d, start: "", end: "", isFullDay: false, enabled: false }));
+                    const newSched = DAYS.map(d => ({ day: d, start: '', end: '', isFullDay: false, enabled: false }));
                     (deal.recurring_schedule as any[]).forEach(item => {
                         const idx = newSched.findIndex(s => s.day === item.day);
                         if (idx !== -1) {
                             newSched[idx].enabled = true;
                             newSched[idx].start = item.start;
                             newSched[idx].end = item.end;
-                            // Re-infer isFullDay if we have operating hours? For now assume false if loaded custom times
-                            // But better to check:
-                            /* 
-                            if (operatingHours && 
-                                operatingHours[item.day]?.open === item.start && 
-                                operatingHours[item.day]?.close === item.end) {
-                                newSched[idx].isFullDay = true;
-                            }
-                            */
-                            // Simple fallback: keep inputs visible
                         }
                     });
                     setRecurringSchedule(newSched);
                 } else if (deal.valid_from && deal.valid_until) {
-                    // Likely "Today" or specific range
                     const s = new Date(deal.valid_from);
                     const e = new Date(deal.valid_until);
                     if (s.getDate() === e.getDate()) {
@@ -172,7 +158,6 @@ function CreateDealContent() {
         if (editId) loadDeal();
     }, [editId]);
 
-    // Initialize "Today" defaults when hours load
     useEffect(() => {
         if (editId) return;
 
@@ -215,7 +200,7 @@ function CreateDealContent() {
                 newSchedule[index].end = hours.close;
                 newSchedule[index].isFullDay = true;
             } else {
-                newSchedule[index].isFullDay = false; // Cannot be full day if closed
+                newSchedule[index].isFullDay = false;
             }
         }
         setRecurringSchedule(newSchedule);
@@ -281,8 +266,7 @@ function CreateDealContent() {
         setError(null);
 
         try {
-            // ... Validation ...
-            if (scheduleMode === "recurring") {
+            if (scheduleMode === 'recurring') {
                 if (!recurringSchedule.some(s => s.enabled)) throw new Error("Please select at least one day for the recurring schedule.");
 
                 // Validate open hours
@@ -297,7 +281,6 @@ function CreateDealContent() {
                 // Optional
             }
 
-            // 1. Determine Image URL
             let imageUrl = null;
 
             if (useBanner && bannerUrl) {
@@ -312,7 +295,6 @@ function CreateDealContent() {
                 imageUrl = fileName;
             }
 
-            // 2. Prepare Payload
             const price = parseFloat(dealPrice) * 100;
             const orig = parseFloat(originalPrice) * 100;
             const savings = orig - price;
@@ -334,7 +316,6 @@ function CreateDealContent() {
                 validFrom = start.toISOString();
                 validUntil = end.toISOString();
             } else {
-                // RECURRING LOGIC CHANGE:
                 const start = new Date();
                 start.setHours(0, 0, 0, 0);
                 validFrom = start.toISOString();
@@ -349,7 +330,6 @@ function CreateDealContent() {
                     .map(s => ({ day: s.day, start: s.start, end: s.end }));
             }
 
-            // Get Town Info
             const { data: merchantPos } = await sb
                 .from("merchants")
                 .select("town_id, town:towns(slug, name)")
@@ -359,7 +339,6 @@ function CreateDealContent() {
             const areaName = (merchantPos?.town as any)?.name ?? "Local";
 
             if (editId) {
-                // UPDATE
                 const { error: updateError } = await sb
                     .from("offers")
                     .update({
@@ -386,7 +365,6 @@ function CreateDealContent() {
                 }
 
             } else {
-                // INSERT
                 const { data: newDeal, error: insertError } = await sb
                     .from("offers")
                     .insert({

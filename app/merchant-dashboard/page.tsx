@@ -22,9 +22,7 @@ import {
   CheckBadgeIcon
 } from "@heroicons/react/24/outline";
 
-/* =======================
-   Types
-   ======================= */
+
 
 type Merchant = {
   id: string;
@@ -95,9 +93,7 @@ type State =
     error: string | null;
   };
 
-/* =======================
-   Helpers
-   ======================= */
+
 
 function formatMoneyAUD(cents: number) {
   const dollars = (cents || 0) / 100;
@@ -121,9 +117,7 @@ function formatDateTime(dt: string | null) {
   });
 }
 
-/* =======================
-   Page
-   ======================= */
+
 
 export default function MerchantDashboardPage() {
   const router = useRouter();
@@ -188,10 +182,7 @@ export default function MerchantDashboardPage() {
         return;
       }
 
-      // If not a merchant, check if they have a PENDING application
-      if (!profile || !profile.merchant_id || profile.role !== "merchant") {
-
-        // Check for application
+      if (!profile || !profile.merchant_id || profile.role !== 'merchant') {
         const { data: appData, error: appErr } = await sb
           .from("applications")
           .select("*")
@@ -202,8 +193,7 @@ export default function MerchantDashboardPage() {
           .maybeSingle();
 
         if (appData) {
-          // User has an application
-          if (!cancelled) setState({ status: "application-pending", app: appData });
+          if (!cancelled) setState({ status: 'application-pending', app: appData });
           return;
         }
 
@@ -235,7 +225,6 @@ export default function MerchantDashboardPage() {
         return;
       }
 
-      // Initialize Settings State
       if (merchantRow.operating_hours) {
         setHours({ ...DEFAULT_HOURS, ...(merchantRow.operating_hours as WeeklyHours) });
       }
@@ -251,7 +240,6 @@ export default function MerchantDashboardPage() {
         setStreetAddress(merchantRow.street_address);
       }
 
-      // Fetch offers
       const { data: offersData, error: offersFetchErr } = await sb
         .from('offers')
         .select('*')
@@ -410,9 +398,7 @@ export default function MerchantDashboardPage() {
     };
   }, [router]);
 
-  /* =======================
-     Settings Handlers
-     ======================= */
+
 
   const handleDayChange = (day: string, field: keyof DaySchedule, value: any) => {
     setHours(prev => ({
@@ -533,9 +519,7 @@ export default function MerchantDashboardPage() {
     }
   };
 
-  /* =======================
-     Render
-     ======================= */
+
 
   if (state.status === "loading") {
     return <Loading message="Loading Merchant Dashboard..." />;
@@ -767,7 +751,7 @@ export default function MerchantDashboardPage() {
                           router={router}
                           onRestock={(o: any) => {
                             setRestockingOffer(o);
-                            setRestockAmount("10"); // Default recommendation or empty
+                            setRestockAmount('10');
                           }}
                         />
                       </div>

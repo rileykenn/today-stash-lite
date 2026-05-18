@@ -2,7 +2,7 @@
 
 import OpenAI from 'openai';
 
-// Define the shape of the generated deal
+
 export type GeneratedDeal = {
     title: string;
     description: string;
@@ -56,7 +56,7 @@ export async function generateDealSuggestions(businessDescription: string): Prom
 
     try {
         const response = await openai.chat.completions.create({
-            model: 'gpt-4o', // or gpt-3.5-turbo depending on availability/cost preference
+            model: 'gpt-4o',
             messages: [{ role: 'user', content: prompt }],
             temperature: 0.7,
         });
@@ -64,15 +64,14 @@ export async function generateDealSuggestions(businessDescription: string): Prom
         const content = response.choices[0]?.message?.content?.trim();
 
         if (!content) {
-            throw new Error('No content received from OpenAI');
+            throw new Error('No content received from the API.');
         }
 
-        // Robust JSON extraction
         const jsonStart = content.indexOf('[');
         const jsonEnd = content.lastIndexOf(']');
 
         if (jsonStart === -1 || jsonEnd === -1) {
-            throw new Error("Failed to parse AI response: No JSON array found.");
+            throw new Error('Failed to parse response: no JSON array found.');
         }
 
         const jsonString = content.substring(jsonStart, jsonEnd + 1);
