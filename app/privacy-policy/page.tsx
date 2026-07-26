@@ -32,7 +32,7 @@ export default function PrivacyPolicyPage() {
 
                 <p className="mt-4 text-sm text-white/60">
                     This Privacy Policy applies to all personal information collected by
-                    Todays Stash Pty Ltd (<strong className="text-white/80">we</strong>,{" "}
+                    Todays Stash (<strong className="text-white/80">we</strong>,{" "}
                     <strong className="text-white/80">us</strong> or{" "}
                     <strong className="text-white/80">our</strong>) via the website
                     located at{" "}
@@ -179,11 +179,9 @@ export default function PrivacyPolicyPage() {
                             You can manage your marketing preferences through your account
                             settings or by contacting our Privacy Officer. We will process
                             opt-out requests within 7 business days and maintain records of
-                            your preferences. Marketing communications will not exceed 10
-                            messages per month, and each communication will clearly display
-                            preference management options. If you choose to opt-out, we will
-                            retain minimal Personal Information necessary to ensure compliance
-                            with your request.
+                            your preferences. If you choose to opt-out, we will retain minimal
+                            Personal Information necessary to ensure compliance with your
+                            request.
                         </p>
                     </section>
 
@@ -199,8 +197,8 @@ export default function PrivacyPolicyPage() {
                             the purpose for which we obtained it, we will take reasonable steps
                             to destroy and anonymise or de-identify it. Most of the Personal
                             Information that is stored in our client files and records will be
-                            kept for a maximum of 2 years to fulfill our record keeping
-                            obligations.
+                            retained as long as required by applicable law to fulfill our
+                            record keeping obligations.
                         </p>
                         <p className="mt-3">The Australian Privacy Principles:</p>
                         <ul className="mt-2 list-disc space-y-1 pl-5 text-white/70">

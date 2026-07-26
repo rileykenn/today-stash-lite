@@ -38,7 +38,7 @@ export default function TermsAndConditionsPage() {
                     >
                         www.todaysstash.com.au
                     </a>{" "}
-                    operated by Todays Stash Pty Ltd ACN 694 263 315.
+                    operated by Todays Stash.
                 </p>
 
                 <div className="mt-10 space-y-10 text-sm leading-relaxed text-white/80">
@@ -58,10 +58,10 @@ export default function TermsAndConditionsPage() {
                             making it easier for the Receiver and the Provider to locate, communicate, arrange payment and deliver the services in a fast and secure manner (<strong className="text-white/90">Services</strong>).
                         </p>
                         <p className="mt-3">
-                            The Website is operated by Todays Stash Pty Ltd ACN 694 263 315. Access to and use of the Website, or any of its associated products or Services, is provided by Todays Stash Pty Ltd. Please read these terms and conditions (<strong className="text-white/90">Terms</strong>) carefully. By using, browsing and/or reading the Website, this signifies that you have read, understood and agree to be bound by the Terms. If you do not agree with the Terms, you must cease usage of the Website, or any of its products or Services, immediately.
+                            The Website is operated by CAMPENS GROUP PTY LTD ABN 84 694 263 315. Access to and use of the Website, or any of its associated products or Services, is provided by CAMPENS GROUP PTY LTD. Please read these terms and conditions (<strong className="text-white/90">Terms</strong>) carefully. By using, browsing and/or reading the Website, this signifies that you have read, understood and agree to be bound by the Terms. If you do not agree with the Terms, you must cease usage of the Website, or any of its products or Services, immediately.
                         </p>
                         <p className="mt-3">
-                            Todays Stash Pty Ltd reserves the right to review and change any of the Terms by updating this page at its sole discretion. When Todays Stash Pty Ltd updates the Terms, it will use reasonable endeavours to provide you with notice of updates of the Terms. Any changes to the Terms take immediate effect from the date of their publication.
+                            Todaysstash.com.au reserves the right to review and change any of the Terms by updating this page at its sole discretion. When we update the Terms, it will use reasonable endeavours to provide you with notice of updates of the Terms. Any changes to the Terms take immediate effect from the date of their publication.
                         </p>
                     </section>
 
@@ -71,7 +71,7 @@ export default function TermsAndConditionsPage() {
                             2. Acceptance of the Terms
                         </h2>
                         <p className="mt-3">
-                            You accept the Terms by registering for the Services and/or making any payment as required under the Terms for use of the Services. You may also accept the Terms by clicking to accept or agree to the Terms where and if this option is made available to you by Todays Stash Pty Ltd in the user interface.
+                            You accept the Terms by registering for the Services and/or making any payment as required under the Terms for use of the Services. You may also accept the Terms by clicking to accept or agree to the Terms where and if this option is made available to you by Todays Stash in the user interface.
                         </p>
                     </section>
 
@@ -94,14 +94,14 @@ export default function TermsAndConditionsPage() {
                             <li>Password</li>
                         </ul>
                         <p className="mt-3">
-                            You warrant that any information you give to Todays Stash Pty Ltd in the course of completing the registration process will always be accurate, correct and up to date.
+                            You warrant that any information you give to Todays Stash in the course of completing the registration process will always be accurate, correct and up to date.
                         </p>
                         <p className="mt-3">
                             Once you have completed the registration process, you will be a registered member of the Website (<strong className="text-white/90">Member</strong>) and agree to be bound by the Terms.
                         </p>
                         <p className="mt-3">You may not use the Services and may not accept the Terms if:</p>
                         <ul className="mt-2 list-disc space-y-1 pl-5 text-white/70">
-                            <li>you are not of legal age to form a binding contract with Todays Stash Pty Ltd; or</li>
+                            <li>you are not of legal age to form a binding contract with Todays Stash; or</li>
                             <li>you are a person barred from receiving the Services under the laws of Australia or other countries including the country in which you are resident or from which you use the Services.</li>
                         </ul>
                     </section>
@@ -116,12 +116,12 @@ export default function TermsAndConditionsPage() {
                             <li>You will not share your profile with any other person.</li>
                             <li>You will use the Services only for purposes that are permitted by the Terms and any applicable law, regulation or generally accepted practices or guidelines in the relevant jurisdictions.</li>
                             <li>You have sole responsibility for protecting the confidentiality of your password and/or email address. Use of your password by any other person may result in the immediate cancellation of the Services.</li>
-                            <li>Any use of your registration information by any other person, or third parties, is strictly prohibited. You agree to immediately notify Todays Stash Pty Ltd of any unauthorised use of your password or email address or any breach of security of which you have become aware.</li>
+                            <li>Any use of your registration information by any other person, or third parties, is strictly prohibited. You agree to immediately notify Todays Stash of any unauthorised use of your password or email address or any breach of security of which you have become aware.</li>
                             <li>You must not expressly or impliedly impersonate another Member or use the profile or password of another Member at any time.</li>
                             <li>Any content that you broadcast, publish, upload, transmit, post or distribute on the Website (<strong className="text-white/90">Your Content</strong>) will always be accurate, correct and up to date and you will maintain reasonable records of Your Content.</li>
                             <li>You agree not to harass, impersonate, stalk, threaten another Member of the Website.</li>
                             <li>Access and use of the Website is limited, non-transferable and allows for the sole use of the Website by you for the purposes of providing the Services.</li>
-                            <li>You will not use the Services or the Website in connection with any commercial endeavours except those that are specifically endorsed or approved by the management of Todays Stash Pty Ltd.</li>
+                            <li>You will not use the Services or the Website in connection with any commercial endeavours except those that are specifically endorsed or approved by the management of Todays Stash.</li>
                             <li>You will not use the Services or Website for any illegal and/or unauthorised use which includes collecting email addresses of Members by electronic or other means for the purpose of sending unsolicited email or unauthorised framing of or linking to the Website.</li>
                             <li>You agree that commercial advertisements, affiliate links and other forms of solicitation may be removed from Member profiles without notice and may result in termination of the Services.</li>
                             <li>You acknowledge and agree that any automated use of the Website or its Services is prohibited.</li>
@@ -167,7 +167,7 @@ export default function TermsAndConditionsPage() {
                             All Providers agree to comply with the Australian Consumer Law. Any benefits set out in this Policy may apply in addition to consumer&apos;s rights under the Australian Consumer Law.
                         </p>
                         <p className="mt-3">
-                            Since Todays Stash Pty Ltd is only a facilitator in introducing the Receiver to the Provider. Todays Stash does not receive payments from Receivers. Receivers pay directly to the Provider. Todays Stash Pty Ltd does not hold any liability to the Receiver directly and will not personally refund them any payments made in the use of Services.
+                            Since Todays Stash is only a facilitator in introducing the Receiver to the Provider. Todays Stash does not receive payments from Receivers. Receivers pay directly to the Provider. Todays Stash does not hold any liability to the Receiver directly and will not personally refund them any payments made in the use of Services.
                         </p>
                         <p className="mt-3">
                             Nothing in these Terms excludes, restricts or modifies any consumer guarantee, right or remedy conferred on you by the ACL or any other applicable law that cannot be excluded, restricted or modified by agreement.
@@ -180,7 +180,7 @@ export default function TermsAndConditionsPage() {
                             <li>They honour all validly Reserved and Redeemed offers in accordance with the advertised terms.</li>
                         </ul>
                         <p className="mt-3">
-                            Todays Stash Pty Ltd acts as a facilitator connecting Receivers with Providers. The contractual relationship for the supply of goods or services is formed directly between the Receiver and the Provider.
+                            Todays Stash acts as a facilitator connecting Receivers with Providers. The contractual relationship for the supply of goods or services is formed directly between the Receiver and the Provider.
                         </p>
                         <p className="mt-3">Providers are solely responsible for:</p>
                         <ul className="mt-2 list-disc space-y-1 pl-5 text-white/70">
@@ -190,7 +190,7 @@ export default function TermsAndConditionsPage() {
                             <li>Ensuring their offers do not contain false, misleading, or deceptive representations.</li>
                         </ul>
                         <p className="mt-3">
-                            If a Receiver believes they are entitled to a remedy under the ACL (including a refund, replacement, or compensation for loss or damage), the Receiver should first contact the Provider directly to request the appropriate remedy. If the Provider does not respond or resolve the issue within fourteen (14) days, contact Todays Stash Pty Ltd through the &apos;Contact Us&apos; section of the Website.
+                            If a Receiver believes they are entitled to a remedy under the ACL (including a refund, replacement, or compensation for loss or damage), the Receiver should first contact the Provider directly to request the appropriate remedy. If the Provider does not respond or resolve the issue within fourteen (14) days, contact Todays Stash through the &apos;Contact Us&apos; section of the Website.
                         </p>
                         <p className="mt-3">
                             For more information about your rights under the ACL, visit the ACCC website at{" "}
@@ -212,10 +212,10 @@ export default function TermsAndConditionsPage() {
                             8. Copyright and Intellectual Property
                         </h2>
                         <p className="mt-3">
-                            The Website, the Services and all of the related products of Todays Stash Pty Ltd are subject to copyright. The material on the Website is protected by copyright under the laws of Australia and through international treaties. Unless otherwise indicated, all rights (including copyright) in the Services and compilation of the Website (including but not limited to text, graphics, logos, button icons, video images, audio clips, Website code, scripts, design elements and interactive features) or the Services are owned or controlled for these purposes, and are reserved by Todays Stash Pty Ltd or its contributors.
+                            The Website, the Services and all of the related products of Todays Stash are subject to copyright. The material on the Website is protected by copyright under the laws of Australia and through international treaties. Unless otherwise indicated, all rights (including copyright) in the Services and compilation of the Website (including but not limited to text, graphics, logos, button icons, video images, audio clips, Website code, scripts, design elements and interactive features) or the Services are owned or controlled for these purposes, and are reserved by Todays Stash or its contributors.
                         </p>
                         <p className="mt-3">
-                            All trademarks, service marks and trade names are owned, registered and/or licensed by Todays Stash Pty Ltd, who grants to you a worldwide, non-exclusive, royalty-free, revocable license whilst you are a Member to:
+                            All trademarks, service marks and trade names are owned, registered and/or licensed by Todays Stash, who grants to you a worldwide, non-exclusive, royalty-free, revocable license whilst you are a Member to:
                         </p>
                         <ul className="mt-2 list-disc space-y-1 pl-5 text-white/70">
                             <li>Use the Website pursuant to the Terms;</li>
@@ -223,10 +223,10 @@ export default function TermsAndConditionsPage() {
                             <li>Print pages from the Website for your own personal and non-commercial use.</li>
                         </ul>
                         <p className="mt-3">
-                            Todays Stash Pty Ltd does not grant you any other rights whatsoever in relation to the Website or the Services. All other rights are expressly reserved by Todays Stash Pty Ltd.
+                            Todays Stash does not grant you any other rights whatsoever in relation to the Website or the Services. All other rights are expressly reserved by Todays Stash.
                         </p>
                         <p className="mt-3">
-                            You may not, without the prior written permission of Todays Stash Pty Ltd and the permission of any other relevant rights owners: broadcast, republish, upload to a third party, transmit, post, distribute, show or play in public, adapt or change in any way the Services or third party Services for any purpose, unless otherwise provided by these Terms.
+                            You may not, without the prior written permission of Todays Stash and the permission of any other relevant rights owners: broadcast, republish, upload to a third party, transmit, post, distribute, show or play in public, adapt or change in any way the Services or third party Services for any purpose, unless otherwise provided by these Terms.
                         </p>
                     </section>
 
@@ -236,7 +236,7 @@ export default function TermsAndConditionsPage() {
                             9. General Disclaimer
                         </h2>
                         <p className="mt-3">
-                            You acknowledge that Todays Stash Pty Ltd does not make any terms, guarantees, warranties, representations or conditions whatsoever other than those expressly set out in the Terms. Nothing in the Terms excludes, restricts or modifies any condition, warranty, right or remedy implied or imposed by any applicable legislation which cannot lawfully be excluded, restricted or modified.
+                            You acknowledge that Todays Stash does not make any terms, guarantees, warranties, representations or conditions whatsoever other than those expressly set out in the Terms. Nothing in the Terms excludes, restricts or modifies any condition, warranty, right or remedy implied or imposed by any applicable legislation which cannot lawfully be excluded, restricted or modified.
                         </p>
                     </section>
 
@@ -252,7 +252,7 @@ export default function TermsAndConditionsPage() {
                             Providers are solely responsible for reviewing, editing, and approving all AI-Generated Content before it is published on the Website. By publishing AI-Generated Content, the Provider represents and warrants that it is accurate, not misleading or deceptive, compliant with the Australian Consumer Law and all applicable laws, and does not infringe the intellectual property or other rights of any third party.
                         </p>
                         <p className="mt-3">
-                            Todays Stash Pty Ltd reserves the right to remove any AI-Generated Content that, in its sole discretion, appears to be inaccurate, misleading, unlawful, or in breach of these Terms, but has no obligation to monitor or review AI-Generated Content before or after publication.
+                            Todays Stash reserves the right to remove any AI-Generated Content that, in its sole discretion, appears to be inaccurate, misleading, unlawful, or in breach of these Terms, but has no obligation to monitor or review AI-Generated Content before or after publication.
                         </p>
                     </section>
 
@@ -262,7 +262,7 @@ export default function TermsAndConditionsPage() {
                             11. Competitors
                         </h2>
                         <p className="mt-3">
-                            If you are in the business of providing similar Services for the purpose of providing them to users for a commercial gain, whether business users or domestic users, then you are a competitor of Todays Stash Pty Ltd. Competitors are not permitted to use or access any information or content on our Application. If you breach this provision, Todays Stash Pty Ltd will hold you fully responsible for any loss that we may sustain and hold you accountable for all loss, cost and damages from such a breach.
+                            If you are in the business of providing similar Services for the purpose of providing them to users for a commercial gain, whether business users or domestic users, then you are a competitor of Todays Stash. Competitors are not permitted to use or access any information or content on our Application. If you breach this provision, Todays Stash will hold you fully responsible for any loss that we may sustain and hold you accountable for all loss, cost and damages from such a breach.
                         </p>
                     </section>
 
@@ -272,10 +272,10 @@ export default function TermsAndConditionsPage() {
                             12. Limitation of Liability
                         </h2>
                         <p className="mt-3">
-                            Todays Stash Pty Ltd&apos;s total liability arising out of or in connection with the Services or these Terms, however arising, including under contract, tort (including negligence), in equity, under statute or otherwise, will not exceed the resupply of the Services to you.
+                            Todays Stash&apos;s total liability arising out of or in connection with the Services or these Terms, however arising, including under contract, tort (including negligence), in equity, under statute or otherwise, will not exceed the resupply of the Services to you.
                         </p>
                         <p className="mt-3">
-                            You expressly understand and agree that Todays Stash Pty Ltd, its affiliates, employees, agents, contributors and licensors shall not be liable to you for any direct, indirect, incidental, special consequential or exemplary damages which may be incurred by you, however caused and under any theory of liability. This shall include, but is not limited to, any loss of profit (whether incurred directly or indirectly), any loss of goodwill or business reputation and any other intangible loss.
+                            You expressly understand and agree that Todays Stash, its affiliates, employees, agents, contributors and licensors shall not be liable to you for any direct, indirect, incidental, special consequential or exemplary damages which may be incurred by you, however caused and under any theory of liability. This shall include, but is not limited to, any loss of profit (whether incurred directly or indirectly), any loss of goodwill or business reputation and any other intangible loss.
                         </p>
                     </section>
 
@@ -285,28 +285,28 @@ export default function TermsAndConditionsPage() {
                             13. Termination of Contract
                         </h2>
                         <p className="mt-3">
-                            You may terminate the Terms at any time by ceasing to use the Website and the Services. You may also request deletion of your Account by contacting Todays Stash Pty Ltd via the &apos;Contact Us&apos; link on our homepage.
+                            You may terminate the Terms at any time by ceasing to use the Website and the Services. You may also request deletion of your Account by contacting Todays Stash via the &apos;Contact Us&apos; link on our homepage.
                         </p>
-                        <p className="mt-3">Todays Stash Pty Ltd may at any time, terminate the Terms with you if:</p>
+                        <p className="mt-3">Todays Stash may at any time, terminate the Terms with you if:</p>
                         <ul className="mt-2 list-disc space-y-1 pl-5 text-white/70">
                             <li>You have breached any provision of the Terms or intend to breach any provision;</li>
-                            <li>Todays Stash Pty Ltd is required to do so by law;</li>
-                            <li>Todays Stash Pty Ltd is transitioning to no longer providing the Services to Members in the country in which you are resident or from which you use the service; or</li>
-                            <li>The provision of the Services to you by Todays Stash Pty Ltd is, in the opinion of Todays Stash Pty Ltd, no longer commercially viable;</li>
+                            <li>Todays Stash is required to do so by law;</li>
+                            <li>Todays Stash is transitioning to no longer providing the Services to Members in the country in which you are resident or from which you use the service; or</li>
+                            <li>The provision of the Services to you by Todays Stash is, in the opinion of Todays Stash, no longer commercially viable;</li>
                             <li>The user has engaged in repeated violations of these Terms or has been the subject of multiple complaints from other users or third parties.</li>
                         </ul>
                         <p className="mt-3">
-                            Subject to local applicable laws, Todays Stash Pty Ltd reserves the right to discontinue or cancel your membership at any time and may suspend or deny, in its sole discretion, your access to all or any portion of the Website or the Services without notice if you breach any provision of the Terms or any applicable law or if your conduct impacts Todays Stash Pty Ltd&apos;s name or reputation or violates the rights of those of another party.
+                            Subject to local applicable laws, Todays Stash reserves the right to discontinue or cancel your membership at any time and may suspend or deny, in its sole discretion, your access to all or any portion of the Website or the Services without notice if you breach any provision of the Terms or any applicable law or if your conduct impacts Todays Stash&apos;s name or reputation or violates the rights of those of another party.
                         </p>
 
                         <h3 className="mt-6 text-base font-semibold text-white/90">
                             Account Suspension for Repeated No-Shows
                         </h3>
                         <ul className="mt-2 list-disc space-y-1 pl-5 text-white/70">
-                            <li>If a Receiver accumulates three (3) or more No-Shows within any rolling 30-day period, Todays Stash Pty Ltd reserves the right to suspend or terminate the Receiver&apos;s Account without prior notice;</li>
-                            <li>Todays Stash Pty Ltd may, at its sole discretion, issue a warning to the Receiver after the first or second No-Show, but is under no obligation to do so;</li>
+                            <li>If a Receiver accumulates three (3) or more No-Shows within any rolling 30-day period, Todays Stash reserves the right to suspend or terminate the Receiver&apos;s Account without prior notice;</li>
+                            <li>Todays Stash may, at its sole discretion, issue a warning to the Receiver after the first or second No-Show, but is under no obligation to do so;</li>
                             <li>Receivers acknowledge that repeated No-Shows negatively impact Providers who allocate limited inventory to Reserved offers, and such conduct may constitute a breach of these Terms;</li>
-                            <li>Any suspension or termination under this clause does not affect Todays Stash Pty Ltd&apos;s right to pursue other remedies under these Terms or at law.</li>
+                            <li>Any suspension or termination under this clause does not affect Todays Stash&apos;s right to pursue other remedies under these Terms or at law.</li>
                         </ul>
                     </section>
 
@@ -316,7 +316,7 @@ export default function TermsAndConditionsPage() {
                             14. Indemnity
                         </h2>
                         <p className="mt-3">
-                            You agree to indemnify Todays Stash Pty Ltd, its affiliates, employees, agents, contributors, third party content providers and licensors from and against:
+                            You agree to indemnify Todays Stash, its affiliates, employees, agents, contributors, third party content providers and licensors from and against:
                         </p>
                         <ul className="mt-2 list-disc space-y-1 pl-5 text-white/70">
                             <li>All actions, suits, claims, demands, liabilities, costs, expenses, loss and damage (including legal fees on a full indemnity basis) incurred, suffered or arising out of or in connection with Your Content;</li>
@@ -359,7 +359,7 @@ export default function TermsAndConditionsPage() {
                             16. Venue and Jurisdiction
                         </h2>
                         <p className="mt-3">
-                            The Services offered by Todays Stash Pty Ltd are intended to be used by residents of Australia. In the event of any dispute arising out of or in relation to the Website, you agree that the exclusive venue for resolving any dispute shall be in the courts of Victoria, Australia.
+                            The Services offered by Todays Stash are intended to be used by residents of Australia. In the event of any dispute arising out of or in relation to the Website, you agree that the exclusive venue for resolving any dispute shall be in the courts of Victoria, Australia.
                         </p>
                     </section>
 
@@ -382,6 +382,10 @@ export default function TermsAndConditionsPage() {
                             If any part of these Terms is found to be void or unenforceable by a Court of competent jurisdiction, that part shall be severed and the rest of the Terms shall remain in force.
                         </p>
                     </section>
+
+                    <p className="pt-2 text-xs text-white/50">
+                        Last Updated 21/07/2026
+                    </p>
                 </div>
             </main>
         </div>

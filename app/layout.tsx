@@ -86,13 +86,6 @@ const jsonLd = {
       description:
         "Today's Stash connects locals with real, in-store deals from local businesses across Australia — redeemed via QR code, no app download needed.",
       foundingDate: "2024",
-      address: {
-        "@type": "PostalAddress",
-        streetAddress: "Level 19, 263 William Street",
-        addressLocality: "Melbourne",
-        addressRegion: "VIC",
-        addressCountry: "AU",
-      },
       contactPoint: {
         "@type": "ContactPoint",
         email: "adrian@todaysstash.com.au",
@@ -108,19 +101,6 @@ const jsonLd = {
       url: "https://todaysstash.com.au",
       description:
         "Local in-store deals and discounts from verified Australian businesses. Redeem with a simple QR code scan — no app required.",
-      address: {
-        "@type": "PostalAddress",
-        streetAddress: "Level 19, 263 William Street",
-        addressLocality: "Melbourne",
-        addressRegion: "VIC",
-        postalCode: "3000",
-        addressCountry: "AU",
-      },
-      geo: {
-        "@type": "GeoCoordinates",
-        latitude: -37.8136,
-        longitude: 144.9631,
-      },
       areaServed: {
         "@type": "Country",
         name: "Australia",
@@ -182,9 +162,6 @@ function Footer() {
             </p>
             <p className="text-xs text-white/60">
               Local deals, verified in-store with secure time-limited QR codes.
-            </p>
-            <p className="text-xs text-white/40 mt-1">
-              Level 19, 263 William St, Melbourne, Australia
             </p>
           </div>
 
